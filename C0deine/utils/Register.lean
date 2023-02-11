@@ -108,14 +108,20 @@ def quadRegisterString : Register → String
   | r14 => "%r14"
   | r15 => "%r15"
 
-instance : ToString (Register) where
-  toString := quadRegisterString
+instance : ToString (Register) where toString := quadRegisterString
 
 inductive Size
 | byte
 | word
 | double
 | quad
+
+def Size.toString : Size → String
+  | byte   => "b"
+  | word   => "w"
+  | double => "l"
+  | quad   => "q"
+instance : ToString Size where toString := Size.toString
 
 structure SizedRegister where
   size : Size
@@ -127,5 +133,6 @@ def SizedRegister.toString (sreg : SizedRegister) : String :=
   | .word => wordRegisterString sreg.register
   | .double => doubleRegisterString sreg.register
   | .quad => quadRegisterString sreg.register
+instance : ToString (SizedRegister) where toString := SizedRegister.toString
 
 end Register
