@@ -1,5 +1,6 @@
 import C0deine.Utils.Register
 import C0deine.Utils.Label
+import C0deine.Utils.Comparison
 
 namespace C0deine.X86
 
@@ -43,39 +44,22 @@ def Operand.toString : Operand → String
   | mem m   => s!"{m}"
 instance : ToString Operand where toString := Operand.toString
 
-inductive Comparator
-| less
-| greater
-| equal
-| not_equal
-| less_equal
-| greater_equal
-
-def Comparator.toString : Comparator → String
-  | less => "l"
-  | greater => "g"
-  | equal => "e"
-  | not_equal => "ne"
-  | less_equal => "le"
-  | greater_equal => "ge"
-instance : ToString Comparator where toString := Comparator.toString
-
 inductive Instr
 | label (lbl : Label)
 | directive (str : String)
 | comment (str : String)
-| mov (src : Operand) (dest : Operand) (size : Register.Size)
-| lea (src : Operand) (dest : Operand) (size : Register.Size)
-| add (src : Operand) (dest : Operand) (size : Register.Size)
-| sub (src : Operand) (dest : Operand) (size : Register.Size)
+| mov (src dest : Operand) (size : Register.Size)
+| lea (src dest : Operand) (size : Register.Size)
+| add (src dest : Operand) (size : Register.Size)
+| sub (src dest : Operand) (size : Register.Size)
 | imul (src : Operand) (size : Register.Size)
 | idiv (src : Operand) (size : Register.Size)
 | not (dest : Operand) (size : Register.Size)
-| and (src : Operand) (dest : Operand) (size : Register.Size)
-| xor (src : Operand) (dest : Operand) (size : Register.Size)
-| or (src : Operand) (dest : Operand) (size : Register.Size)
-| sal (src : Operand) (dest : Operand) (size : Register.Size)
-| sar (src : Operand) (dest : Operand) (size : Register.Size)
+| and (src dest : Operand) (size : Register.Size)
+| xor (src dest : Operand) (size : Register.Size)
+| or (src dest : Operand) (size : Register.Size)
+| sal (src dest : Operand) (size : Register.Size)
+| sar (src dest : Operand) (size : Register.Size)
 | cdq
 | cmp (lhs : Operand) (rhs : Operand) (size : Register.Size)
 | setcc (cc : Comparator) (dest : Operand)
