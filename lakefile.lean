@@ -13,3 +13,5 @@ lean_lib C0deine {
 lean_exe c0deine {
   root := `Main
 }
+
+require std from git "https://github.com/leanprover/std4" @ "main"
