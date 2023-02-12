@@ -1,8 +1,14 @@
+/-
+Outputted x86-64 assembly that should be executed by a linker
+
+Should be generated from the 2-address abstract assembly
+-/
+
 import C0deine.Utils.Register
 import C0deine.Utils.Label
 import C0deine.Utils.Comparison
 
-namespace C0deine.X86
+namespace C0deine.Target.X86
 
 def validMemoryScale : Nat → Prop
 | 1 | 2 | 4 | 8 => true
