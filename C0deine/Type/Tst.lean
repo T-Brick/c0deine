@@ -1,4 +1,9 @@
+/-
+  A Typed Syntax Tree, which is similar to the AST, but with expressions
+  having typed annotations. Types are dealiased in this representation.
+ -/
 import C0deine.Parser.Ast
+import C0deine.Utils.Comparison
 
 namespace C0deine.Tst
 
@@ -14,6 +19,7 @@ inductive Typ
 
 universe u
 
+-- todo: maybe we can restrict this to just be the types we want?
 structure Typed (α : Type u) where
   typ : Typ
   data : α
@@ -34,15 +40,13 @@ inductive UnOp
 inductive BinOp.Int
 | plus | minus | times | div | mod | and | xor | or | lsh | rsh
 
-inductive BinOp.Cmp
-| lt | le | gt | ge | eq | ne
 
 inductive BinOp.Bool
 | and | or
 
 inductive BinOp
 | int (op : BinOp.Int)
-| cmp (op : BinOp.Cmp)
+| cmp (op : Comparator)
 | bool (op : BinOp.Bool)
 
 inductive Expr

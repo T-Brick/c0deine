@@ -1,3 +1,7 @@
+/-
+  An abstract assembly that only supports 2-addresses, this makes
+  it quiet similar to x86-64 but without some of the extra details.
+-/
 import C0deine.Utils.Temp
 import C0deine.Utils.Register
 import C0deine.Utils.Label

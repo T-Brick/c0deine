@@ -1,3 +1,11 @@
+/-
+  Outputted WebAssembly (WASM). Importantly WASM is based on a
+  stack machine (not a register machine).
+
+  Currently only outputs the WAT format, which is a human readable
+  format based on sexp. To generate WASM bytecode, there is a
+  wat2wasm utility which will do so.
+-/
 import C0deine.Utils.Label
 import C0deine.Utils.Comparison
 

@@ -1,4 +1,6 @@
-
+/-
+  Basic comparisons that are used throughout the compiler.
+ -/
 namespace C0deine
 
 inductive Comparator

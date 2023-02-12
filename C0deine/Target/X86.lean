@@ -1,9 +1,8 @@
 /-
-Outputted x86-64 assembly that should be executed by a linker
+  Outputted x86-64 assembly that should be executed by a linker.
 
-Should be generated from the 2-address abstract assembly
+  Should be generated from the 2-address abstract assembly.
 -/
-
 import C0deine.Utils.Register
 import C0deine.Utils.Label
 import C0deine.Utils.Comparison
