@@ -116,7 +116,7 @@ inductive Instr
 | loop (lbl : Label) (body : List Instr)
 | br (branch : Instr.Branch)
 | br_if (branch : Instr.Branch)
-| wasm_return
+| «return»
 | call (lbl : Label)
 | drop
 | select
@@ -143,7 +143,7 @@ partial def Instr.toListStrings : Instr → List String
     s!"(loop ${lbl}" :: body_strs |>.concat ")"
   | br branch => [s!"br {branch}"]
   | br_if branch => [s!"br_if {branch}"]
-  | wasm_return => [s!"return"]
+  | «return» => [s!"return"]
   | call lbl => [s!"call ${lbl}"]
   | drop => [s!"drop"]
   | select => [s!"select"]
