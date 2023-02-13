@@ -11,7 +11,7 @@ mutual
 inductive Typ
 | prim (prim : Typ.Primitive)
 | mem (mem : Typ.Memory)
-| void
+| void_star
 | alias (sym : Symbol)
 deriving Inhabited, Hashable
 
@@ -38,7 +38,7 @@ def Memory.toString : Typ.Memory → String
 def toString : Typ → String
   | .prim (prim : Typ.Primitive) => Typ.Primitive.toString prim
   | .mem (mem : Typ.Memory) => Typ.Memory.toString mem
-  | .void => "void"
+  | .void_star => "void *"
   | .alias (sym : Symbol) => s!"{sym}"
 end
 
@@ -46,7 +46,7 @@ instance : ToString Typ.Memory where toString := Typ.Memory.toString
 instance : ToString Typ where toString := Typ.toString
 
 mutual
-def Typ.Memory.deq (a b : Typ.Memory) : Decidable (a = b) :=
+def Memory.deq (a b : Typ.Memory) : Decidable (a = b) :=
   match a, b with
   | .struct s1, .struct s2 =>
     match decEq s1 s2 with
@@ -63,7 +63,7 @@ def Typ.Memory.deq (a b : Typ.Memory) : Decidable (a = b) :=
   | _, _ => sorry
     -- isFalse <| _
 
-def Typ.deq (a b : Typ) : Decidable (a = b) :=
+def deq (a b : Typ) : Decidable (a = b) :=
   match a, b with
   | .prim p1, .prim p2 =>
     match decEq p1 p2 with
@@ -73,8 +73,8 @@ def Typ.deq (a b : Typ) : Decidable (a = b) :=
     match Typ.Memory.deq m1 m2 with
     | isTrue h  => isTrue  <| h ▸ rfl
     | isFalse h => isFalse <| fun h' => by simp at h'; apply h h'
-  | .void, .void =>
-    isTrue <| Eq.refl Typ.void
+  | .void_star, .void_star =>
+    isTrue <| Eq.refl Typ.void_star
   | .alias s1, .alias s2 =>
     match decEq s1 s2 with
     | isTrue h  => isTrue  <| h ▸ rfl
@@ -94,7 +94,7 @@ inductive Reduced : Typ → Prop where
 | prim_int_reduced : Reduced (Typ.prim Typ.Primitive.int)
 | prim_bool_reduced : Reduced (Typ.prim Typ.Primitive.bool)
 | mem_reduced : ∀ m, Memory.Reduced m → Reduced (Typ.mem m)
-| void_reduced : Reduced Typ.void
+| void_reduced : Reduced Typ.void_star
 
 inductive Memory.Reduced : Memory → Prop where
 | pointer_reduced : ∀ t, Reduced t → Memory.Reduced (Typ.Memory.pointer t)
@@ -108,7 +108,6 @@ theorem Reduced.not_alias : ∀ s, ¬ Reduced (Typ.alias s) :=
 def isScalar : Typ → Bool
   | .prim .int => true
   | .prim .bool => true
-  | .void => true
   | _ => false
 
 def isSmall : Typ → Bool
@@ -121,4 +120,7 @@ def sizeof : Typ → Option Nat
   | .mem (.pointer _) => some 8
   | .mem (.array _) => some 8
   | .mem (.struct _) => none
+  | .void_star => some 8
   | _ => none
+
+end Typ
