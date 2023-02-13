@@ -4,19 +4,11 @@
  -/
 import C0deine.Utils.Symbol
 import C0deine.Utils.Comparison
+import C0deine.Type.Typ
 
 namespace C0deine.Tst
 
-inductive Typ
-| int
-| bool
-| void
-| ptr : Typ → Typ
-| arr : Typ → Typ
-| struct (name : Symbol)
-
 universe u
-
 -- todo: maybe we can restrict this to just be the types we want?
 structure Typed (α : Type u) where
   typ : Typ
