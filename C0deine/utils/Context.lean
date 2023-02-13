@@ -1,11 +1,15 @@
+import Std
 import C0deine.Utils.Temp
 import C0deine.Utils.Label
+import C0deine.Utils.Symbol
 
 namespace C0deine
 
 structure Context.State where
   nextTemp : Temp
   nextLabel : Label
+  nextSymbolId : Nat
+  symbolCache : Std.HashMap String Symbol
 
 def Context := StateM Context.State
 
@@ -24,4 +28,19 @@ def fresh : Context Label :=
   fun s => (s.nextLabel, {s with nextLabel := (show Nat from s.nextLabel) + 1})
 
 end Label
+
+namespace Symbol
+
+def symbol (name : String) : Context Symbol :=
+  fun s =>
+    match s.symbolCache.find? name with
+    | some sym => (sym, s)
+    | none =>
+      let id := s.nextSymbolId
+      let sym : Symbol := ⟨name, id⟩
+      (sym, {s with nextSymbolId := s.nextSymbolId + 1
+                    symbolCache  := s.symbolCache.insert name sym
+      })
+
+end Symbol
 
