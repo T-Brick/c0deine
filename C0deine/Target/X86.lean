@@ -97,13 +97,13 @@ def Instr.toString : Instr → String
       s!"\timul{size}\t\t{src}"
   | idiv (src : Operand) (size : Register.Size) =>
       s!"\tidiv{size}\t\t{src}"
-  | not (dest : Operand) (size : Register.Size) =>
+  | not (dest : Operand) (_size : Register.Size) =>
       s!"\tnot\t\t{dest}"
-  | and (src : Operand) (dest : Operand) (size : Register.Size) =>
+  | and (src : Operand) (dest : Operand) (_size : Register.Size) =>
       Instr.binopToString s!"and" src dest
-  | xor (src : Operand) (dest : Operand) (size : Register.Size) =>
+  | xor (src : Operand) (dest : Operand) (_size : Register.Size) =>
       Instr.binopToString s!"xor" src dest
-  | or (src : Operand) (dest : Operand) (size : Register.Size) =>
+  | or (src : Operand) (dest : Operand) (_size : Register.Size) =>
       Instr.binopToString s!"or" src dest
   | sal (src : Operand) (dest : Operand) (size : Register.Size) =>
       Instr.binopToString s!"sal{size}" src dest

@@ -2,14 +2,16 @@ import Std
 import C0deine.Utils.Temp
 import C0deine.Utils.Label
 import C0deine.Utils.Symbol
+import C0deine.Type.Typ
 
 namespace C0deine
 
 structure Context.State where
   nextTemp : Temp
   nextLabel : Label
-  nextSymbolId : Nat
+  nextSymbolId : UInt64
   symbolCache : Std.HashMap String Symbol
+  typeAlias : Std.HashMap Typ Unit
 
 def Context := StateM Context.State
 
