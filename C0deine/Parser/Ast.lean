@@ -1,7 +1,9 @@
+import C0deine.Utils.Symbol
 
 namespace C0deine.Ast
 
-def Ident := String
+def Ident := Symbol
+deriving ToString
 
 inductive Typ
 | int
@@ -10,7 +12,7 @@ inductive Typ
 | tydef (name : Ident)
 | ptr : Typ → Typ
 | arr : Typ → Typ
-| struct (name : Ident) 
+| struct (name : Ident)
 
 inductive LValue
 | var (name : Ident)
@@ -76,8 +78,8 @@ inductive Simp
 | exp (e : Expr)
 
 inductive Stmt
-| simp : Simp → Stmt 
-| ctrl : Control → Stmt 
+| simp : Simp → Stmt
+| ctrl : Control → Stmt
 | block : List Stmt → Stmt
 end
 
@@ -112,10 +114,10 @@ structure FDecl where
   params : List Param
 
 inductive GDecl
-| fdecl : FDecl → GDecl 
+| fdecl : FDecl → GDecl
 | fdef  : FDef  → GDecl
 | tydef : TyDef → GDecl
 | sdecl : SDecl → GDecl
-| sdef  : SDef  → GDecl 
+| sdef  : SDef  → GDecl
 
 def Prog := List GDecl
