@@ -11,14 +11,8 @@ namespace C0deine.Tst
 universe u
 -- todo: maybe we can restrict this to just be the types we want?
 structure Typed (α : Type u) where
-  typ : Typ
+  typ : Typ.Check
   data : α
-
-inductive LValue
-| var (name : Symbol)
-| dot (lv : Typed LValue) (field : Symbol)
-| deref (lv : Typed LValue)
-| index (lv : Typed LValue) (index : Typed Expr)
 
 inductive UnOp.Int | neg | not
 inductive UnOp.Bool | neg
@@ -45,13 +39,19 @@ inductive Expr
 | null
 | unop (op : UnOp) (e : Typed Expr)
 | binop (op : BinOp) (l r : Typed Expr)
-| ternop (cond : Typed Expr) (tt : Typed Expr) (ff : Typed Expr)
+| ternop (cond tt ff : Typed Expr)
 | app (f : Symbol) (args : List (Typed Expr))
 | alloc (ty : Typ)
 | alloc_array (ty : Typ) (e : Typed Expr)
 | dot (e : Typed Expr) (field : Symbol)
 | deref (e : Typed Expr)
 | index (e : Typed Expr) (index : Typed Expr)
+
+inductive LValue
+| var (name : Symbol)
+| dot (lv : Typed LValue) (field : Symbol)
+| deref (lv : Typed LValue)
+| index (lv : Typed LValue) (index : Typed Expr)
 
 inductive Stmt
 | decl (name : Typed Symbol) (body : List Stmt)
@@ -70,7 +70,7 @@ structure FDef where
   type : Typ
   name : Symbol
   params : List (Typed Symbol)
-  body : Stmt
+  body : List Stmt
 
 structure FDecl where
   type : Typ

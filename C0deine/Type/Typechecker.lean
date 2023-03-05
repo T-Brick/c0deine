@@ -41,6 +41,19 @@ structure GlobalCtx where
   symbols : SymbolTable
   structs : StructTable
 
+-- joins two contexts together, assuming non-variables are the same
+def FuncCtx.join (ctx1 ctx2 : FuncCtx) : FuncCtx :=
+  let returns := ctx1.returns && ctx2.returns
+  let intersect :=
+    fun var status =>
+      match status, ctx2.symbols.find? var with
+      | .var v1, some (.var v2) =>
+        some (.var ⟨v1.type, v1.initialised && v2.initialised⟩)
+      | _, none => none
+      | _, _    => some status
+  let symbols := ctx1.symbols.filterMap intersect
+  ⟨symbols, ctx1.structs, ctx1.ret_type, returns⟩
+
 
 def Trans.type (ctx : FuncCtx) : Ast.Typ → Option Typ
   | .int => some <| Typ.prim (Typ.Primitive.int)
@@ -50,7 +63,6 @@ def Trans.type (ctx : FuncCtx) : Ast.Typ → Option Typ
     match ctx.symbols.find? name with
     | some (.alias tau) => some tau
     | _ => none
-  | .ptr (.void) => some Typ.void_star
   | .ptr (tau : Ast.Typ) =>
     Trans.type ctx tau |>.map (Typ.mem ∘ Typ.Memory.pointer)
   | .arr (tau : Ast.Typ) =>
@@ -68,15 +80,14 @@ def Trans.binop : Ast.BinOp → Tst.BinOp
   | .int .or    => .int .or
   | .int .lsh   => .int .lsh
   | .int .rsh   => .int .rsh
-  | .cmp .lt    => .cmp .less
-  | .cmp .le    => .cmp .greater
-  | .cmp .gt    => .cmp .equal
-  | .cmp .ge    => .cmp .not_equal
-  | .cmp .eq    => .cmp .less_equal
-  | .cmp .ne    => .cmp .greater_equal
   | .bool .and  => .bool .and
   | .bool .or   => .bool .or
-
+  | .cmp .less          => .cmp .less
+  | .cmp .greater       => .cmp .greater
+  | .cmp .equal         => .cmp .equal
+  | .cmp .not_equal     => .cmp .not_equal
+  | .cmp .less_equal    => .cmp .less_equal
+  | .cmp .greater_equal => .cmp .greater_equal
 
 
 -- todo: we should prove that these actually do what we want
@@ -127,83 +138,102 @@ def Validate.func (ctx : FuncCtx)
   then throw s!"Function {name} must have small output type"
   else Validate.params ctx inputs
 
-def Synth.ExprResult := Except String (Tst.Typed Tst.Expr)
-
-def Synth.binop_type (expect : Typ)
-                     (lhs : Typ)
-                     (rhs : Typ)
-                     : Except String Typ := do
-  let check := fun ty =>
-    if expect = ty
-    then pure ty
-    else throw "Binary operator is not well-typed"
-  match lhs, rhs with
-  | .prim .int, .prim .int
-  | .prim .int, .any
-  | .any, .prim .int          => check (.prim .int)
-  | .prim .bool, .prim .bool
-  | .prim .bool, .any
-  | .any, .prim .bool         => check (.prim .bool)
-  | .any, .any                => pure expect
-  | _, _ => throw "Binary operator is not well-typed"
-
-def Synth.intersect_types (tau1 tau2 : Typ) : Except String Typ := do
+def Synth.intersect_types (tau1 tau2 : Typ.Check) : Except String Typ.Check := do
   match tau1, tau2 with
   | .any, _  => return tau2
   | _ , .any => return tau1
-  | .prim .int, .prim .int
-  | .prim .bool, .prim .bool
-  | .void_star, .void_star   => return tau1
-  | .mem (.pointer tau1'), .mem (.pointer tau2')
-  | .mem (.array tau1'), .mem (.array tau2')     =>
-    Synth.intersect_types tau1' tau2'
-  | .mem (.struct s1), .mem (.struct s2) =>
+  | .type (.prim .int), .type (.prim .int)
+  | .type (.prim .bool), .type (.prim .bool)
+  | .void, .void   => return tau1
+  | .type (.mem (.pointer tau1')), .type (.mem (.pointer tau2'))
+  | .type (.mem (.array tau1')), .type (.mem (.array tau2'))     =>
+    Synth.intersect_types (.type tau1') (.type tau2')
+  | .type (.mem (.struct s1)), .type (.mem (.struct s2)) =>
     if s1 = s2
     then return tau1
     else throw "Cannot intersect incompatible types"
   | _, _ => throw "Cannot intersect incompatible types"
 
-mutual
-def Synth.expr (ctx : FuncCtx) (e : Ast.Expr) : Synth.ExprResult := do
-  match e with
-  | .num n             => return ⟨.prim (.int), .num n⟩
-  | .«true»            => return ⟨.prim (.bool), .«true»⟩
-  | .«false»           => return ⟨.prim (.bool), .«false»⟩
-  | .null              => return ⟨.mem (.pointer .any), .null⟩
-  | .unop op e         => Synth.unop ctx op e
-  | .binop op l r      => Synth.binop ctx op l r
-  | .ternop cond tt ff => Synth.ternop ctx cond tt ff
-  | .app f args        => Synth.app ctx f args
-  | .alloc ty          => Synth.alloc ctx ty
-  | .alloc_array ty e  => Synth.alloc_array ctx ty e
-  | .var name          => Synth.var ctx name
-  | .dot e field       => Synth.dot ctx e field
-  | .arrow e field     => Synth.arrow ctx e field
-  | .deref e           => Synth.deref ctx e
-  | .index e index     => Synth.index ctx e index
+namespace Synth.Expr
 
-def Synth.unop (ctx : FuncCtx)
+def Result := Except String (Tst.Typed Tst.Expr)
+deriving Inhabited
+
+def binop_type (expect : Typ)
+                     (lhs : Typ.Check)
+                     (rhs : Typ.Check)
+                     : Except String Typ := do
+  let check := fun (ty : Typ) =>
+    if expect = ty
+    then pure ty
+    else throw "Binary operator is not well-typed"
+  match lhs, rhs with
+  | .type (.prim .int), .type (.prim .int)
+  | .type (.prim .int), .any
+  | .any, .type (.prim .int)  => check (.prim .int)
+  | .type (.prim .bool), .type (.prim .bool)
+  | .type (.prim .bool), .any
+  | .any, .type (.prim .bool) => check (.prim .bool)
+  | .any, .any                => pure expect
+  | _, _ => throw "Binary operator is not well-typed"
+
+mutual
+partial def nonvoid (ctx : FuncCtx) (e : Ast.Expr) : Result := do
+  let res ← expr ctx e
+  match res.typ with
+  | .void => throw "Expression cannot be void"
+  | _ => return res
+
+partial def small (ctx : FuncCtx) (e : Ast.Expr) : Result := do
+   let res ← expr (ctx : FuncCtx) (e : Ast.Expr)
+   if res.typ.isSmall then return res
+   else throw "Expression has large type"
+
+partial def small_nonvoid (ctx : FuncCtx) (e : Ast.Expr) : Result := do
+   let res ← nonvoid (ctx : FuncCtx) (e : Ast.Expr)
+   if res.typ.isSmall then return res
+   else throw "Expression has large type"
+
+partial def expr (ctx : FuncCtx) (e : Ast.Expr) : Result := do
+  match e with
+  | .num n             => return ⟨.type (.prim (.int)), .num n⟩
+  | .«true»            => return ⟨.type (.prim (.bool)), .«true»⟩
+  | .«false»           => return ⟨.type (.prim (.bool)), .«false»⟩
+  | .null              => return ⟨.any, .null⟩
+  | .unop op e         => unop ctx op e
+  | .binop op l r      => binop ctx op l r
+  | .ternop cond tt ff => ternop ctx cond tt ff
+  | .app f args        => app ctx f args
+  | .alloc ty          => alloc ctx ty
+  | .alloc_array ty e  => alloc_array ctx ty e
+  | .var name          => var ctx name
+  | .dot e field       => dot ctx e field
+  | .arrow e field     => arrow ctx e field
+  | .deref e           => deref ctx e
+  | .index e indx     => index ctx e indx
+
+partial def unop (ctx : FuncCtx)
                (op : Ast.UnOp)
                (e : Ast.Expr)
-               : Synth.ExprResult := do
-  let te ← Synth.expr ctx e
+               : Result := do
+  let te ← small_nonvoid ctx e
   let (op', tau) ←
     match op, te.typ with
-    | .int .neg, .prim .int
-    | .int .neg, .any         => pure (.int .neg, .prim .int)
-    | .int .not, .prim .int
-    | .int .not, .any         => pure (.int .not, .prim .int)
-    | .bool .neg, .prim .bool
-    | .bool .neg, .any        => pure (.bool .neg, .prim .bool)
+    | .int .neg, .type (.prim .int)
+    | .int .neg, .any         => pure (.int .neg, .type (.prim .int))
+    | .int .not, .type (.prim .int)
+    | .int .not, .any         => pure (.int .not, .type (.prim .int))
+    | .bool .neg, .type (.prim .bool)
+    | .bool .neg, .any        => pure (.bool .neg, .type (.prim .bool))
     | _, _ => throw "Unary operator is not well-typed"
   return ⟨tau, .unop op' te⟩
 
-def Synth.binop (ctx : FuncCtx)
+partial def binop (ctx : FuncCtx)
                 (op : Ast.BinOp)
                 (l r : Ast.Expr)
-                : Synth.ExprResult := do
-  let l' ← Synth.expr ctx l
-  let r' ← Synth.expr ctx r
+                : Result := do
+  let l' ← small_nonvoid ctx l
+  let r' ← small_nonvoid ctx r
   let tau ←
     match op with
     | .int .plus
@@ -215,124 +245,230 @@ def Synth.binop (ctx : FuncCtx)
     | .int .xor
     | .int .or
     | .int .lsh
-    | .int .rsh   => Synth.binop_type (.prim .int) l'.typ r'.typ
+    | .int .rsh   => binop_type (.prim .int) l'.typ r'.typ
     | .bool .and
     | .bool .or
-    | .cmp .lt
-    | .cmp .le
-    | .cmp .gt
-    | .cmp .ge    => Synth.binop_type (.prim .bool) l'.typ r'.typ
-    | .cmp .eq
-    | .cmp .ne    =>
+    | .cmp .less
+    | .cmp .greater
+    | .cmp .equal
+    | .cmp .not_equal     => binop_type (.prim .bool) l'.typ r'.typ
+    | .cmp .less_equal
+    | .cmp .greater_equal =>
       if l'.typ = r'.typ
       then pure (.prim .bool)
       else throw "Binary operator is not well-typed"
-  return ⟨tau, .binop (Trans.binop op) l' r'⟩
+  return ⟨.type tau, .binop (Trans.binop op) l' r'⟩
 
-def Synth.ternop (ctx : FuncCtx) (c tt ff : Ast.Expr) : Synth.ExprResult := do
-  let c' ← Synth.expr ctx c
-  let tt' ← Synth.expr ctx tt
-  let ff' ← Synth.expr ctx ff
-  if c'.typ ≠ .prim .bool
+partial def ternop (ctx : FuncCtx) (c tt ff : Ast.Expr) : Result := do
+  let c' ← small_nonvoid ctx c
+  let tt' ← small_nonvoid ctx tt
+  let ff' ← small_nonvoid ctx ff
+  if c'.typ ≠ .type (.prim .bool)
   then throw "Ternary condition must be a bool"
   else
     let tau ← Synth.intersect_types tt'.typ ff'.typ
     return ⟨tau, .ternop c' tt' ff'⟩
 
-def Synth.app (ctx : FuncCtx)
+partial def app (ctx : FuncCtx)
               (f : Ast.Ident)
               (args : List Ast.Expr)
-              : Synth.ExprResult := do
+              : Result := do
   match ctx.symbols.find? f with
   | some (.func status) =>
-    let args' ← args.mapM (Synth.expr ctx)
+    let args' ← args.mapM (small_nonvoid ctx)
     let arg_types := args'.map (fun arg => arg.typ)
     let ret_type := -- return unit (i.e. void_star) if there's no return type
       match status.type.ret with
-      | some tau => tau
-      | none => .void_star
-    if arg_types == status.type.args
+      | some tau => .type tau
+      | none => .void
+    if arg_types.length = status.type.args.length
+    && (List.zip arg_types status.type.args
+        |>.all fun (a, b) => Typ.Check.equiv a (.type b))
     then return ⟨ret_type, .app f args'⟩
     else throw "Function argument types don't match"
   | _ => throw "Cannot apply to a non-function type"
 
-def Synth.alloc (ctx : FuncCtx) (tau : Ast.Typ) : Synth.ExprResult := do
+partial def alloc (ctx : FuncCtx) (tau : Ast.Typ) : Result := do
   let opt_tau' := Trans.type ctx tau
   match opt_tau' with
-  | some tau' => return ⟨.mem (.pointer tau'), .alloc tau'⟩
+  | some tau' => return ⟨.type (.mem (.pointer tau')), .alloc tau'⟩
   | none      => throw s!"Invalid allocation type"
 
-def Synth.alloc_array (ctx : FuncCtx)
+partial def alloc_array (ctx : FuncCtx)
                       (tau : Ast.Typ)
                       (e : Ast.Expr)
-                      : Synth.ExprResult := do
+                      : Result := do
   let opt_tau' := Trans.type ctx tau
-  let e' ← Synth.expr ctx e
+  let e' ← small_nonvoid ctx e
   match opt_tau', e'.typ with
   | none, _ => throw s!"Invalid array type"
-  | some tau', .prim .int => return ⟨.mem (.array tau'), .alloc_array tau' e'⟩
+  | some tau', .type (.prim .int) =>
+    return ⟨.type (.mem (.array tau')), .alloc_array tau' e'⟩
   | _, _ => throw "Array length must be an integer"
 
-def Synth.var (ctx : FuncCtx) (var : Ast.Ident) : Synth.ExprResult := do
+partial def var (ctx : FuncCtx) (var : Ast.Ident) : Result := do
   match ctx.symbols.find? var with
   | some (.var status) =>
     if status.initialised
-    then return ⟨status.type, .var var⟩
+    then return ⟨.type status.type, .var var⟩
     else throw s!"Variable {var} not initialised"
   | _ => throw s!"Variable {var} not declared"
 
-def Synth.dot (ctx : FuncCtx)
+partial def dot (ctx : FuncCtx)
               (e : Ast.Expr)
               (field : Ast.Ident)
-              : Synth.ExprResult := do
-  let e' ← Synth.expr ctx e
+              : Result := do
+  let e' ← expr ctx e
   match e'.typ with
-  | .mem (.pointer <| .mem (.struct name)) =>
+  | .type (.mem (.pointer <| .mem (.struct name))) =>
     match ctx.structs.find? name with
     | some status =>
       if ¬status.defined
       then throw s!"Struct {name} is not defined"
       else
         match status.fields.find? field with
-        | some tau => return ⟨tau, .dot e' field⟩
+        | some tau => return ⟨.type tau, .dot e' field⟩
         | none => throw s!"Invalid field {field}}"
     | none => throw s!"Struct {name} is not defined"
   | _ => throw s!"Arrow operator must be used on a struct pointer"
 
-def Synth.arrow (ctx : FuncCtx)
+partial def arrow (ctx : FuncCtx)
                 (e : Ast.Expr)
                 (field : Ast.Ident)
-                : Synth.ExprResult := do
-  let e' ← Synth.expr ctx e
+                : Result := do
+  let e' ← nonvoid ctx e
   match e'.typ with
-  | .mem (.struct name) =>
+  | .type (.mem (.struct name)) =>
     match ctx.structs.find? name with
     | some status =>
       if ¬status.defined
       then throw s!"Struct {name} is not defined"
       else
         match status.fields.find? field with
-        | some tau => return ⟨tau, .dot e' field⟩
+        | some tau => return ⟨.type tau, .dot e' field⟩
         | none => throw s!"Invalid field {field}}"
     | none => throw s!"Struct {name} is not defined"
   | _ => throw s!"Field accessor can only operate on a struct"
 
-def Synth.deref (ctx : FuncCtx) (e : Ast.Expr) : Synth.ExprResult := do
-  let e' ← Synth.expr ctx e
+partial def deref (ctx : FuncCtx) (e : Ast.Expr) : Result := do
+  let e' ← small ctx e
   match e'.typ with
-  | .mem (.pointer .any) => throw "Cannot dereference a null pointer/function"
-  | .mem (.pointer tau)  => return ⟨tau, .deref e'⟩
+  | .any => throw "Cannot dereference a null pointer/function"
+  | .type (.mem (.pointer tau))  => return ⟨.type tau, .deref e'⟩
   | _ => throw "Cannot dereference a non-pointer type"
 
-def Synth.index (ctx : FuncCtx)
+partial def index (ctx : FuncCtx)
                 (arr : Ast.Expr)
                 (index : Ast.Expr)
-                : Synth.ExprResult := do
-  let arr' ← Synth.expr ctx arr
-  let index' ← Synth.expr ctx index
+                : Result := do
+  let arr' ← small_nonvoid ctx arr
+  let index' ← small_nonvoid ctx index
   match arr'.typ, index'.typ with
-  | .mem (.array tau), .prim .int => return ⟨tau, .index arr' index'⟩
-  | .mem (.array tau), _ => throw "Array indices must be integers"
+  | .type (.mem (.array tau)), .type (.prim .int) =>
+    return ⟨.type tau, .index arr' index'⟩
+  | .type (.mem (.array _tau)), _ => throw "Array indices must be integers"
   | _, _ => throw "Indexing can only be done on array types"
-
 end
+
+end Synth.Expr
+
+namespace Synth.LValue
+
+def Result := Except String (Tst.Typed Tst.LValue)
+deriving Inhabited
+
+mutual
+def lvalue (ctx : FuncCtx) (lv : Ast.LValue) : Result := do
+  match lv with
+  | .var name => var ctx name
+  | .dot lv field => dot ctx lv field
+  | .arrow lv field => arrow ctx lv field
+  | .deref lv => deref ctx lv
+  | .index lv indx => index ctx lv indx
+
+def var (ctx : FuncCtx) (var : Symbol) : Result := do
+  match ctx.symbols.find? var with
+  | some (.var status) =>
+    if status.initialised
+    then return ⟨.type status.type, .var var⟩
+    else throw s!"Variable {var} not initialised"
+  | _ => throw s!"Variable {var} not declared"
+
+def dot (ctx : FuncCtx) (lv : Ast.LValue) (field : Symbol) : Result := do
+  let lv' ← lvalue ctx lv
+  match lv'.typ with
+  | .type (.mem (.pointer <| .mem (.struct name))) =>
+    match ctx.structs.find? name with
+    | some status =>
+      if ¬status.defined
+      then throw s!"Struct {name} is not defined"
+      else
+        match status.fields.find? field with
+        | some tau => return ⟨.type tau, .dot lv' field⟩
+        | none => throw s!"Invalid field {field}}"
+    | none => throw s!"Struct {name} is not defined"
+  | _ => throw s!"Arrow operator must be used on a struct pointer"
+
+def arrow (ctx : FuncCtx)
+                (e : Ast.LValue)
+                (field : Ast.Ident)
+                : Result := do
+  let e' ← lvalue ctx e
+  match e'.typ with
+  | .type (.mem (.struct name)) =>
+    match ctx.structs.find? name with
+    | some status =>
+      if ¬status.defined
+      then throw s!"Struct {name} is not defined"
+      else
+        match status.fields.find? field with
+        | some tau => return ⟨.type tau, .dot e' field⟩
+        | none => throw s!"Invalid field {field}}"
+    | none => throw s!"Struct {name} is not defined"
+  | _ => throw s!"Field accessor can only operate on a struct"
+
+def deref (ctx : FuncCtx) (e : Ast.LValue) : Result := do
+  let e' ← lvalue ctx e
+  match e'.typ with
+  | .type (.mem (.pointer tau))  => return ⟨.type tau, .deref e'⟩
+  | _ => throw "Cannot dereference a non-pointer type"
+
+def index (ctx : FuncCtx)
+                (arr : Ast.LValue)
+                (index : Ast.Expr)
+                : Result := do
+  let arr' ← lvalue ctx arr
+  let index' ← Synth.Expr.small_nonvoid ctx index
+  match arr'.typ, index'.typ with
+  | .type (.mem (.array tau)), .type (.prim .int) =>
+    return ⟨.type tau, .index arr' index'⟩
+  | .type (.mem (.array _tau)), _ => throw "Array indices must be integers"
+  | _, _ => throw "Indexing can only be done on array types"
+end
+
+def small (ctx : FuncCtx) (lv : Ast.LValue) : Result := do
+  let res ← lvalue ctx lv
+  if res.typ.isSmall
+  then return res
+  else throw "Expression has large type"
+
+end Synth.LValue
+
+
+namespace Stmt
+
+def Result := Except String (FuncCtx × Tst.Typed Tst.Stmt)
+deriving Inhabited
+
+def stmt (ctx : FuncCtx) (s : Ast.Stmt) : Result :=
+  match s with
+  | .decl type name body => sorry
+  | .assn lv op e => sorry
+  | .ite cond tt ff => sorry
+  | .while cond body => sorry
+  | .«return» eOpt => sorry
+  | .assert e => sorry
+  | .exp e => sorry
+
+end Stmt
+

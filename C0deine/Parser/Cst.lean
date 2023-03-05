@@ -1,5 +1,4 @@
 import C0deine.Utils.Symbol
-import C0deine.Utils.Comparison
 
 namespace C0deine.Ast
 
@@ -24,16 +23,22 @@ inductive UnOp
 inductive BinOp.Int
 | plus | minus | times | div | mod | and | xor | or | lsh | rsh
 
+inductive BinOp.Cmp
+| lt | le | gt | ge | eq | ne
+
 inductive BinOp.Bool
 | and | or
 
 inductive BinOp
 | int (op : BinOp.Int)
-| cmp (op : Comparator)
+| cmp (op : BinOp.Cmp)
 | bool (op : BinOp.Bool)
 
 inductive AsnOp
 | eq | aseq (op : BinOp.Int)
+
+inductive PostOp
+| incr | decr
 
 inductive Expr
 | num (v : UInt32)
@@ -58,14 +63,25 @@ inductive LValue
 | deref (lv : LValue)
 | index (lv : LValue) (index : Expr)
 
-inductive Stmt
-| decl (type : Typ) (name : Ident) (body : List Stmt)
-| assn (lv : LValue) (op : AsnOp) (v : Expr)
+mutual
+inductive Control
 | ite (cond : Expr) (tt : Stmt) (ff : Stmt)
 | while (cond : Expr) (body : Stmt)
+| «for» (init : Simp) (cond : Expr) (step : Simp)
 | «return» (e : Option Expr)
 | assert (e : Expr)
+
+inductive Simp
+| assn (lv : LValue) (op : AsnOp) (v : Expr)
+| post (lv : LValue) (op : PostOp)
+| decl (type : Typ) (name : Ident)
 | exp (e : Expr)
+
+inductive Stmt
+| simp : Simp → Stmt
+| ctrl : Control → Stmt
+| block : List Stmt → Stmt
+end
 
 structure Field where
   type : Typ
