@@ -74,7 +74,7 @@ inductive Control
 inductive Simp
 | assn (lv : LValue) (op : AsnOp) (v : Expr)
 | post (lv : LValue) (op : PostOp)
-| decl (type : Typ) (name : Ident)
+| decl (type : Typ) (name : Ident) (init : Option Expr)
 | exp (e : Expr)
 
 inductive Stmt

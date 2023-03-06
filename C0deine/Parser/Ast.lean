@@ -59,10 +59,10 @@ inductive LValue
 | index (lv : LValue) (index : Expr)
 
 inductive Stmt
-| decl (type : Typ) (name : Ident) (body : List Stmt)
+| decl (type : Typ) (name : Ident) (init : Option Expr) (body : List Stmt)
 | assn (lv : LValue) (op : AsnOp) (v : Expr)
 | ite (cond : Expr) (tt : Stmt) (ff : Stmt)
-| while (cond : Expr) (body : Stmt)
+| while (cond : Expr) (body : List Stmt)
 | «return» (e : Option Expr)
 | assert (e : Expr)
 | exp (e : Expr)

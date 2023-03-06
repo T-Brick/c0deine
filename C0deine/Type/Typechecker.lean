@@ -69,26 +69,28 @@ def Trans.type (ctx : FuncCtx) : Ast.Typ → Option Typ
     Trans.type ctx tau |>.map (Typ.mem ∘ Typ.Memory.array)
   | .struct name => some <| Typ.mem (Typ.Memory.struct name)
 
+def Trans.int_binop : Ast.BinOp.Int → Tst.BinOp.Int
+  | .plus  => .plus
+  | .minus => .minus
+  | .times => .times
+  | .div   => .div
+  | .mod   => .mod
+  | .and   => .and
+  | .xor   => .xor
+  | .or    => .or
+  | .lsh   => .lsh
+  | .rsh   => .rsh
+
 def Trans.binop : Ast.BinOp → Tst.BinOp
-  | .int .plus  => .int .plus
-  | .int .minus => .int .minus
-  | .int .times => .int .times
-  | .int .div   => .int .div
-  | .int .mod   => .int .mod
-  | .int .and   => .int .and
-  | .int .xor   => .int .xor
-  | .int .or    => .int .or
-  | .int .lsh   => .int .lsh
-  | .int .rsh   => .int .rsh
-  | .bool .and  => .bool .and
-  | .bool .or   => .bool .or
+  | .int op             => .int (Trans.int_binop op)
+  | .bool .and          => .bool .and
+  | .bool .or           => .bool .or
   | .cmp .less          => .cmp .less
   | .cmp .greater       => .cmp .greater
   | .cmp .equal         => .cmp .equal
   | .cmp .not_equal     => .cmp .not_equal
   | .cmp .less_equal    => .cmp .less_equal
   | .cmp .greater_equal => .cmp .greater_equal
-
 
 -- todo: we should prove that these actually do what we want
 def Validate.var (ctx : FuncCtx)
@@ -177,23 +179,23 @@ def binop_type (expect : Typ)
   | .any, .any                => pure expect
   | _, _ => throw "Binary operator is not well-typed"
 
-mutual
-partial def nonvoid (ctx : FuncCtx) (e : Ast.Expr) : Result := do
-  let res ← expr ctx e
-  match res.typ with
+def nonvoid (res : Result) : Result := do
+  let v ← res
+  match v.typ with
   | .void => throw "Expression cannot be void"
-  | _ => return res
+  | _ => return v
 
-partial def small (ctx : FuncCtx) (e : Ast.Expr) : Result := do
-   let res ← expr (ctx : FuncCtx) (e : Ast.Expr)
-   if res.typ.isSmall then return res
+def small (res : Result) : Result := do
+  let v ← res
+  if v.typ.isSmall then return v
+  else throw "Expression has large type"
+
+def small_nonvoid (res : Result) : Result := do
+   let v ← nonvoid res
+   if v.typ.isSmall then return v
    else throw "Expression has large type"
 
-partial def small_nonvoid (ctx : FuncCtx) (e : Ast.Expr) : Result := do
-   let res ← nonvoid (ctx : FuncCtx) (e : Ast.Expr)
-   if res.typ.isSmall then return res
-   else throw "Expression has large type"
-
+mutual
 partial def expr (ctx : FuncCtx) (e : Ast.Expr) : Result := do
   match e with
   | .num n             => return ⟨.type (.prim (.int)), .num n⟩
@@ -210,13 +212,13 @@ partial def expr (ctx : FuncCtx) (e : Ast.Expr) : Result := do
   | .dot e field       => dot ctx e field
   | .arrow e field     => arrow ctx e field
   | .deref e           => deref ctx e
-  | .index e indx     => index ctx e indx
+  | .index e indx      => index ctx e indx
 
 partial def unop (ctx : FuncCtx)
                (op : Ast.UnOp)
                (e : Ast.Expr)
                : Result := do
-  let te ← small_nonvoid ctx e
+  let te ← small_nonvoid <| expr ctx e
   let (op', tau) ←
     match op, te.typ with
     | .int .neg, .type (.prim .int)
@@ -232,8 +234,8 @@ partial def binop (ctx : FuncCtx)
                 (op : Ast.BinOp)
                 (l r : Ast.Expr)
                 : Result := do
-  let l' ← small_nonvoid ctx l
-  let r' ← small_nonvoid ctx r
+  let l' ← small_nonvoid <| expr ctx l
+  let r' ← small_nonvoid <| expr ctx r
   let tau ←
     match op with
     | .int .plus
@@ -260,9 +262,9 @@ partial def binop (ctx : FuncCtx)
   return ⟨.type tau, .binop (Trans.binop op) l' r'⟩
 
 partial def ternop (ctx : FuncCtx) (c tt ff : Ast.Expr) : Result := do
-  let c' ← small_nonvoid ctx c
-  let tt' ← small_nonvoid ctx tt
-  let ff' ← small_nonvoid ctx ff
+  let c' ← small_nonvoid <| expr ctx c
+  let tt' ← small_nonvoid <| expr ctx tt
+  let ff' ← small_nonvoid <| expr ctx ff
   if c'.typ ≠ .type (.prim .bool)
   then throw "Ternary condition must be a bool"
   else
@@ -275,7 +277,7 @@ partial def app (ctx : FuncCtx)
               : Result := do
   match ctx.symbols.find? f with
   | some (.func status) =>
-    let args' ← args.mapM (small_nonvoid ctx)
+    let args' ← args.mapM (small_nonvoid ∘ expr ctx)
     let arg_types := args'.map (fun arg => arg.typ)
     let ret_type := -- return unit (i.e. void_star) if there's no return type
       match status.type.ret with
@@ -299,7 +301,7 @@ partial def alloc_array (ctx : FuncCtx)
                       (e : Ast.Expr)
                       : Result := do
   let opt_tau' := Trans.type ctx tau
-  let e' ← small_nonvoid ctx e
+  let e' ← small_nonvoid <| expr ctx e
   match opt_tau', e'.typ with
   | none, _ => throw s!"Invalid array type"
   | some tau', .type (.prim .int) =>
@@ -336,7 +338,7 @@ partial def arrow (ctx : FuncCtx)
                 (e : Ast.Expr)
                 (field : Ast.Ident)
                 : Result := do
-  let e' ← nonvoid ctx e
+  let e' ← nonvoid <| expr ctx e
   match e'.typ with
   | .type (.mem (.struct name)) =>
     match ctx.structs.find? name with
@@ -351,7 +353,7 @@ partial def arrow (ctx : FuncCtx)
   | _ => throw s!"Field accessor can only operate on a struct"
 
 partial def deref (ctx : FuncCtx) (e : Ast.Expr) : Result := do
-  let e' ← small ctx e
+  let e' ← small <| expr ctx e
   match e'.typ with
   | .any => throw "Cannot dereference a null pointer/function"
   | .type (.mem (.pointer tau))  => return ⟨.type tau, .deref e'⟩
@@ -361,8 +363,8 @@ partial def index (ctx : FuncCtx)
                 (arr : Ast.Expr)
                 (index : Ast.Expr)
                 : Result := do
-  let arr' ← small_nonvoid ctx arr
-  let index' ← small_nonvoid ctx index
+  let arr' ← small_nonvoid <| expr ctx arr
+  let index' ← small_nonvoid <| expr ctx index
   match arr'.typ, index'.typ with
   | .type (.mem (.array tau)), .type (.prim .int) =>
     return ⟨.type tau, .index arr' index'⟩
@@ -370,12 +372,30 @@ partial def index (ctx : FuncCtx)
   | _, _ => throw "Indexing can only be done on array types"
 end
 
+-- termination_by
+  -- expr ctx e => sizeOf e
+  -- unop ctx op e => sizeOf e
+  -- binop ctx op l r => sizeOf l + sizeOf r
+  -- ternop ctx cc tt ff => sizeOf cc + sizeOf tt + sizeOf ff
+  -- app ctx f args => sizeOf args
+  -- alloc_array ctx tau e => sizeOf e
+  -- dot ctx e f => sizeOf e
+  -- arrow ctx e f => sizeOf e
+  -- deref ctx e => sizeOf e
+  -- index ctx arr ind => sizeOf arr + sizeOf ind
+
 end Synth.Expr
 
 namespace Synth.LValue
 
 def Result := Except String (Tst.Typed Tst.LValue)
 deriving Inhabited
+
+def small (res : Result) : Result := do
+  let v ← res
+  if v.typ.isSmall
+  then return v
+  else throw "LValue has large type"
 
 mutual
 def lvalue (ctx : FuncCtx) (lv : Ast.LValue) : Result := do
@@ -438,7 +458,7 @@ def index (ctx : FuncCtx)
                 (index : Ast.Expr)
                 : Result := do
   let arr' ← lvalue ctx arr
-  let index' ← Synth.Expr.small_nonvoid ctx index
+  let index' ← Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx index
   match arr'.typ, index'.typ with
   | .type (.mem (.array tau)), .type (.prim .int) =>
     return ⟨.type tau, .index arr' index'⟩
@@ -446,29 +466,160 @@ def index (ctx : FuncCtx)
   | _, _ => throw "Indexing can only be done on array types"
 end
 
-def small (ctx : FuncCtx) (lv : Ast.LValue) : Result := do
-  let res ← lvalue ctx lv
-  if res.typ.isSmall
-  then return res
-  else throw "Expression has large type"
-
 end Synth.LValue
 
 
 namespace Stmt
 
-def Result := Except String (FuncCtx × Tst.Typed Tst.Stmt)
+def Result := Except String (FuncCtx × Tst.Stmt)
 deriving Inhabited
 
-def stmt (ctx : FuncCtx) (s : Ast.Stmt) : Result :=
+mutual
+partial def stmt (ctx : FuncCtx) (s : Ast.Stmt) : Result :=
   match s with
-  | .decl type name body => sorry
-  | .assn lv op e => sorry
-  | .ite cond tt ff => sorry
-  | .while cond body => sorry
-  | .«return» eOpt => sorry
-  | .assert e => sorry
-  | .exp e => sorry
+  | .decl type name init body => decl ctx type name init body
+  | .assn lv op e =>
+    match lv with
+    | .var name => assn_var ctx name op e
+    | _         => assn_dest ctx lv op e
+  | .ite cond tt ff => ite ctx cond tt ff
+  | .while cond body => «while» ctx cond body
+  | .return eOpt => «return» ctx eOpt
+  | .assert e => assert ctx e
+  | .exp e => exp ctx e
+
+partial def stmts (ctx : FuncCtx)
+          (body : List Ast.Stmt)
+          : Except String (FuncCtx × List Tst.Stmt) := do
+  let (ctx', body') ← body.foldlM (
+    fun (ctx', body') s => do
+      let (ctx', s') ← stmt ctx' s
+      pure (ctx', s' :: body')
+    ) (ctx, [])
+  return (ctx', body'.reverse)
+
+partial def decl (ctx : FuncCtx)
+         (type : Ast.Typ)
+         (name : Ast.Ident)
+         (init : Option Ast.Expr)
+         (body : List Ast.Stmt)
+         : Result := do
+  let opt_tau := Trans.type ctx type
+  match opt_tau with
+  | none => throw s!"Variable {name} must have non-void, declared type"
+  | some tau =>
+    let ctx' ← Validate.var ctx name tau (init.isSome)
+    let init' ← do
+      match init with
+      | none => pure none
+      | some e =>
+        let e' ← Synth.Expr.expr ctx e
+        if e'.typ = .type tau
+        then pure (some e')
+        else throw s!"Variable {name} has mismatched types"
+    -- don't use new context since no longer in scope
+    let (_, body') ← stmts ctx' body
+    return (ctx, .decl ⟨.type tau, name⟩ init' body'.reverse)
+
+partial def assn_var (ctx : FuncCtx)
+             (var : Ast.Ident)
+             (op : Ast.AsnOp)
+             (e : Ast.Expr)
+             : Result := do
+  let elab_e :=
+    match op with
+    | .eq => e
+    | .aseq binop => .binop (.int binop) (.var var) e
+  match ctx.symbols.find? var with
+  | none => throw s!"Variable {var} must be initialised before assignment"
+  | some status =>
+    match status with
+    | .var vstatus =>
+      let e' ← Synth.Expr.small <| Synth.Expr.expr ctx elab_e
+      if e'.typ.equiv <| .type vstatus.type
+      then
+        let ctx' :=
+          match vstatus.initialised with
+          | true  => ctx
+          | false =>
+            { ctx with
+                symbols := ctx.symbols.insert var (.var ⟨vstatus.type, true⟩)
+            }
+        return (ctx', .assign ⟨e'.typ, .var var⟩ none e')
+      else throw s!"Assignment of {var} has mismatched types"
+    | .func _  => throw s!"Cannot assign to function {var}"
+    | .alias _ => throw s!"Cannot assign to type alias {var}"
+
+partial def assn_dest (ctx : FuncCtx)
+              (l : Ast.LValue)
+              (op : Ast.AsnOp)
+              (r : Ast.Expr)
+              : Result := do
+  let l' ← Synth.LValue.small <| Synth.LValue.lvalue ctx l
+  let r' ← Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx r
+  if l'.typ.equiv r'.typ
+  then
+    match op with
+    | .eq => return (ctx, .assign l' none r')
+    | .aseq binop =>
+      if l'.typ.equiv (.type <| .prim .int)
+      then return (ctx, .assign l' (some <| Trans.int_binop binop) r')
+      else throw "Assignment with operations must have integer types"
+  else throw "Assignment types mismatch"
+
+partial def ite (ctx : FuncCtx)
+        (cond : Ast.Expr)
+        (tt : Ast.Stmt)
+        (ff : Ast.Stmt)
+        : Result := do
+  let cond' ← Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx cond
+  match cond'.typ with
+  | .type (.prim .bool) =>
+    let (ctx1, tt') ← stmt ctx tt
+    let (ctx2, ff') ← stmt ctx ff
+    return (ctx1.join ctx2, .ite cond' tt' ff')
+  | _ => throw "If condition must be of type bool"
+
+partial def «while» (ctx : FuncCtx)
+            (cond : Ast.Expr)
+            (body : List Ast.Stmt)
+            : Result := do
+  let cond' ← Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx cond
+  match cond'.typ with
+  | .type (.prim .bool) =>
+    let (_, body') ← stmts ctx body
+    return (ctx, .while cond' body')
+  | _ => throw "Loop guard must be of type bool"
+
+partial def «return» (ctx : FuncCtx) (eOpt : Option Ast.Expr) : Result := do
+  let eOpt' ← eOpt.mapM (Synth.Expr.small_nonvoid ∘ Synth.Expr.expr ctx)
+  let ret_type ← eOpt'.mapM (fun e' =>
+      match e'.typ with
+      | .type t => pure t
+      | _ => throw "Return type is not a valid type"
+    )
+  if ret_type = ctx.ret_type
+  then
+    let symbols' := ctx.symbols.mapVal (fun _ status =>
+        match status with
+        | .var vstatus => Status.Symbol.var {vstatus with initialised := true}
+        | _ => status
+      )
+    let ctx' := {ctx with symbols := symbols', returns := true}
+    return (ctx', .«return» eOpt')
+  else throw "Return types mismatch"
+
+partial def assert (ctx : FuncCtx) (e : Ast.Expr) : Result := do
+  let e' ← Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx e
+  match e'.typ with
+  | .type (.prim .bool) => return (ctx, .assert e')
+  | _ => throw "Assert condition must be of type bool"
+
+partial def exp (ctx : FuncCtx) (e : Ast.Expr) : Result := do
+  let e' ← Synth.Expr.small <| Synth.Expr.expr ctx e
+  return (ctx, .expr e')
+
+end
 
 end Stmt
 

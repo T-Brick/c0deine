@@ -54,8 +54,8 @@ inductive LValue
 | index (lv : Typed LValue) (index : Typed Expr)
 
 inductive Stmt
-| decl (name : Typed Symbol) (body : List Stmt)
-| assign (lhs : Typed LValue) (rhs : Typed Expr)
+| decl (name : Typed Symbol) (init : Option (Typed Expr)) (body : List Stmt)
+| assign (lhs : Typed LValue) (op : Option BinOp.Int) (rhs : Typed Expr)
 | expr (e : Typed Expr)
 | ite (cond : Typed Expr) (tt : Stmt) (ff : Stmt)
 | while (cond : Typed Expr) (body : List Stmt)
