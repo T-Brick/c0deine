@@ -8,9 +8,8 @@ import C0deine.Type.Typ
 
 namespace C0deine.Tst
 
-universe u
 -- todo: maybe we can restrict this to just be the types we want?
-structure Typed (α : Type u) where
+structure Typed (α : Type) where
   typ : Typ.Check
   data : α
 
@@ -67,15 +66,15 @@ structure SDef where
   fields : List (Typed Symbol)
 
 structure FDef where
-  type : Typ
+  type : Option Typ
   name : Symbol
   params : List (Typed Symbol)
   body : List Stmt
 
 structure FDecl where
-  type : Typ
+  ret : Option Typ
   name : Symbol
-  params : List (Typed Symbol)
+  params : List Typ
 
 inductive GDecl
 | fdecl : FDecl → GDecl

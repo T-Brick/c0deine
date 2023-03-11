@@ -4,6 +4,7 @@ import C0deine.Type.Typ
 import C0deine.Type.Tst
 import C0deine.Utils.Symbol
 import C0deine.Utils.Comparison
+import C0deine.Utils.Context
 
 namespace C0deine.Typechecker
 
@@ -31,15 +32,29 @@ inductive Status.Symbol
 def SymbolTable := Symbol.Map Status.Symbol
 def StructTable := Symbol.Map Status.Struct
 
+class Ctx (α : Type) where
+  symbols : α → SymbolTable
+  structs : α → StructTable
+
 structure FuncCtx where
   symbols : SymbolTable
   structs : StructTable
   ret_type : Option Typ
   returns : Bool
+instance : Ctx FuncCtx where
+  symbols := FuncCtx.symbols
+  structs := FuncCtx.structs
 
 structure GlobalCtx where
   symbols : SymbolTable
   structs : StructTable
+instance : Ctx GlobalCtx where
+  symbols := GlobalCtx.symbols
+  structs := GlobalCtx.structs
+
+-- defaults to not returning
+def GlobalCtx.to_funcctx (ret : Option Typ) (ctx : GlobalCtx) : FuncCtx :=
+  ⟨ctx.symbols, ctx.structs, ret, false⟩
 
 -- joins two contexts together, assuming non-variables are the same
 def FuncCtx.join (ctx1 ctx2 : FuncCtx) : FuncCtx :=
@@ -55,12 +70,12 @@ def FuncCtx.join (ctx1 ctx2 : FuncCtx) : FuncCtx :=
   ⟨symbols, ctx1.structs, ctx1.ret_type, returns⟩
 
 
-def Trans.type (ctx : FuncCtx) : Ast.Typ → Option Typ
+def Trans.type [Ctx α] (ctx : α) : Ast.Typ → Option Typ
   | .int => some <| Typ.prim (Typ.Primitive.int)
   | .bool => some <| Typ.prim (Typ.Primitive.bool)
   | .void => none
   | .tydef name =>
-    match ctx.symbols.find? name with
+    match (Ctx.symbols ctx).find? name with
     | some (.alias tau) => some tau
     | _ => none
   | .ptr (tau : Ast.Typ) =>
@@ -92,12 +107,21 @@ def Trans.binop : Ast.BinOp → Tst.BinOp
   | .cmp .less_equal    => .cmp .less_equal
   | .cmp .greater_equal => .cmp .greater_equal
 
--- todo: we should prove that these actually do what we want
-def Validate.var (ctx : FuncCtx)
-                 (var : Symbol)
-                 (tau : Typ)
-                 (initialised : Bool)
-                 : Except String FuncCtx := do
+def Trans.params (ctx : FuncCtx)
+                 (params : List Ast.Param)
+                 : Except String (List Typ) :=
+  params.foldrM (fun p acc =>
+    match Trans.type ctx p.type with
+    | some ty => pure (ty :: acc)
+    | none => throw s!"Function input must have non-void, declared type"
+  ) []
+
+
+def Validate.global_var (ctx : GlobalCtx)
+                        (var : Symbol)
+                        (tau : Typ)
+                        (initialised : Bool)
+                        : Except String GlobalCtx := do
   if ¬Typ.isSmall tau
   then throw s!"Variable {var} must have a small type"
   else
@@ -106,39 +130,76 @@ def Validate.var (ctx : FuncCtx)
     | some (.alias _) =>
       throw s!"Variable {var} is declared but also used as a type alias"
     | some (.func _) | none => -- allow shadowing of func declaration
-      return {ctx with symbols := ctx.symbols.insert var (.var ⟨tau, initialised⟩)}
+      let symbols' := ctx.symbols.insert var (.var ⟨tau, initialised⟩)
+      return  { ctx with symbols := symbols' }
 
-def Validate.typedef (ctx : FuncCtx)
+def Validate.var (ctx : FuncCtx)
+                 (var : Symbol)
+                 (tau : Typ)
+                 (initialised : Bool)
+                 : Except String FuncCtx := do
+  let gctx ← Validate.global_var ⟨ctx.symbols, ctx.structs⟩ var tau initialised
+  return { ctx with symbols := gctx.symbols }
+
+def Validate.typedef (ctx : GlobalCtx)
                      (var : Symbol)
                      (tau : Typ)
-                     : Except String FuncCtx := do
+                     : Except String GlobalCtx := do
   if ctx.symbols.contains var
   then throw s!"Name for typedef {var} already used"
   else return {ctx with symbols := ctx.symbols.insert var (.alias tau)}
 
+def Validate.fields (ctx : GlobalCtx)
+                    (fields : List Ast.Field)
+                    : Except String (List (Symbol × Typ)) :=
+  fields.foldrM (fun field acc =>
+    if acc.any (fun (f', _tau') => field.name == f')
+    then throw s!"Struct field {field.name} appeared more than once"
+    else
+      match Trans.type ctx field.type with
+      | some tau => pure ((field.name, tau) :: acc)
+      | none => throw s!"Struct field must have a non-void, known type"
+  ) []
+
 def Validate.params (ctx : FuncCtx)
                     (params : List Ast.Param)
-                    : Except String FuncCtx := do
-  match params with
-  | .nil => return ctx
-  | .cons p ps =>
-    match Trans.type ctx p.type with
+                    : Except String FuncCtx :=
+  params.foldlM (fun ctx param =>
+    match Trans.type ctx param.type with
     | none     => throw "Function paramter has void or unknown type"
-    | some tau =>
-      let ctx' ← Validate.var ctx p.name tau true
-      Validate.params ctx' ps
+    | some tau => Validate.var ctx param.name tau true
+  ) ctx
 
--- does not add function to the context!
-def Validate.func (ctx : FuncCtx)
+-- does not add function to the global context!
+def Validate.func (ctx : GlobalCtx)
+                  (defining : Bool)
                   (name : Symbol)
                   (inputs : List Ast.Param)
                   (output : Option Typ)
-                  : Except String FuncCtx := do
-  if ctx.symbols.contains name
-  then throw s!"Name for function {name} already used"
-  else if ¬(output.all Typ.isSmall)
+                  : Except String (Status.Symbol × FuncCtx) := do
+  let fctx := GlobalCtx.to_funcctx output ctx
+  let intypes ← Trans.params fctx inputs
+  let status := .func ⟨⟨output, intypes⟩, defining⟩
+  let symbols' := fctx.symbols.insert name status
+  let fctx ← Validate.params {fctx with symbols := symbols'} inputs
+  if ¬(output.all Typ.isSmall)
   then throw s!"Function {name} must have small output type"
-  else Validate.params ctx inputs
+  else
+    match ctx.symbols.find? name with
+    | some (.var _var) =>
+      throw s!"Function name {name} is already used as a variable"
+    | some (.func f) =>
+      if defining && f.defined
+      then throw s!"Function {name} cannot be redefined"
+      else if intypes ≠ f.type.args
+      then throw s!"Function {name} inputs don't match prior declarations"
+      else if output ≠ f.type.ret
+      then throw s!"Function {name} return type differs from prior declarations"
+      else return (status, fctx)
+    | some (.alias _type) =>
+      throw s!"Name {name} is already used as a type"
+    | _ => return (status, fctx)
+
 
 def Synth.intersect_types (tau1 tau2 : Typ.Check) : Except String Typ.Check := do
   match tau1, tau2 with
@@ -155,6 +216,7 @@ def Synth.intersect_types (tau1 tau2 : Typ.Check) : Except String Typ.Check := d
     then return tau1
     else throw "Cannot intersect incompatible types"
   | _, _ => throw "Cannot intersect incompatible types"
+
 
 namespace Synth.Expr
 
@@ -618,8 +680,109 @@ partial def assert (ctx : FuncCtx) (e : Ast.Expr) : Result := do
 partial def exp (ctx : FuncCtx) (e : Ast.Expr) : Result := do
   let e' ← Synth.Expr.small <| Synth.Expr.expr ctx e
   return (ctx, .expr e')
-
 end
 
 end Stmt
 
+namespace Global
+
+def Result := Except String (GlobalCtx × Option Tst.GDecl)
+deriving Inhabited
+
+def func (ctx : GlobalCtx)
+         (defining : Bool)
+         (name : Ast.Ident)
+         (ret : Ast.Typ)
+         (params : List Ast.Param)
+         : Except String (GlobalCtx × FuncCtx × Option Typ) := do
+  let ret' := Trans.type ctx ret
+  let (status, fctx) ← Validate.func ctx defining name params ret'
+  let status' ←
+    match ctx.symbols.find? name with
+    | some (.func f) =>
+      if defining && f.defined
+      then throw s!"Function {name} was already defined"
+      else pure (.func f)
+    | some _ => throw s!"Function {name} collides with another name"
+    | none => pure status
+  let symbols' := ctx.symbols.insert name status'
+  return ({ctx with symbols := symbols'}, fctx, ret')
+
+def fdecl (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDecl) : Result := do
+  if extern && "main" == f.name.name
+  then throw s!"Function main cannot appear in headers"
+  else
+    let (ctx', fctx, ret) ← func ctx false f.name f.type f.params
+    let params ← Trans.params fctx f.params
+    let fdecl := .fdecl ⟨ret, f.name, params⟩
+    return (ctx', some fdecl)
+
+def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef) : Result := do
+  if extern
+  then throw s!"Function definintions cannot be in headers"
+  else
+    let (ctx', fctx, ret) ← func ctx true f.name f.type f.params
+    let params : List (Tst.Typed Symbol) ← f.params.foldrM (fun p acc =>
+        match Trans.type fctx p.type with
+        | some ty => pure (⟨.type ty, p.name⟩ :: acc)
+        | none => throw s!"Function input must have non-void, declared type"
+      ) []
+    let (_, body') ← Stmt.stmts fctx f.body
+    let fdef := .fdef ⟨ret, f.name, params, body'⟩
+    return (ctx', some fdef)
+
+def tydef (ctx : GlobalCtx) (t : Ast.TyDef) : Result := do
+  let tau' ←
+    match Trans.type ctx t.type with
+    | some tau => pure tau
+    | none => throw s!"Typedef must have a non-void, known type"
+  let ctx' ← Validate.typedef ctx t.name tau'
+  return (ctx', none)
+
+def sdecl (ctx : GlobalCtx) (s : Ast.SDecl) : Result := do
+  let structs' :=
+    match ctx.structs.find? s.name with
+    | none =>
+      ctx.structs.insert s.name ⟨Std.HashMap.empty, false⟩
+    | some _ => ctx.structs
+  return ({ctx with structs := structs'}, none)
+
+def sdef (ctx : GlobalCtx) (s : Ast.SDef) : Result := do
+  let () ←
+    match ctx.structs.find? s.name with
+    | some status =>
+      if status.defined
+      then throw s!"Struct {s.name} has already been declared"
+      else pure ()
+    | none => pure ()
+  let fieldsMap ← Validate.fields ctx s.fields
+  let status := ⟨Std.HashMap.ofList fieldsMap, true⟩
+  let structs' := ctx.structs.insert s.name status
+  let fields' := fieldsMap.map (fun (field, tau) => ⟨.type tau, field⟩)
+  return ({ctx with structs := structs'}, some (.sdef ⟨s.name, fields'⟩))
+
+def gdec (extern : Bool) (ctx : GlobalCtx) (g : Ast.GDecl) : Result := do
+  match g with
+  | .fdecl f => fdecl extern ctx f
+  | .fdef  f => fdef extern ctx f
+  | .tydef t => tydef ctx t
+  | .sdecl s => sdecl ctx s
+  | .sdef  s => sdef ctx s
+
+end Global
+
+-- todo: add logic for headers also called functions
+def typecheck (ctx_ast : Context Ast.Prog) : Context (Except String Tst.Prog) := do
+  let main_info := .func ⟨⟨some (.prim .int), []⟩, false⟩
+  let main_sym ← Symbol.symbol "main"
+  let init_symbols := Std.HashMap.empty.insert main_sym main_info
+  let init_context : GlobalCtx := ⟨init_symbols, Std.HashMap.empty⟩
+  ctx_ast.map (fun ast =>
+    ast.foldlM (fun (ctx, prog) g => do
+      let (ctx', gOpt) ← Global.gdec false ctx g
+      match gOpt with
+      | some g' => return (ctx', g' :: prog)
+      | none => return (ctx', prog)
+    ) (init_context, ([] : Tst.Prog))
+  )
+  sorry
