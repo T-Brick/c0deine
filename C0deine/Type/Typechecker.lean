@@ -73,7 +73,6 @@ def FuncCtx.join (ctx1 ctx2 : FuncCtx) : FuncCtx :=
 def Trans.type [Ctx α] (ctx : α) : Ast.Typ → Option Typ
   | .int => some <| Typ.prim (Typ.Primitive.int)
   | .bool => some <| Typ.prim (Typ.Primitive.bool)
-  | .void => none
   | .tydef name =>
     match (Ctx.symbols ctx).find? name with
     | some (.alias tau) => some tau
@@ -113,7 +112,7 @@ def Trans.params (ctx : FuncCtx)
   params.foldrM (fun p acc =>
     match Trans.type ctx p.type with
     | some ty => pure (ty :: acc)
-    | none => throw s!"Function input must have non-void, declared type"
+    | none => throw s!"Function input must have declared type"
   ) []
 
 
@@ -158,7 +157,7 @@ def Validate.fields (ctx : GlobalCtx)
     else
       match Trans.type ctx field.type with
       | some tau => pure ((field.name, tau) :: acc)
-      | none => throw s!"Struct field must have a non-void, known type"
+      | none => throw s!"Struct field must have a known type"
   ) []
 
 def Validate.params (ctx : FuncCtx)
@@ -166,7 +165,7 @@ def Validate.params (ctx : FuncCtx)
                     : Except String FuncCtx :=
   params.foldlM (fun ctx param =>
     match Trans.type ctx param.type with
-    | none     => throw "Function paramter has void or unknown type"
+    | none     => throw "Function paramter must have a known type"
     | some tau => Validate.var ctx param.name tau true
   ) ctx
 
@@ -568,7 +567,7 @@ partial def decl (ctx : FuncCtx)
          : Result := do
   let opt_tau := Trans.type ctx type
   match opt_tau with
-  | none => throw s!"Variable {name} must have non-void, declared type"
+  | none => throw s!"Variable {name} must have declared type"
   | some tau =>
     let ctx' ← Validate.var ctx name tau (init.isSome)
     let init' ← do
@@ -692,10 +691,14 @@ deriving Inhabited
 def func (ctx : GlobalCtx)
          (defining : Bool)
          (name : Ast.Ident)
-         (ret : Ast.Typ)
+         (ret : Option Ast.Typ)
          (params : List Ast.Param)
          : Except String (GlobalCtx × FuncCtx × Option Typ) := do
-  let ret' := Trans.type ctx ret
+  let ret' ← ret.mapM (fun ret =>
+      match Trans.type ctx ret with
+      | some ret' => pure ret'
+      | none => throw s!"Function {name} must have a declared type"
+    )
   let (status, fctx) ← Validate.func ctx defining name params ret'
   let status' ←
     match ctx.symbols.find? name with
@@ -783,6 +786,6 @@ def typecheck (ctx_ast : Context Ast.Prog) : Context (Except String Tst.Prog) :=
       match gOpt with
       | some g' => return (ctx', g' :: prog)
       | none => return (ctx', prog)
-    ) (init_context, ([] : Tst.Prog))
+    ) (init_context, [])
+    |>.map (fun ((_ctx : GlobalCtx), prog) => List.reverse prog)
   )
-  sorry

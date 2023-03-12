@@ -1,6 +1,6 @@
 import C0deine.Utils.Symbol
 
-namespace C0deine.Ast
+namespace C0deine.Cst
 
 def Ident := Symbol
 deriving ToString
@@ -67,7 +67,7 @@ mutual
 inductive Control
 | ite (cond : Expr) (tt : Stmt) (ff : Stmt)
 | while (cond : Expr) (body : Stmt)
-| «for» (init : Simp) (cond : Expr) (step : Simp)
+| «for» (init : Option Simp) (cond : Expr) (step : Option Simp) (body : Stmt)
 | «return» (e : Option Expr)
 | assert (e : Expr)
 
@@ -121,3 +121,18 @@ inductive GDecl
 | sdef  : SDef  → GDecl
 
 def Prog := List GDecl
+
+def BinOp.Cmp.toString : BinOp.Cmp → String
+| .lt => "<"
+| .le => "<="
+| .gt => ">"
+| .ge => ">="
+| .eq => "=="
+| .ne => "!="
+instance : ToString BinOp.Cmp where toString := BinOp.Cmp.toString
+
+def BinOp.Bool.toString : BinOp.Bool → String
+| .and => "&&"
+| .or  => "||"
+instance : ToString BinOp.Bool where toString := BinOp.Bool.toString
+

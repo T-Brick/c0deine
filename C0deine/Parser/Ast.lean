@@ -9,7 +9,6 @@ deriving ToString
 inductive Typ
 | int
 | bool
-| void
 | tydef (name : Ident)
 | ptr : Typ → Typ
 | arr : Typ → Typ
@@ -87,13 +86,13 @@ structure Param where
   name : Ident
 
 structure FDef where
-  type : Typ
+  type : Option Typ
   name : Ident
   params : List Param
-  body : Block
+  body : List Stmt
 
 structure FDecl where
-  type : Typ
+  type : Option Typ
   name : Ident
   params : List Param
 
