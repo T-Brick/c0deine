@@ -134,19 +134,18 @@ inductive Instr
 | i64 (i : Instr.Integer 64)
 
 -- Outputs the WAT format for WASM, can be compiled to WASM (for now)
--- todo: add termination_by
-partial def Instr.toListStrings : Instr → List String
+mutual
+def Instr.toListStrings (ins : Instr) : List String :=
+  match ins with
   | comment str => [s!";; {str}"]
   | unreachable => [s!"unreachable"]
   | nop => [s!"nop"]
   | block lbl body =>
-    let body_strs := body.map (Instr.toListStrings)
-      |>.join
+    let body_strs := Instr.listToListStrings body
       |>.map (fun str => s!"\t{str}")
     s!"(block ${lbl}" :: body_strs |>.concat ")"
   | loop lbl body =>
-    let body_strs := body.map (Instr.toListStrings)
-      |>.join
+    let body_strs := Instr.listToListStrings body
       |>.map (fun str => s!"\t{str}")
     s!"(loop ${lbl}" :: body_strs |>.concat ")"
   | br branch => [s!"br {branch}"]
@@ -159,3 +158,13 @@ partial def Instr.toListStrings : Instr → List String
   | wasm_global g => [g.toString]
   | i32 i => [i.toString]
   | i64 i => [i.toString]
+
+def Instr.listToListStrings (ins : List Instr) : List String :=
+  match ins with
+  | [] => []
+  | i :: ilst => (Instr.toListStrings i).append (Instr.listToListStrings ilst)
+end
+
+termination_by
+  Instr.toListStrings i => sizeOf i
+  Instr.listToListStrings ilst => sizeOf ilst
