@@ -102,16 +102,13 @@ structure Param where
   type : Typ
   name : Ident
 
-structure FDef where
-  type : Typ
-  name : Ident
-  params : List Param
-  body : Block
-
 structure FDecl where
   type : Typ
   name : Ident
   params : List Param
+
+structure FDef extends FDecl where
+  body : Stmt
 
 inductive GDecl
 | fdecl : FDecl → GDecl
