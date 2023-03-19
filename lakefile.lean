@@ -15,3 +15,4 @@ lean_exe c0deine {
 }
 
 require std from git "https://github.com/leanprover/std4" @ "main"
+require Parser from git "https://github.com/fgdorais/lean4-parser" @ "main"
