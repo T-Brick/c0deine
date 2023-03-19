@@ -817,7 +817,7 @@ end Global
 
 -- todo: add logic for headers also called functions
 -- todo: preserve function call information (mostly for purity checks)
-def typecheck (ctx_ast : Context Ast.Prog) : Context (Except String Tst.Prog) := do
+def typecheck (ast : Ast.Prog) : ExceptT String Context Tst.Prog := do
   let main_info := .func ⟨⟨some (.prim .int), []⟩, false⟩
   let main_sym ← Symbol.symbol "main"
 
@@ -826,25 +826,23 @@ def typecheck (ctx_ast : Context Ast.Prog) : Context (Except String Tst.Prog) :=
   let init_context : GlobalCtx :=
     ⟨init_symbols, Std.HashMap.empty, init_calls, Std.HashMap.empty⟩
 
-  ctx_ast.map (fun ast =>
-    ast.foldlM (fun (ctx, prog) g => do
-      -- run through the program, carrying the global context
-      let (ctx', gOpt) ← Global.gdec false ctx g
-      match gOpt with
-      | some g' => return (ctx', g' :: prog)
-      | none => return (ctx', prog)
-    ) (init_context, [])
-    |>.bind (fun ((ctx : GlobalCtx), (prog : List Tst.GDecl)) => do
-      -- check the all called functions are defined
-      let () ← ctx.calls.foldM (fun () name () => do
-        match ctx.symbols.find? name with
-        | some (.func status) =>
-          if status.defined
-          then return ()
-          else throw s!"Function {name} is called but not defined"
-        | _ => throw s!"Function {name} is called but not defined"
-      ) ()
-      -- program is reversed so flip it back
-      return prog.reverse
-    )
+  ast.foldlM (m := ExceptT _ Context) (fun (ctx, prog) g => do
+    -- run through the program, carrying the global context
+    let (ctx', gOpt) ← liftM <| Global.gdec false ctx g
+    match gOpt with
+    | some g' => return (ctx', g' :: prog)
+    | none => return (ctx', prog)
+  ) (init_context, [])
+  |>.bind (fun ((ctx : GlobalCtx), (prog : List Tst.GDecl)) => do
+    -- check the all called functions are defined
+    let () ← ctx.calls.foldM (fun () name () => do
+      match ctx.symbols.find? name with
+      | some (.func status) =>
+        if status.defined
+        then return ()
+        else throw s!"Function {name} is called but not defined"
+      | _ => throw s!"Function {name} is called but not defined"
+    ) ()
+    -- program is reversed so flip it back
+    return prog.reverse
   )

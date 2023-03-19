@@ -11,24 +11,49 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   if !p.hasPositionalArg "input" then
     panic! "missing file argument"
   let input : System.FilePath := p.positionalArg! "input" |>.as! String
+  let tcOnly : Bool := p.hasFlag "typecheck"
 
   if !(← input.pathExists) then
     panic! "input file does not exist"
   if ← input.isDir then
     panic! "input path is a directory"
+  
+  let lang : Language :=
+    match input.extension with
+    | none => panic! "file is missing extension"
+    | some "l1" => .l1
+    | some "l2" => .l2
+    | some "l3" => .l3
+    | some "l4" => .l4
+    | some "c0" => .c0
+    | some "c1" => .c1
+    | some x => panic! s!"unrecognized extension {x}"
 
   let contents ← IO.FS.readFile input
 
   match (Parser.C0Parser.prog <* Parser.endOfInput).run contents.toSubstring Context.State.new with
-  | (.error e, _) => IO.ofExcept <| .error ("parser error: " ++ toString e)
-  | (.ok stx, ctx) =>
-    IO.println "parsed!"
-    
-    return 0
+  | (.error e, _)
+  | (.ok (.error e), _) =>
+    panic! s!"parser error: {e}"
+  | (.ok (.ok _ cst), ctx) =>
+  
+  let ast ← IO.ofExcept <| Abstractor.abstract lang cst
+  
+  match (Typechecker.typecheck ast).run ctx with
+  | (.error e, _) =>
+    panic! s!"{e}"
+  | (.ok x, ctx) =>
+
+  if tcOnly then return 0
+
+  IO.println "typechecked!"
+  IO.println x
+
+  return 0
 
 def topCmd : Cmd := `[Cli|
-  topCmd VIA runTopCmd; [version]
-  "c0deine, a compiler for C0."
+  c0deine VIA runTopCmd; [version]
+  "a compiler for C0."
 
   FLAGS:
     t, typecheck;               "Only typecheck a file"

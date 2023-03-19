@@ -10,7 +10,7 @@ inductive Language
 | l4    -- memory
 | c0    -- strings, chars, contracts
 | c1    -- casts, function pointers, generic pointers
-deriving Repr
+deriving Inhabited, Repr
 
 namespace Language
 

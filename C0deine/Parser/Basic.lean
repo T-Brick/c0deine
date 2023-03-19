@@ -330,7 +330,7 @@ def gdecl : C0Parser GDecl :=
 <|> (do return .sdecl (← sdecl tydefs))
 <|> (do return .sdef  (← sdef  tydefs)) 
 
-partial def prog : C0Parser (List GDecl) := do
+partial def prog : C0Parser Prog := do
   let gdecls ← aux (Std.RBSet.empty) #[]
   return gdecls.toList
 where aux tydefs acc := (do
