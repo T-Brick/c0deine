@@ -222,6 +222,21 @@ def Validate.func (ctx : GlobalCtx)
       throw s!"Name {name} is already used as a type"
     | _ => return (status, fctx)
 
+def Validate.callsDefined (ctx : GlobalCtx)
+                          (main : Symbol)
+                          : Except String Unit :=
+  let err := fun name => throw s!"Function {name} is called but not defined"
+  ctx.calls.foldM (fun () name () => do
+    match ctx.symbols.find? name with
+    | some (.func status) =>
+      if status.defined
+      then return ()
+      else if name = main
+      then throw s!"Function main must be defined"
+      else err name
+    | _ => err name
+  ) ()
+
 
 def Synth.intersect_types (tau1 tau2 : Typ.Check) : Except String Typ.Check := do
   match tau1, tau2 with
@@ -835,14 +850,7 @@ def typecheck (ast : Ast.Prog) : ExceptT String Context Tst.Prog := do
   ) (init_context, [])
   |>.bind (fun ((ctx : GlobalCtx), (prog : List Tst.GDecl)) => do
     -- check the all called functions are defined
-    let () ← ctx.calls.foldM (fun () name () => do
-      match ctx.symbols.find? name with
-      | some (.func status) =>
-        if status.defined
-        then return ()
-        else throw s!"Function {name} is called but not defined"
-      | _ => throw s!"Function {name} is called but not defined"
-    ) ()
+    let () ← Validate.callsDefined ctx main_sym
     -- program is reversed so flip it back
     return prog.reverse
   )
