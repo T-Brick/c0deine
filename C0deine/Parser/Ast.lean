@@ -105,6 +105,9 @@ inductive GDecl
 
 def Prog := List GDecl
 
+theorem sizeOf_expr_positive (e : Expr) : sizeOf e > 0 := by
+  cases e <;> simp [Nat.add_comm 1, Nat.add_assoc, ←Nat.add_assoc (k := 1)]
+  <;> (apply Nat.succ_le_succ; apply Nat.zero_le)
 
 def Typ.toString : Typ → String
   | .int => "int"
