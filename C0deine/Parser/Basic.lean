@@ -283,7 +283,7 @@ def sdef : C0Parser SDef := do
   let name ← ident tydefs; ws
   char '{'; ws
   let fields ← sepBy ws (field tydefs)
-  ws; char '}'
+  ws; char '}'; char ';'
   return ⟨name, fields.toList⟩
 
 def sdecl : C0Parser SDecl := do

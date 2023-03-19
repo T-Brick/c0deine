@@ -1,4 +1,14 @@
 
-int main() {
-  return 0;
-}
+// This is a comment !
+
+typedef int ahhh;
+struct A;
+struct A {
+  int b;
+  int *c;
+  bool d;
+};
+
+typedef int ************** eeeee;
+
+int main();
