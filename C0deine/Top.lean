@@ -9,26 +9,23 @@ open Cli
 
 def runTopCmd (p : Parsed) : IO UInt32 := do
   if !p.hasPositionalArg "input" then
-    panic! "missing file argument"
+    panic! "Missing file argument"
   let input : System.FilePath := p.positionalArg! "input" |>.as! String
   let tcOnly : Bool := p.hasFlag "typecheck"
   let verbose : Bool := p.hasFlag "verbose"
 
   if !(← input.pathExists) then
-    panic! "input file does not exist"
+    panic! "Input file does not exist"
   if ← input.isDir then
-    panic! "input path is a directory"
-  
+    panic! "Input path is a directory"
+
   let lang : Language :=
     match input.extension with
-    | none => panic! "file is missing extension"
-    | some "l1" => .l1
-    | some "l2" => .l2
-    | some "l3" => .l3
-    | some "l4" => .l4
-    | some "c0" => .c0
-    | some "c1" => .c1
-    | some x => panic! s!"unrecognized extension {x}"
+    | none => panic! "File is missing extension"
+    | some l =>
+      match Language.fromString l with
+      | .some lang => lang
+      | .none => panic! s!"Unrecognized extension/language {l}"
 
   let contents ← IO.FS.readFile input
 
@@ -41,11 +38,11 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   | (.ok (.ok _ cst), ctx) =>
 
   if verbose then IO.println "abstracting"
-  
+
   let ast ← IO.ofExcept <| Abstractor.abstract lang cst
 
   if verbose then IO.println "typechecking"
-  
+
   match (Typechecker.typecheck ast).run ctx with
   | (.error e, _) =>
     panic! s!"{e}"

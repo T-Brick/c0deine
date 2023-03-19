@@ -15,14 +15,22 @@ deriving Inhabited, Repr
 namespace Language
 
 def toString : Language → String
-| l1 => "l1"
-| l2 => "l2"
-| l3 => "l3"
-| l4 => "l4"
-| c0 => "c0"
-| c1 => "c1"
-
+  | l1 => "l1"
+  | l2 => "l2"
+  | l3 => "l3"
+  | l4 => "l4"
+  | c0 => "c0"
+  | c1 => "c1"
 instance : ToString Language where toString := Language.toString
+
+def fromString : String → Option Language
+  | "l1" => some l1
+  | "l2" => some l2
+  | "l3" => some l3
+  | "l4" => some l4
+  | "c0" => some c0
+  | "c1" => some c1
+  | _    => none
 
 -- s2 is under s1 if s2 is a strict subset of s1
 def under (s2 s1 : Language) : Bool :=
