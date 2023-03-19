@@ -11,6 +11,12 @@ structure Context.State where
   nextSymbolId : UInt64
   symbolCache : Std.HashMap String Symbol
 
+def Context.State.new : Context.State where
+  nextTemp := (1:)
+  nextLabel := (1:)
+  nextSymbolId := 1
+  symbolCache := .empty
+
 def Context := StateM Context.State
 
 instance : Monad Context := show Monad (StateM _) from inferInstance

@@ -6,6 +6,7 @@ import C0deine.Parser.Basic
 import C0deine.Parser.Cst
 import C0deine.Target.Wasm
 import C0deine.Target.X86
+import C0deine.Target.Targets
 import C0deine.Type.Tst
 import C0deine.Type.Typ
 import C0deine.Type.Typechecker
