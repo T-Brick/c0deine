@@ -259,11 +259,13 @@ partial def simp : C0Parser Simp :=
         return .post lv op)
 <|> (do let e ← expr tydefs; return .exp e)
 
-partial def block : C0Parser Stmt := do
-  char '{'; ws
-  let body ← sepBy ws stmt
-  ws; char '}'
-  return .block body.toList
+partial def block : C0Parser Stmt :=
+    (do char '{'; ws; char '}'
+        return .block [])
+<|> (do char '{'; ws
+        let body ← sepBy ws stmt
+        ws; char '}'
+        return .block body.toList)
 
 partial def stmt : C0Parser Stmt :=
     (do return .simp (←simp))

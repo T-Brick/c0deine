@@ -11,4 +11,6 @@ struct A {
 
 typedef int ************** eeeee;
 
-int main();
+int main() {
+  
+}
