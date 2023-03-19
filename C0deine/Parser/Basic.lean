@@ -116,44 +116,57 @@ def typ : C0Parser Typ := do
 end
 
 def unop.int : C0Parser UnOp.Int :=
-  (do char '-'; notFollowedBy (char '-'); return .neg)
+  (do char '-'; notFollowedBy (char '-'); notFollowedBy (char '>'); return .neg)
   <|> (do char '~'; return .not)
 
 def unop.bool : C0Parser UnOp.Bool :=
-  (do char '!'; return .neg)
+  (do char '!'; return .not)
 
 def unop : C0Parser UnOp :=
     (do let op ← unop.int; return .int op)
 <|> (do let op ← unop.bool; return .bool op)
 
-def binop.int : C0Parser BinOp.Int :=
-    (do char '+'; return .plus)
-<|> (do char '-'; notFollowedBy (char '-'); return .minus)
-<|> (do char '*'; return .times)
+def binop.int.prec_11 : C0Parser BinOp.Int :=
+     (do char '*'; return .times)
 <|> (do char '/'; return .div)
 <|> (do char '%'; return .mod)
-<|> (do char '&'; return .and)
-<|> (do char '^'; return .xor)
-<|> (do char '|'; return .or)
-<|> (do chars "<<"; return .lsh)
+
+def binop.int.prec_10 : C0Parser BinOp.Int :=
+    (do char '+'; return .plus)
+<|> (do char '-'; notFollowedBy (char '-'); return .minus)
+
+def binop.int.prec_9 : C0Parser BinOp.Int :=
+    (do chars "<<"; return .lsh)
 <|> (do chars ">>"; return .rsh)
 
-def binop.cmp : C0Parser BinOp.Cmp :=
+def binop.cmp.prec_8 : C0Parser BinOp.Cmp :=
     (do char '<'; return .lt)
 <|> (do chars "<="; return .le)
 <|> (do char '>'; return .gt)
 <|> (do chars ">="; return .ge)
-<|> (do chars "=="; return .eq)
+
+def binop.cmp.prec_7 : C0Parser BinOp.Cmp :=
+    (do chars "=="; return .eq)
 <|> (do chars "!="; return .ne)
 
-def binop.bool : C0Parser BinOp.Bool :=
-    (do chars "&&"; return .and)
-<|> (do chars "||"; return .or)
+def binop.int.prec_6 : C0Parser BinOp.Int :=
+  (do char '&'; return .and)
 
-def binop : C0Parser BinOp :=
-    (do let op ← binop.int; return .int op)
-<|> (do let op ← binop.cmp; return .cmp op)
-<|> (do let op ← binop.bool; return .bool op)
+def binop.int.prec_5 : C0Parser BinOp.Int :=
+  (do char '^'; return .xor)
+
+def binop.int.prec_4 : C0Parser BinOp.Int :=
+  (do char '|'; return .or)
+
+def binop.bool.prec_3 : C0Parser BinOp.Bool :=
+  (do chars "&&"; return .and)
+
+def binop.bool.prec_2 : C0Parser BinOp.Bool :=
+  (do chars "||"; return .or)
+
+def binop.int : C0Parser BinOp.Int :=
+  binop.int.prec_11 <|> binop.int.prec_10 <|> binop.int.prec_9
+  <|> binop.int.prec_6 <|> binop.int.prec_5 <|> binop.int.prec_4
 
 def asnop : C0Parser AsnOp :=
     (do char '='; return .eq)
@@ -187,9 +200,8 @@ partial def lvalue : C0Parser LValue :=
     )
   )
 
-partial def expr._1 : C0Parser Expr :=
-    (do char '('; let e ← expr; char ')'; return e)
-<|> (do let v ← num; return .num v)
+partial def expr.prec_13.left : C0Parser Expr :=
+    (do let v ← num; return .num v)
 <|> (do keyword "true"; return .«true»)
 <|> (do keyword "false"; return .«false»)
 <|> (do keyword "NULL"; return .null)
@@ -212,19 +224,66 @@ partial def expr._1 : C0Parser Expr :=
             return .app name args.toList)
         <|>
         (return .var name))
+<|> (do char '('; let e ← expr; char ')'; return e)
 
-partial def expr._1.right : C0Parser Expr := do
-  foldl (fun x (f : Expr → Expr) => f x) expr._1
+partial def expr.prec_13 : C0Parser Expr :=
+  foldl (fun x (f : Expr → Expr) => f x) expr.prec_13.left
     (   (do ws; char '.'  ; ws; let f ← ident tydefs; return (.dot · f))
     <|> (do ws; chars "->"; ws; let f ← ident tydefs; return (.arrow · f))
     <|> (do ws; char '['  ; ws; let e ← expr; return (.index · e)))
 
-partial def expr : C0Parser Expr :=
-    (do let op ← unop; ws; let e ← expr; return .unop op e)
-<|> (do let l  ← expr; ws; let op ← binop; ws; let r ← expr; return .binop op l r)
-<|> (do let cond ← expr; ws; char '?'; ws; let tt ← expr; ws; char ':'; ws; let ff ← expr
-        return .ternop cond tt ff)
-<|> (do char '*'; return .deref (← expr))
+partial def expr.prec_12 : C0Parser Expr :=
+    (do let op ← unop; ws; return .unop op (← expr.prec_12))
+<|> (do char '*'; ws; return .deref (← expr.prec_12))
+<|> expr.prec_13
+
+partial def expr.prec_11 : C0Parser Expr :=
+  foldl (fun x (f : Expr → Expr) => f x) expr.prec_12
+    (do ws; let op ← binop.int.prec_11; ws; let rhs ← expr.prec_12; return (.binop (.int op) · rhs))
+
+partial def expr.prec_10 : C0Parser Expr :=
+  foldl (fun x (f : Expr → Expr) => f x) expr.prec_11
+    (do ws; let op ← binop.int.prec_10; ws; let rhs ← expr.prec_11; return (.binop (.int op) · rhs))
+
+partial def expr.prec_9 : C0Parser Expr :=
+  foldl (fun x (f : Expr → Expr) => f x) expr.prec_10
+    (do ws; let op ← binop.int.prec_9; ws; let rhs ← expr.prec_10; return (.binop (.int op) · rhs))
+
+partial def expr.prec_8 : C0Parser Expr :=
+  foldl (fun x (f : Expr → Expr) => f x) expr.prec_9
+    (do ws; let op ← binop.cmp.prec_8; ws; let rhs ← expr.prec_9; return (.binop (.cmp op) · rhs))
+
+partial def expr.prec_7 : C0Parser Expr :=
+  foldl (fun x (f : Expr → Expr) => f x) expr.prec_8
+    (do ws; let op ← binop.cmp.prec_7; ws; let rhs ← expr.prec_8; return (.binop (.cmp op) · rhs))
+
+partial def expr.prec_6 : C0Parser Expr :=
+  foldl (fun x (f : Expr → Expr) => f x) expr.prec_7
+    (do ws; let op ← binop.int.prec_6; ws; let rhs ← expr.prec_7; return (.binop (.int op) · rhs))
+
+partial def expr.prec_5 : C0Parser Expr :=
+  foldl (fun x (f : Expr → Expr) => f x) expr.prec_6
+    (do ws; let op ← binop.int.prec_5; ws; let rhs ← expr.prec_6; return (.binop (.int op) · rhs))
+
+partial def expr.prec_4 : C0Parser Expr :=
+  foldl (fun x (f : Expr → Expr) => f x) expr.prec_5
+    (do ws; let op ← binop.int.prec_4; ws; let rhs ← expr.prec_5; return (.binop (.int op) · rhs))
+
+partial def expr.prec_3 : C0Parser Expr :=
+  foldl (fun x (f : Expr → Expr) => f x) expr.prec_4
+    (do ws; let op ← binop.bool.prec_3; ws; let rhs ← expr.prec_4; return (.binop (.bool op) · rhs))
+
+partial def expr.prec_2 : C0Parser Expr :=
+  foldl (fun x (f : Expr → Expr) => f x) expr.prec_3
+    (do ws; let op ← binop.bool.prec_2; ws; let rhs ← expr.prec_3; return (.binop (.bool op) · rhs))
+
+partial def expr.prec_1 : C0Parser Expr := do
+  let lhs ← expr.prec_2
+  (do ws; char '?'; ws; let tt ← expr.prec_1; ws; char ':'; ws; let ff ← expr.prec_1;
+      return .ternop lhs tt ff)
+  <|> (do return lhs)
+
+partial def expr : C0Parser Expr := expr.prec_1
 end
 
 mutual

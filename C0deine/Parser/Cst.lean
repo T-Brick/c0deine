@@ -15,7 +15,7 @@ inductive Typ
 | struct (name : Ident)
 
 inductive UnOp.Int | neg | not
-inductive UnOp.Bool | neg
+inductive UnOp.Bool | not
 inductive UnOp
 | int (op : UnOp.Int)
 | bool (op : UnOp.Bool)

@@ -62,7 +62,7 @@ def Trans.unop (lang : Language) (op : Cst.UnOp) : Except String Ast.UnOp := do
   match op with
   | .int .neg  => return .int .neg
   | .int .not  => return .int .not
-  | .bool .neg =>
+  | .bool .not =>
     if lang.under .l2
     then unsupported lang "!"
     else return .bool .neg

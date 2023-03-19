@@ -12,5 +12,5 @@ struct A {
 typedef int ************** eeeee;
 
 int main() {
-  
+  return 0;
 }
