@@ -8,6 +8,8 @@ import C0deine.Utils.Context
 
 namespace C0deine.Typechecker
 
+def Typed := Tst.Typed
+
 structure FuncType where
   ret : Option Typ
   args : List Typ
@@ -240,7 +242,7 @@ def Synth.intersect_types (tau1 tau2 : Typ.Check) : Except String Typ.Check := d
 
 namespace Synth.Expr
 
-def Result := Except String (Calls × Tst.Typed Tst.Expr)
+def Result := Except String (Calls × Typed Tst.Expr)
 deriving Inhabited
 
 def binop_type (expect : Typ)
@@ -475,7 +477,7 @@ end Synth.Expr
 
 namespace Synth.LValue
 
-def Result := Except String (Calls × Tst.Typed Tst.LValue)
+def Result := Except String (Calls × Typed Tst.LValue)
 deriving Inhabited
 
 def small (res : Result) : Result := do
@@ -660,15 +662,15 @@ partial def assn_dest (ctx : FuncCtx)
 
 partial def ite (ctx : FuncCtx)
         (cond : Ast.Expr)
-        (tt : Ast.Stmt)
-        (ff : Ast.Stmt)
+        (tt : List Ast.Stmt)
+        (ff : List Ast.Stmt)
         : Result := do
   let (calls, cond') ← Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx cond
   let ctx := {ctx with calls}
   match cond'.typ with
   | .type (.prim .bool) =>
-    let (ctx1, tt') ← stmt ctx tt
-    let (ctx2, ff') ← stmt ctx ff
+    let (ctx1, tt') ← stmts ctx tt
+    let (ctx2, ff') ← stmts ctx ff
     return (ctx1.join ctx2, .ite cond' tt' ff')
   | _ => throw "If condition must be of type bool"
 
@@ -764,7 +766,7 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef) : Result := do
   then throw s!"Function definintions cannot be in headers"
   else
     let (ctx', fctx, ret) ← func ctx true f.name f.type f.params
-    let params : List (Tst.Typed Symbol) ← f.params.foldrM (fun p acc =>
+    let params : List (Typed Symbol) ← f.params.foldrM (fun p acc =>
         match Trans.type fctx p.type with
         | some ty => pure (⟨.type ty, p.name⟩ :: acc)
         | none => throw s!"Function input must have non-void, declared type"

@@ -292,7 +292,12 @@ partial def Trans.control (lang : Language)
   | .ite cond tt ff =>
     if lang.under .l2
     then unsupported lang "if-else statements"
-    else sorry
+    else
+      let cond' ← Trans.expr lang cond
+      let tt' ← Trans.stmts lang [tt]
+      let ff' ← Trans.stmts lang [ff]
+      let rest' ← Trans.stmts lang rest
+      return .ite cond' tt' ff' :: rest'
   | .while cond body =>
     if lang.under .l2
     then unsupported lang "while loops"

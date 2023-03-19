@@ -56,7 +56,7 @@ inductive Stmt
 | decl (name : Typed Symbol) (init : Option (Typed Expr)) (body : List Stmt)
 | assign (lhs : Typed LValue) (op : Option BinOp.Int) (rhs : Typed Expr)
 | expr (e : Typed Expr)
-| ite (cond : Typed Expr) (tt : Stmt) (ff : Stmt)
+| ite (cond : Typed Expr) (tt : List Stmt) (ff : List Stmt)
 | while (cond : Typed Expr) (body : List Stmt)
 | «return» (e : Option (Typed Expr))
 | assert (e : Typed Expr)

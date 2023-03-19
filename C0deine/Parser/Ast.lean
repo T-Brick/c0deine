@@ -60,7 +60,7 @@ inductive LValue
 inductive Stmt
 | decl (type : Typ) (name : Ident) (init : Option Expr) (body : List Stmt)
 | assn (lv : LValue) (op : AsnOp) (v : Expr)
-| ite (cond : Expr) (tt : Stmt) (ff : Stmt)
+| ite (cond : Expr) (tt : List Stmt) (ff : List Stmt)
 | while (cond : Expr) (body : List Stmt)
 | «return» (e : Option Expr)
 | assert (e : Expr)
