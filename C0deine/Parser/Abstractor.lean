@@ -11,7 +11,6 @@ import C0deine.Utils.Language
 /- Converts the concrete syntax tree to an abstract syntax tree
     as well as enforces a specific language level
  -/
-
 namespace C0deine.Abstractor
 
 def unsupported (lang : Language) (op : String) : Except String α :=
