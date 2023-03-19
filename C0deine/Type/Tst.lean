@@ -26,7 +26,6 @@ inductive UnOp
 inductive BinOp.Int
 | plus | minus | times | div | mod | and | xor | or | lsh | rsh
 
-
 inductive BinOp.Bool
 | and | or
 
