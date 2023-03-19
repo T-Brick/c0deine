@@ -119,17 +119,186 @@ inductive GDecl
 
 def Prog := List GDecl
 
+
+def Typ.toString : Typ → String
+  | .int => "int"
+  | .bool => "bool"
+  | .void => "'void"
+  | .tydef (name : Ident) => s!"alias {name}"
+  | .ptr ty => s!"{ty.toString}*"
+  | .arr ty => s!"{ty.toString}[]"
+  | .struct (name : Ident) => s!"struct {name}"
+instance : ToString Typ where toString := Typ.toString
+
+
+def UnOp.Int.toString : UnOp.Int → String
+  | neg => "~"
+  | not => "!"
+instance : ToString UnOp.Int where toString := UnOp.Int.toString
+
+def UnOp.Bool.toString : UnOp.Bool → String
+  | neg => "!"
+instance : ToString UnOp.Bool where toString := UnOp.Bool.toString
+
+def UnOp.toString : UnOp → String
+  | int op  => s!"{op}"
+  | bool op => s!"{op}"
+instance : ToString UnOp where toString := UnOp.toString
+
+
+def BinOp.Int.toString : BinOp.Int → String
+  | plus => "+"
+  | minus => "-"
+  | times => "*"
+  | div => "/"
+  | mod => "%"
+  | and => "&"
+  | xor => "^"
+  | or => "|"
+  | lsh => "<<"
+  | rsh => ">>"
+instance : ToString BinOp.Int where toString := BinOp.Int.toString
+
 def BinOp.Cmp.toString : BinOp.Cmp → String
-| .lt => "<"
-| .le => "<="
-| .gt => ">"
-| .ge => ">="
-| .eq => "=="
-| .ne => "!="
+  | .lt => "<"
+  | .le => "<="
+  | .gt => ">"
+  | .ge => ">="
+  | .eq => "=="
+  | .ne => "!="
 instance : ToString BinOp.Cmp where toString := BinOp.Cmp.toString
 
 def BinOp.Bool.toString : BinOp.Bool → String
-| .and => "&&"
-| .or  => "||"
+  | .and => "&&"
+  | .or  => "||"
 instance : ToString BinOp.Bool where toString := BinOp.Bool.toString
 
+def BinOp.toString : BinOp → String
+  | int op  => s!"{op}"
+  | cmp op  => s!"{op}"
+  | bool op => s!"{op}"
+instance : ToString BinOp where toString := BinOp.toString
+
+
+def AsnOp.toString : AsnOp → String
+  | eq  => s!"="
+  | aseq op  => s!"{op}="
+instance : ToString AsnOp where toString := AsnOp.toString
+
+def PostOp.toString : PostOp → String
+  | incr => "++"
+  | decr => "--"
+instance : ToString PostOp where toString := PostOp.toString
+
+
+mutual
+def Expr.toString : Expr → String
+  | num v => s!"{v}"
+  | «true» => "true"
+  | «false» => "false"
+  | null => "NULL"
+  | unop op e => s!"{op}({e.toString})"
+  | binop op l r => s!"({l.toString}) {op} ({r.toString})"
+  | ternop c tt ff => s!"({c.toString}) ? ({tt.toString}) : ({ff.toString})"
+  | app f args => s!"{f}({Expr.argsToString args})"
+  | alloc ty => s!"alloc({ty})"
+  | alloc_array ty e => s!"alloc_array({ty}, {e.toString})"
+  | var name => s!"{name}"
+  | dot e field => s!"({e.toString}).{field}"
+  | arrow e field => s!"({e.toString})->{field}"
+  | deref e => s!"*({e.toString})"
+  | index e i => s!"({e.toString})[{i.toString}]"
+
+def Expr.argsToString : List Expr → String
+  | [] => ""
+  | arg :: [] => s!"{arg.toString}"
+  | arg :: args => s!"{arg.toString}, {Expr.argsToString args}"
+end
+instance : ToString Expr where toString := Expr.toString
+
+
+def LValue.toString : LValue → String
+  | var name => s!"{name}"
+  | dot e field => s!"({e.toString}).{field}"
+  | arrow e field => s!"({e.toString})->{field}"
+  | deref e => s!"*({e.toString})"
+  | index e i => s!"({e.toString})[{i.toString}]"
+instance : ToString LValue where toString := LValue.toString
+
+mutual
+def Stmt.toString (s : Stmt) : String :=
+  match s with
+  | .simp s => Simp.toString s
+  | .ctrl c => Control.toString c
+  | .block b =>
+    "{\n\t".append (Stmt.listToString b)
+
+def Stmt.listToString (stmts : List Stmt) : String :=
+  match stmts with
+  | [] => "\n}"
+  | stmt :: stmts =>
+    s!"\n\t{Stmt.toString stmt}" |>.append (Stmt.listToString stmts)
+
+def Control.toString (c : Control) : String :=
+  match c with
+  | .ite cond tt ff => s!"if({cond})\n{Stmt.toString tt}\n{Stmt.toString ff}"
+  | .while cond body => s!"while({cond})\n{Stmt.toString body}"
+  | .«for» init cond step body =>
+    let initStr :=
+      match init with
+      | none => ""
+      | some i => Simp.toString i
+    let stepStr :=
+      match step with
+      | none => ""
+      | some s => Simp.toString s
+    s!"for({initStr};{cond};{stepStr})\n{Stmt.toString body}"
+  | .«return» (.none) => "return;"
+  | .«return» (.some e) => s!"return {e};"
+  | .assert e => s!"assert({e});"
+
+def Simp.toString (s : Simp) : String :=
+  match s with
+  | .assn lv op v => s!"{lv} {op} {v}"
+  | .post lv op => s!"({lv}){op}"
+  | .decl type name init =>
+    let initStr :=
+      match init with
+      | none => ""
+      | some i => s!" = {i}"
+    s!"{type} {name} {initStr};"
+  | .exp e => s!"{e};"
+end
+instance : ToString Stmt        where toString := Stmt.toString
+instance : ToString (List Stmt) where toString := Stmt.listToString
+instance : ToString Control     where toString := Control.toString
+instance : ToString Simp        where toString := Simp.toString
+
+
+instance : ToString Field where toString f := s!"{f.type} {f.name};"
+instance : ToString (List Field) where
+  toString fs := "{".append (fs.foldr (fun f acc => s!"\t{f}\n{acc}") "}")
+
+instance : ToString SDef where toString s := s!"struct {s.name} {s.fields};"
+instance : ToString SDecl where toString s := s!"struct {s.name};"
+
+instance : ToString TyDef where toString t := s!"typedef {t.type} {t.name};"
+
+instance : ToString Param where toString p := s!"{p.type} {p.name}"
+instance : ToString (List Param) where
+  toString ps := String.intercalate ", " (ps.map (fun p => s!"{p}"))
+
+instance : ToString FDecl where toString f := s!"{f.type} {f.name}({f.params})"
+instance : ToString FDef where
+  toString f := s!"{f.type} {f.name}({f.params}) {f.body}"
+
+def GDecl.toString : GDecl → String
+  | .fdecl f => s!"{f}"
+  | .fdef  f => s!"{f}"
+  | .tydef t => s!"{t}"
+  | .sdecl s => s!"{s}"
+  | .sdef  s => s!"{s}"
+instance : ToString GDecl where toString := GDecl.toString
+
+instance : ToString Prog where
+  toString prog := String.intercalate "\n\n" (prog.map GDecl.toString)
