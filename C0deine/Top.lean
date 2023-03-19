@@ -12,6 +12,7 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     panic! "missing file argument"
   let input : System.FilePath := p.positionalArg! "input" |>.as! String
   let tcOnly : Bool := p.hasFlag "typecheck"
+  let verbose : Bool := p.hasFlag "verbose"
 
   if !(← input.pathExists) then
     panic! "input file does not exist"
@@ -31,13 +32,19 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
 
   let contents ← IO.FS.readFile input
 
+  if verbose then IO.println "parsing"
+
   match (Parser.C0Parser.prog <* Parser.endOfInput).run contents.toSubstring Context.State.new with
   | (.error e, _)
   | (.ok (.error e), _) =>
     panic! s!"parser error: {e}"
   | (.ok (.ok _ cst), ctx) =>
+
+  if verbose then IO.println "abstracting"
   
   let ast ← IO.ofExcept <| Abstractor.abstract lang cst
+
+  if verbose then IO.println "typechecking"
   
   match (Typechecker.typecheck ast).run ctx with
   | (.error e, _) =>

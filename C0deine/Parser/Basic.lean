@@ -332,8 +332,10 @@ def gdecl : C0Parser GDecl :=
 
 partial def prog : C0Parser Prog := do
   let gdecls ← aux (Std.RBSet.empty) #[]
+  ws
   return gdecls.toList
 where aux tydefs acc := (do
+  ws
   let g ← gdecl tydefs
   let tydefs := match g with | .tydef ⟨_, i⟩ => tydefs.insert i | _ => tydefs
   aux tydefs (acc.push g))
