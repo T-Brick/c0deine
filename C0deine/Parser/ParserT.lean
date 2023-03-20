@@ -320,7 +320,7 @@ termination_by aux p _ => s.size - p.pos
   <|> (return none)
 
 @[inline] def char (c : Char) : ParserT m s Unit :=
-  atomically (name := "\"{c}\"") <| do
+  atomically (name := s!"\"{c}\"") <| do
   let c' ← any
   guard (c = c')
 
