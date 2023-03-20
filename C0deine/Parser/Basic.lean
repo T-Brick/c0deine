@@ -211,10 +211,10 @@ def binop.int.prec_9 : C0Parser s BinOp.Int :=
 
 def binop.cmp.prec_8 : C0Parser s BinOp.Cmp :=
   first [
-    (do char '<'; return .lt)
-  , (do wholeString "<="; return .le)
-  , (do char '>'; return .gt)
+    (do wholeString "<="; return .le)
+  , (do char '<'; return .lt)
   , (do wholeString ">="; return .ge)
+  , (do char '>'; return .gt)
   ]
 
 def binop.cmp.prec_7 : C0Parser s BinOp.Cmp :=
@@ -224,13 +224,13 @@ def binop.cmp.prec_7 : C0Parser s BinOp.Cmp :=
   ]
 
 def binop.int.prec_6 : C0Parser s BinOp.Int :=
-  (do char '&'; return .and)
+  withBacktracking (do char '&'; notFollowedBy (char '&'); return .and)
 
 def binop.int.prec_5 : C0Parser s BinOp.Int :=
   (do char '^'; return .xor)
 
 def binop.int.prec_4 : C0Parser s BinOp.Int :=
-  (do char '|'; return .or)
+  withBacktracking (do char '|'; notFollowedBy (char '|'); return .or)
 
 def binop.bool.prec_3 : C0Parser s BinOp.Bool :=
   (do wholeString "&&"; return .and)
@@ -246,7 +246,9 @@ def binop.int : C0Parser s BinOp.Int :=
 
 def asnop : C0Parser s AsnOp :=
     (do char '='; return .eq)
-<|> (do let op ← binop.int; char '='; return .aseq op)
+<|> (do let op ← withBacktrackingUntil binop.int
+                    (fun op => do char '='; return op)
+        return .aseq op)
 
 def postop : C0Parser s PostOp :=
     (do wholeString "++"; return .incr)
@@ -410,7 +412,7 @@ partial def control : C0Parser s Control :=
   first [
     (do kw_if; ws; char '('; ws; let cond ← expr tydefs; ws; char ')'; ws
         let tt ← stmt
-        let ff ← option (do withBacktracking (do ws; kw_else); stmt)
+        let ff ← option (do withBacktracking (do ws; kw_else); ws; stmt)
         return Control.ite cond tt (ff.getD (.block [])))
   , (do kw_while; ws; char '('; ws; let cond ← expr tydefs; ws; char ')'; ws
         let body ← stmt
