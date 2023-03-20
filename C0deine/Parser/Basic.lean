@@ -134,7 +134,8 @@ def rawIdent : C0Parser s Ident := do
   return ← liftM <| Symbol.symbol str
 
 def typeIdent : C0Parser s Ident :=
-  withContext "<type-ident>" do
+  withContext "<type-ident>" <|
+  withBacktracking do
   let id ← rawIdent
   if tydefs.contains id then
     return id
@@ -142,7 +143,8 @@ def typeIdent : C0Parser s Ident :=
     throwUnexpected
 
 def ident : C0Parser s Ident :=
-  withContext "<ident>" do
+  withContext "<ident>" <|
+  withBacktracking do
   let id ← rawIdent
   if tydefs.contains id then
     throwUnexpected
@@ -152,11 +154,13 @@ def ident : C0Parser s Ident :=
 
 mutual
 def simpleTyp : C0Parser s Typ :=
-      (do kw_int ; return Typ.int)
-  <|> (do kw_bool; return Typ.bool)
-  <|> (do kw_void; return Typ.void)
-  <|> (do let name ← ident tydefs; return Typ.tydef name)
-  <|> (do kw_struct; ws; let name ← rawIdent; return Typ.struct name)
+  first [
+    (do kw_int ; return Typ.int)
+  , (do kw_bool; return Typ.bool)
+  , (do kw_void; return Typ.void)
+  , (do let name ← typeIdent tydefs; return Typ.tydef name)
+  , (do kw_struct; ws; let name ← rawIdent; return Typ.struct name)
+  ]
 
 def typ : C0Parser s Typ :=
   withContext "<type>" do
@@ -170,38 +174,52 @@ def typ : C0Parser s Typ :=
 end
 
 def unop.int : C0Parser s UnOp.Int :=
-  (do char '-'; notFollowedBy (char '-'); notFollowedBy (char '>'); return .neg)
-  <|> (do char '~'; return .not)
+  first [
+    (do char '-'; notFollowedBy (char '-'); notFollowedBy (char '>'); return .neg)
+  , (do char '~'; return .not)
+  ]
 
 def unop.bool : C0Parser s UnOp.Bool :=
   (do char '!'; return .not)
 
 def unop : C0Parser s UnOp :=
+  first [
     (do let op ← unop.int; return .int op)
-<|> (do let op ← unop.bool; return .bool op)
+  , (do let op ← unop.bool; return .bool op)
+  ]
 
 def binop.int.prec_11 : C0Parser s BinOp.Int :=
-     (do char '*'; return .times)
-<|> (do char '/'; return .div)
-<|> (do char '%'; return .mod)
+  first [
+    (do char '*'; return .times)
+  , (do char '/'; return .div)
+  , (do char '%'; return .mod)
+  ]
 
 def binop.int.prec_10 : C0Parser s BinOp.Int :=
+  first [
     (do char '+'; return .plus)
-<|> (withBacktracking do char '-'; notFollowedBy (char '-'); return .minus)
+  , (withBacktracking do char '-'; notFollowedBy (char '-'); return .minus)
+  ]
 
 def binop.int.prec_9 : C0Parser s BinOp.Int :=
+  first [
     (do wholeString "<<"; return .lsh)
-<|> (do wholeString ">>"; return .rsh)
+  , (do wholeString ">>"; return .rsh)
+  ]
 
 def binop.cmp.prec_8 : C0Parser s BinOp.Cmp :=
+  first [
     (do char '<'; return .lt)
-<|> (do wholeString "<="; return .le)
-<|> (do char '>'; return .gt)
-<|> (do wholeString ">="; return .ge)
+  , (do wholeString "<="; return .le)
+  , (do char '>'; return .gt)
+  , (do wholeString ">="; return .ge)
+  ]
 
 def binop.cmp.prec_7 : C0Parser s BinOp.Cmp :=
+  first [
     (do wholeString "=="; return .eq)
-<|> (do wholeString "!="; return .ne)
+  , (do wholeString "!="; return .ne)
+  ]
 
 def binop.int.prec_6 : C0Parser s BinOp.Int :=
   (do char '&'; return .and)
@@ -219,8 +237,10 @@ def binop.bool.prec_2 : C0Parser s BinOp.Bool :=
   (do wholeString "||"; return .or)
 
 def binop.int : C0Parser s BinOp.Int :=
-  binop.int.prec_11 <|> binop.int.prec_10 <|> binop.int.prec_9
-  <|> binop.int.prec_6 <|> binop.int.prec_5 <|> binop.int.prec_4
+  first [
+    binop.int.prec_11 , binop.int.prec_10 , binop.int.prec_9
+  , binop.int.prec_6  , binop.int.prec_5  , binop.int.prec_4
+  ]
 
 def asnop : C0Parser s AsnOp :=
     (do char '='; return .eq)
@@ -235,52 +255,49 @@ partial def expr.prec_13 : C0Parser s Expr :=
   foldl (left <* ws) (fun lhs => right lhs <* ws)
 where
   left : C0Parser s Expr :=
-    (do let v ← num; return .num v)
-    <|>
-    (do kw_true; return .«true»)
-    <|>
-    (do kw_false; return .«false»)
-    <|>
-    (do kw_NULL; return .null)
-    <|>
-    (do kw_alloc; ws; char '('; ws
-        let ty ← typ tydefs
-        ws; char ')'
-        return .alloc ty)
-    <|>
-    (do kw_alloc_array; ws; char '('; ws
-        let ty ← typ tydefs
-        ws; char ','; ws
-        let e ← expr
-        ws; char ')'
-        return .alloc_array ty e)
-    <|>
-    (do let name ← ident tydefs
-        (do ws; char '('; ws
-            let args ← foldl
-              (do let e ← expr; return #[e])
-              (fun acc => do ws; char ','; ws; return acc.push (← expr))
-            char ')'
-            return .app name args.toList)
-        <|>
-        (return .var name))
-    <|>
-    (do char '('; let e ← expr; char ')'; return e)
-  right (lhs) :=
-    (do char '.'; ws; let f ← ident tydefs
-        return (.dot lhs f))
-    <|>
-    (do wholeString "->"; ws; let f ← ident tydefs
-        return (.arrow lhs f))
-    <|>
-    (do char '['; ws; let e ← expr
-        return (.index lhs e))
+    first [
+      (do let v ← num; return .num v)
+    , (do kw_true; return .«true»)
+    , (do kw_false; return .«false»)
+    , (do kw_NULL; return .null)
+    , (do kw_alloc; ws; char '('; ws
+          let ty ← typ tydefs
+          ws; char ')'
+          return .alloc ty)
+    , (do kw_alloc_array; ws; char '('; ws
+          let ty ← typ tydefs
+          ws; char ','; ws
+          let e ← expr
+          ws; char ')'
+          return .alloc_array ty e)
+    , (do let name ← ident tydefs
+          (do ws; char '('; ws
+              let args ← foldl
+                (do let e ← expr; return #[e])
+                (fun acc => do ws; char ','; ws; return acc.push (← expr))
+              char ')'
+              return .app name args.toList)
+          <|>
+          (return .var name))
+    , (do char '('; let e ← expr; char ')'; return e)
+    ]
+  right (lhs) := do
+    first [
+      (do char '.'; ws; let f ← ident tydefs
+          return (.dot lhs f))
+    , (do wholeString "->"; ws; let f ← ident tydefs
+          return (.arrow lhs f))
+    , (do char '['; ws; let e ← expr
+          return (.index lhs e))
+    ]
 
 
 partial def expr.prec_12 : C0Parser s Expr :=
+  first [
     (do let op ← unop; ws; return .unop op (← expr.prec_12))
-<|> (do char '*'; ws; return .deref (← expr.prec_12))
-<|> expr.prec_13
+  , (do char '*'; ws; return .deref (← expr.prec_12))
+  , expr.prec_13
+  ]
 
 partial def expr.prec_11 : C0Parser s Expr :=
   foldl (expr.prec_12 <* ws) (fun lhs => do
@@ -345,78 +362,87 @@ partial def expr : C0Parser s Expr := expr.prec_1
 end
 
 partial def lvalue : C0Parser s LValue :=
+  withContext "<lvalue>" <|
   foldl
     (do let name ← ident tydefs; return .var name)
-    (fun lv => do
-      ws
-      (do
+    (fun lv =>
+      withBacktrackingUntil ws
+      (fun () => first [
+        (do
         char '.'; ws
         let field ← ident tydefs
         return (.dot lv field))
-      <|> (do
+      , (do
         wholeString "->"; ws
         let field ← ident tydefs
         return (.arrow lv field))
-      <|> (do
+      , (do
         char '*'; ws
         return (.deref lv))
-      <|> (do
+      , (do
         char '['; ws; let index ← expr tydefs; char ']'
         return (.index lv index))
+      ])
     )
 
 
 mutual
 partial def control : C0Parser s Control :=
+  first [
     (do kw_if; ws; char '('; ws; let cond ← expr tydefs; ws; char ')'; ws
         let tt ← stmt
         let ff ← option (do withBacktracking (do ws; kw_else); stmt)
         return Control.ite cond tt (ff.getD (.block [])))
-<|> (do kw_while; ws; char '('; ws; let cond ← expr tydefs; ws; char ')'; ws
+  , (do kw_while; ws; char '('; ws; let cond ← expr tydefs; ws; char ')'; ws
         let body ← stmt
         return Control.«while» cond body)
-<|> (do kw_for; ws; char '('; ws
+  , (do kw_for; ws; char '('; ws
         let init ← simp; ws; char ';'; ws
         let cond ← expr tydefs; ws; char ';'; ws
         let step ← option simp; ws
         char ')'; ws
         let body ← stmt
         return Control.«for» init cond step body)
-<|> (do kw_return; ws; let e ← option (expr tydefs); ws; char ';'
+  , (do kw_return; ws; let e ← option (expr tydefs); ws; char ';'
         return Control.«return» e)
-<|> (do kw_assert; ws; let e ← expr tydefs; ws; char ';'
+  , (do kw_assert; ws; let e ← expr tydefs; ws; char ';'
         return Control.assert e)
+  ]
 
 partial def simp : C0Parser s Simp :=
-  (do
-    let type ← typ tydefs; ws
-    let name ← ident tydefs; ws;
-    let init ← option (do char '='; ws; expr tydefs)
-    return .decl type name init)
-<|>
-  (do
-    let lv ← lvalue tydefs; ws
-    -- either an asnop, or a postop, OR an expression
-    -- with `lv` on the LHS
-    (do let op ← asnop; ws; let v ← expr tydefs; return .assn lv op v)
-    <|>
-    (do let op ← postop; return .post lv op)
-    -- TODO: allow lvalues to reduce to LHS of expression
-    --<|>
-    --(expr.prec_13.right)
-    )
-<|> (do let e ← expr tydefs; return .exp e)
+  first [
+    (do
+      let type ← typ tydefs; ws
+      let name ← ident tydefs; ws;
+      let init ← option (do char '='; ws; expr tydefs)
+      return .decl type name init)
+  , (do
+      let lv ← lvalue tydefs; ws
+      -- either an asnop, or a postop, OR an expression
+      -- with `lv` on the LHS
+      (do let op ← asnop; ws; let v ← expr tydefs; return .assn lv op v)
+      <|>
+      (do let op ← postop; return .post lv op)
+      -- TODO: allow lvalues to reduce to LHS of expression
+      --<|>
+      --(expr.prec_13.right)
+      )
+  , (do let e ← expr tydefs; return .exp e)
+  ]
 
-partial def block : C0Parser s Stmt :=
-  (do char '{'; ws
-      let body ← sepBy ws stmt
-      ws; char '}'
-      return .block body.toList)
+partial def block : C0Parser s Stmt := do
+  char '{'; ws
+  let body ← sepBy ws stmt
+  ws; char '}'
+  return .block body.toList
 
 partial def stmt : C0Parser s Stmt :=
+  first [
     (do let s ← simp; ws; char ';'; return .simp s)
-<|> (do return .ctrl (←control))
-<|> block
+  , (do return .ctrl (←control))
+  , block
+  ]
+
 end
 
 def field : C0Parser s Field :=
