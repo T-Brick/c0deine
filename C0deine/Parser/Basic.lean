@@ -67,8 +67,8 @@ partial def blockComment : C0Parser s Unit := do
 def ws : C0Parser s Unit :=
   withContext "ws" <|
   dropMany (
-    (withBacktracking do
-      let a ← any; guard ((a : Char) ∈ [' ', '\n', '\t', '\r', '\u0011', '\u0012']))
+    (first [  char ' ', char '\n', char '\t', char '\r'
+            , char (11 : UInt8), char (12 : UInt8)])
     <|> lineComment
     <|> blockComment)
 
@@ -125,17 +125,20 @@ def anyKeyword : C0Parser s Unit :=
 
 variable (tydefs : Std.RBSet Symbol Ord.compare)
 
-def rawIdent : C0Parser s Ident := do
+def rawIdent : C0Parser s Ident :=
+  atomically do
   notFollowedBy anyKeyword
-  let c ← charMatching (fun c => c.isAlpha || c = '_')
-  let str ← foldl (return c.toString) (fun s => do
-    let c ← charMatching (fun c => c.isAlphanum || c = '_')
-    return s.push c)
+  let str ←
+    foldl
+      (do let c ← charMatching (fun c => c.isAlpha || c = '_')
+          return c.toString)
+      (fun s => do
+        let c ← charMatching (fun c => c.isAlphanum || c = '_')
+        return s.push c)
   return ← liftM <| Symbol.symbol str
 
 def typeIdent : C0Parser s Ident :=
-  withContext "<type-ident>" <|
-  withBacktracking do
+  atomically (name := "<type-ident>") do
   let id ← rawIdent
   if tydefs.contains id then
     return id
@@ -143,8 +146,7 @@ def typeIdent : C0Parser s Ident :=
     throwUnexpected
 
 def ident : C0Parser s Ident :=
-  withContext "<ident>" <|
-  withBacktracking do
+  atomically (name := "<ident>") do
   let id ← rawIdent
   if tydefs.contains id then
     throwUnexpected
@@ -397,7 +399,7 @@ where
   left : C0Parser s LValue :=
     (do char '*'; ws; let lv ← lvalue; return .deref lv)
     <|>
-    (do char '('; ws; let lv ← lvalue; char ')'; return lv)
+    (do char '('; ws; let lv ← lvalue; ws; char ')'; return lv)
     <|>
     (do let name ← ident tydefs; return .var name)
 
