@@ -175,7 +175,7 @@ end
 
 def unop.int : C0Parser s UnOp.Int :=
   first [
-    (do char '-'; notFollowedBy (char '-'); notFollowedBy (char '>'); return .neg)
+    (do withBacktracking (do char '-'; notFollowedBy (char '-'); notFollowedBy (char '>')); return .neg)
   , (do char '~'; return .not)
   ]
 
@@ -252,6 +252,7 @@ def postop : C0Parser s PostOp :=
 
 mutual
 partial def expr.prec_13 : C0Parser s Expr :=
+  withContext "<expr-13>" <|
   foldl (left <* ws) (fun lhs => right lhs <* ws)
 where
   left : C0Parser s Expr :=
@@ -279,7 +280,7 @@ where
               return .app name args.toList)
           <|>
           (return .var name))
-    , (do char '('; let e ← expr; char ')'; return e)
+    , (do char '('; ws; let e ← expr; ws; char ')'; return e)
     ]
   right (lhs) := do
     first [
@@ -291,65 +292,76 @@ where
           return (.index lhs e))
     ]
 
-
 partial def expr.prec_12 : C0Parser s Expr :=
+  withContext "<expr-12>" <|
   first [
-    (do let op ← unop; ws; return .unop op (← expr.prec_12))
-  , (do char '*'; ws; return .deref (← expr.prec_12))
+    (do let op ← unop; ws; let e ← expr.prec_12; return .unop op e)
+  , (do char '*'; ws; let e ← expr.prec_12; return .deref e)
   , expr.prec_13
   ]
 
 partial def expr.prec_11 : C0Parser s Expr :=
+  withContext "<expr-11>" <|
   foldl (expr.prec_12 <* ws) (fun lhs => do
     let op ← binop.int.prec_11; ws; let rhs ← expr.prec_12; ws
     return (.binop (.int op) lhs rhs))
 
 partial def expr.prec_10 : C0Parser s Expr :=
+  withContext "<expr-10>" <|
   foldl (expr.prec_11 <* ws) (fun lhs => do
     let op ← binop.int.prec_10; ws; let rhs ← expr.prec_11; ws
     return (.binop (.int op) lhs rhs))
 
 partial def expr.prec_9 : C0Parser s Expr :=
+  withContext "<expr-9>" <|
   foldl (expr.prec_10 <* ws) (fun lhs => do
     let op ← binop.int.prec_9; ws; let rhs ← expr.prec_10; ws
     return (.binop (.int op) lhs rhs))
 
 partial def expr.prec_8 : C0Parser s Expr :=
+  withContext "<expr-8>" <|
   foldl (expr.prec_9 <* ws) (fun lhs => do
     let op ← binop.cmp.prec_8; ws; let rhs ← expr.prec_9; ws
     return (.binop (.cmp op) lhs rhs))
 
 partial def expr.prec_7 : C0Parser s Expr :=
+  withContext "<expr-7>" <|
   foldl (expr.prec_8 <* ws) (fun lhs => do
     let op ← binop.cmp.prec_7; ws; let rhs ← expr.prec_8; ws
     return (.binop (.cmp op) lhs rhs))
 
 partial def expr.prec_6 : C0Parser s Expr :=
+  withContext "<expr-6>" <|
   foldl (expr.prec_7 <* ws) (fun lhs => do
     let op ← binop.int.prec_6; ws; let rhs ← expr.prec_7; ws
     return (.binop (.int op) lhs rhs))
 
 partial def expr.prec_5 : C0Parser s Expr :=
+  withContext "<expr-5>" <|
   foldl (expr.prec_6 <* ws) (fun lhs => do
     let op ← binop.int.prec_5; ws; let rhs ← expr.prec_6; ws
     return (.binop (.int op) lhs rhs))
 
 partial def expr.prec_4 : C0Parser s Expr :=
+  withContext "<expr-4>" <|
   foldl (expr.prec_5 <* ws) (fun lhs => do
     let op ← binop.int.prec_4; ws; let rhs ← expr.prec_5; ws
     return (.binop (.int op) lhs rhs))
 
 partial def expr.prec_3 : C0Parser s Expr :=
+  withContext "<expr-3>" <|
   foldl (expr.prec_4 <* ws) (fun lhs => do
     let op ← binop.bool.prec_3; ws; let rhs ← expr.prec_4; ws
     return (.binop (.bool op) lhs rhs))
 
 partial def expr.prec_2 : C0Parser s Expr :=
+  withContext "<expr-2>" <|
   foldl (expr.prec_3 <* ws) (fun lhs => do
     let op ← binop.bool.prec_2; ws; let rhs ← expr.prec_3; ws
     return (.binop (.bool op) lhs rhs))
 
-partial def expr.prec_1 : C0Parser s Expr := do
+partial def expr.prec_1 : C0Parser s Expr :=
+  withContext "<expr-1>" do
   let lhs ← expr.prec_2
   -- Note whitespace already has been consumed
   (do char '?'; ws
@@ -358,7 +370,8 @@ partial def expr.prec_1 : C0Parser s Expr := do
       return .ternop lhs tt ff)
   <|> (do return lhs)
 
-partial def expr : C0Parser s Expr := expr.prec_1
+partial def expr : C0Parser s Expr :=
+  withContext "<expr>" expr.prec_1
 end
 
 partial def lvalue : C0Parser s LValue :=

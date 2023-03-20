@@ -284,7 +284,7 @@ instance : OrElse (ParserT m s α) where
 @[inline] def first (ps : List (ParserT m s α)) (h : ps ≠ [] := by simp) :=
   match ps with
   | [] => by contradiction
-  | p::ps => ps.foldl or p
+  | p::ps => List.foldl or p ps
 
 @[inline] def foldl (p : ParserT m s α) (q : α → ParserT m s α) : ParserT m s α := do
   let a ← p
