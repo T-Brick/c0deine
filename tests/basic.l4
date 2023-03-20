@@ -11,10 +11,27 @@ struct A {
 
 typedef int************** soManyPointersOhMyGah;
 
+int foo(int y, bool *x) {
+  if(*x) {
+    return 5;
+  }
+  return y;
+}
+
+bool bar(int x, bool *y) {
+  return *y;
+}
+
 int main() {
+  int a;
   int x = 5;
   int y = x;
+  int* b = NULL;
   struct S * s = alloc(struct S);
-  soManyPointersOhMyGah* p = alloc(soManyPointersOhMyGah *);
-  return x;
+  bool *z = alloc(bool);
+  // int[] arr = NULL;
+  int************** * p = alloc(int**************);
+  return foo(y, z);
+
+  return a;
 }

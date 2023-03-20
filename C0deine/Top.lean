@@ -37,22 +37,23 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     return 1
   | ((.ok cst, _), ctx) =>
 
+  -- if verbose then IO.println cst
   if verbose then IO.println "abstracting"
 
   let ast ← IO.ofExcept <| Abstractor.abstract lang cst
 
+  -- if verbose then IO.println ast
   if verbose then IO.println "typechecking"
-  if verbose then IO.println ast
 
   match (Typechecker.typecheck ast).run ctx with
   | (.error e, _) =>
     panic! s!"{e}"
-  | (.ok x, ctx) =>
+  | (.ok tst, ctx) =>
 
   if tcOnly then return 0
 
   IO.println "typechecked!"
-  IO.println x
+  IO.println tst
 
   return 0
 

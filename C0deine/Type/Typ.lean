@@ -35,7 +35,7 @@ instance : ToString Primitive where toString := Primitive.toString
 
 mutual
 def Memory.toString : Typ.Memory → String
-  | .pointer (typ : Typ)   => s!"{toString typ} *"
+  | .pointer (typ : Typ)   => s!"{toString typ}*"
   | .array (typ : Typ)     => s!"{toString typ}[]"
   | .struct (sym : Symbol) => s!"struct {sym}"
 
@@ -115,9 +115,11 @@ end
 
 def Check.equiv (a b : Check) : Bool :=
   match a, b with
-  | .type t1, .type t2  => Typ.equiv t1 t2
-  | .void, .void        => true
-  | .any, _ | _, .any   => true
+  | .type t1, .type t2            => Typ.equiv t1 t2
+  | .void, .void                  => true
+  | .any, .type (.mem (.array _))
+  | .type (.mem (.array _)), .any => false
+  | .any, _ | _, .any             => true
   | _, _ => false
 
 def isScalar : Typ → Bool

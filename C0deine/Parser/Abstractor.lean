@@ -44,7 +44,7 @@ def Trans.type (lang : Language)
     then unsupported lang "array types"
     else
       let tau'Opt ← Trans.type lang tau
-      return tau'Opt.map (fun tau' => .ptr tau')
+      return tau'Opt.map (fun tau' => .arr tau')
   | .struct name =>
     if lang.under .l4
     then unsupported lang "structs"

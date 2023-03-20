@@ -380,8 +380,10 @@ def expr (ctx : FuncCtx) (e : Ast.Expr) : Result := do
       && (List.zip arg_types status.type.args
           |>.all fun (a, b) => Typ.Check.equiv a (.type b))
       then return (calls.insert f (), ⟨ret_type, .app f args'⟩)
-      else throw "Function argument types don't match"
-    | _ => throw "Cannot apply to a non-function type"
+      else throw s!"Function {f} argument types don't match\n  Expected {status.type.args} but received {arg_types}"
+    | some (.var _) => throw s!"Cannot call variable {f} (non-function type)"
+    | some (.alias _) => throw s!"Cannot call type {f}"
+    | none => throw s!"Cannot call undeclared/undefined function {f}"
 
   | .alloc tau         =>
     let opt_tau' := Trans.type ctx tau
@@ -573,9 +575,9 @@ def stmt (ctx : FuncCtx) (s : Ast.Stmt) : Result := do
         | none => pure (ctx.calls, none)
         | some e =>
           let (calls, e') ← Synth.Expr.expr ctx e
-          if e'.typ = .type tau
+          if e'.typ.equiv (.type tau)
           then pure (calls, some e')
-          else throw s!"Variable {name} has mismatched types"
+          else throw s!"Variable {name} has mismatched types\n  Declaration expects {tau} but {e'.data} has type {e'.typ}"
       -- don't use new context since no longer in scope, but keep calls, returns
       let (ctx'', body') ← stmts {ctx' with calls} body
       let calledOldCtx :=
