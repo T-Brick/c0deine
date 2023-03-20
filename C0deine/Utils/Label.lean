@@ -14,10 +14,12 @@ instance : ToString Label where
     match l.name with
     | none => s!"L{l.id}"
     | some name => name
+instance : Ord Label where compare l1 l2 := Ord.compare l1.id l2.id
 instance : Hashable Label where hash l := hash l.id
 
-def Label.main : Label := ⟨0, "main"⟩
-def Label.calloc : Label := ⟨1, "calloc"⟩
+
+def main : Label := ⟨0, "main"⟩
+def calloc : Label := ⟨1, "calloc"⟩
 
 def Map (α : Type) := Std.HashMap Label α
 

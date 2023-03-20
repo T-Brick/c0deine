@@ -16,16 +16,18 @@ inductive EffectBinop
 mutual
 inductive Expr
 | byte : UInt8 → Expr
-| const : UInt32 → Expr
+| const : Int → Expr
 | temp : Temp → Expr
 | memory : Nat → Expr
 | binop (op : PureBinop) (lhs rhs : TypedExpr)
+deriving Inhabited
 
 inductive TypedExpr
-| typed (type : Typ) (expr : Expr)
+| typed (type : Typ.Check) (expr : Expr)
+deriving Inhabited
 end
 
-def TypedExpr.type : TypedExpr → Typ
+def TypedExpr.type : TypedExpr → Typ.Check
 | .typed type _expr => type
 
 def TypedExpr.expr : TypedExpr → Expr
@@ -52,11 +54,24 @@ inductive Stmt
 
 inductive BlockExit
 | jump (lbl : Label)
-| cjump (op : PureBinop) (lhs rhs : TypedExpr) (tt : Label) (ff : Label)
+| cjump (e : TypedExpr) (tt : Label) (ff : Label)
 | «return» (e : Option (TypedExpr))
+
+inductive BlockType
+| loop
+| loopguard
+| funcEntry
+| funcExit
+| thenClause
+| elseClause
+| ternaryTrue
+| ternaryFalse
+| afterITE
+| afterTernary
 
 structure Block where
   label : Label
+  type : BlockType
   body : List Stmt
   exit : BlockExit
 
@@ -123,15 +138,28 @@ instance : ToString Stmt where toString := Stmt.toString
 
 def BlockExit.toString : BlockExit → String
   | jump lbl => s!"jump {lbl}"
-  | cjump op lhs rhs tt ff =>
-    s!"cjump ({lhs} {op} {rhs}) {tt} {ff}"
+  | cjump e tt ff =>
+    s!"cjump ({e}) {tt} {ff}"
   | «return» (.none) => "return"
   | «return» (.some e) => s!"return {e}"
 instance : ToString BlockExit where toString := BlockExit.toString
 
+def BlockType.toString : BlockType → String
+  | loop => "loop"
+  | loopguard => "loop-guard"
+  | funcEntry => "func-entry"
+  | funcExit => "func-exit"
+  | thenClause => "then-clause"
+  | elseClause => "else-clause"
+  | ternaryTrue => "ternary-true"
+  | ternaryFalse => "ternary-false"
+  | afterITE => "after-ifelse"
+  | afterTernary => "after-ternary"
+instance : ToString BlockType where toString := BlockType.toString
+
 def Block.toString (b : Block) :=
   let body := b.body.map (fun stmt => s!"\t{stmt}\n") |> String.join
-  s!"{b.label}:\n{body}\t{b.exit}"
+  s!"{b.label}:\t\t{b.type}\n{body}\t{b.exit}"
 instance : ToString Block where toString := Block.toString
 
 def Func.toString (f : Func) :=
