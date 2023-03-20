@@ -27,7 +27,7 @@ int main() {
   int x = 5;
   int y = x;
   int* b = NULL;
-  struct S * s = alloc(struct S);
+  struct A * s = alloc(struct A);
   bool *z = alloc(bool);
   // int[] arr = NULL;
   int [] arr = alloc_array(int, 5);

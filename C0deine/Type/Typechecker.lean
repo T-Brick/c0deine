@@ -208,7 +208,7 @@ def Validate.func (ctx : GlobalCtx)
   let symbols' := fctx.symbols.insert name status
   let fctx ← Validate.params {fctx with symbols := symbols'} inputs
   if ¬(output.all Typ.isSmall)
-  then throw s!"Function {name} must have small output type"
+  then throw s!"Function {name} has non-small output type {output}"
   else
     match ctx.symbols.find? name with
     | some (.var _var) =>
@@ -217,12 +217,12 @@ def Validate.func (ctx : GlobalCtx)
       if defining && f.defined
       then throw s!"Function {name} cannot be redefined"
       else if intypes ≠ f.type.args
-      then throw s!"Function {name} inputs don't match prior declarations"
+      then throw s!"Function {name} inputs don't match prior declarations\n  Previously: {f.type.args}\n  Here: {intypes}"
       else if output ≠ f.type.ret
-      then throw s!"Function {name} return type differs from prior declarations"
+      then throw s!"Function {name} return type differs from prior declarations\n  Previously: {f.type.ret}\n  Here: {output}"
       else return (status, fctx)
     | some (.alias _type) =>
-      throw s!"Name {name} is already used as a type"
+      throw s!"Identifier {name} is already used as a type"
     | _ => return (status, fctx)
 
 def Validate.callsDefined (ctx : GlobalCtx)
