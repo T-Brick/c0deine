@@ -255,16 +255,16 @@ partial def expr.prec_13.left : C0Parser s Expr :=
 <|> (do kw_true; return .«true»)
 <|> (do kw_false; return .«false»)
 <|> (do kw_NULL; return .null)
-<|> (do kw_alloc; ws; char '('; ws
-        let ty ← typ tydefs
-        ws; char ')'
-        return .alloc ty)
 <|> (do kw_alloc_array; ws; char '('; ws
         let ty ← typ tydefs
         ws; char ','; ws
         let e ← expr
         ws; char ')'
         return .alloc_array ty e)
+<|> (do kw_alloc; ws; char '('; ws
+        let ty ← typ tydefs
+        ws; char ')'
+        return .alloc ty)
 <|> (do let name ← ident tydefs
         (do ws; char '('; ws
             let args ← foldl

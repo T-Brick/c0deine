@@ -30,6 +30,7 @@ int main() {
   struct S * s = alloc(struct S);
   bool *z = alloc(bool);
   // int[] arr = NULL;
+  int [] arr = alloc_array(int, 5);
   int************** * p = alloc(int**************);
   return foo(y, z);
 
