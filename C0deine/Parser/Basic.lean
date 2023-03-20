@@ -277,10 +277,8 @@ where
           return .alloc_array ty e)
     , (do let name ← ident tydefs
           (do withBacktrackingUntil ws (fun () => char '('); ws
-              let args ← foldl
-                (do let e ← expr; return #[e])
-                (fun acc => do ws; char ','; ws; return acc.push (← expr))
-              char ')'
+              let args ← sepBy (do ws; char ','; ws) expr
+              ws; char ')'
               return .app name args.toList)
           <|>
           (return .var name))
@@ -418,7 +416,7 @@ partial def control : C0Parser s Control :=
         let body ← stmt
         return Control.«while» cond body)
   , (do kw_for; ws; char '('; ws
-        let init ← simp; ws; char ';'; ws
+        let init ← option simp; ws; char ';'; ws
         let cond ← expr tydefs; ws; char ';'; ws
         let step ← option simp; ws
         char ')'; ws
@@ -437,17 +435,13 @@ partial def simp : C0Parser s Simp :=
       let name ← ident tydefs; ws;
       let init ← option (do char '='; ws; expr tydefs)
       return .decl type name init)
-  , (do
-      let lv ← lvalue tydefs; ws
+  , (withBacktrackingUntil (lvalue tydefs <* ws)
+      fun lv => do
       -- either an asnop, or a postop, OR an expression
       -- with `lv` on the LHS
       (do let op ← asnop; ws; let v ← expr tydefs; return .assn lv op v)
       <|>
-      (do let op ← postop; return .post lv op)
-      -- TODO: allow lvalues to reduce to LHS of expression
-      --<|>
-      --(expr.prec_13.right)
-      )
+      (do let op ← postop; return .post lv op))
   , (do let e ← expr tydefs; return .exp e)
   ]
 
