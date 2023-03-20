@@ -185,7 +185,8 @@ def Stmt.toString (s : Stmt) : String :=
       | none => ""
       | some i => s!", {i}"
     s!"declare({name}{initStr}, {Stmt.listToString body}\n\t)"
-  | .assign lv op v => s!"{lv} {op} {v}"
+  | .assign lv (.none) v => s!"{lv} = {v}"
+  | .assign lv (.some op) v => s!"{lv} {op}= {v}"
   | .ite cond tt ff =>
     s!"if({cond})\n{Stmt.listToString tt}\n{Stmt.listToString ff}"
   | .while cond body => s!"while({cond})\n{Stmt.listToString body}"

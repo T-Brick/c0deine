@@ -270,7 +270,7 @@ def binop_type (expect : Typ)
   let check := fun (ty : Typ) =>
     if expect = ty
     then pure ty
-    else throw "Binary operator is not well-typed"
+    else throw s!"Binary operator is not well-typed\n  Expected: {expect}"
   match lhs, rhs with
   | .type (.prim .int), .type (.prim .int)
   | .type (.prim .int), .any
@@ -279,23 +279,23 @@ def binop_type (expect : Typ)
   | .type (.prim .bool), .any
   | .any, .type (.prim .bool) => check (.prim .bool)
   | .any, .any                => pure expect
-  | _, _ => throw "Binary operator is not well-typed"
+  | _, _ => throw s!"Binary operator is not well-typed\n  Left: {lhs}\n  Right: {rhs}"
 
 def nonvoid (res : Result) : Result := do
   let (calls, te) ← res
   match te.typ with
-  | .void => throw "Expression cannot be void"
+  | .void => throw s!"Expression {te.data} cannot be void"
   | _ => return (calls, te)
 
 def small (res : Result) : Result := do
   let (calls, te) ← res
   if te.typ.isSmall then return (calls, te)
-  else throw "Expression has large type"
+  else throw s!"Expression {te.data} has large type"
 
 def small_nonvoid (res : Result) : Result := do
    let (calls, te) ← nonvoid res
    if te.typ.isSmall then return (calls, te)
-   else throw "Expression has large type"
+   else throw s!"Expression {te.data} has large type"
 
 mutual
 def expr (ctx : FuncCtx) (e : Ast.Expr) : Result := do
@@ -327,7 +327,7 @@ def expr (ctx : FuncCtx) (e : Ast.Expr) : Result := do
       | .int .not, .any         => pure (.int .not, .type (.prim .int))
       | .bool .neg, .type (.prim .bool)
       | .bool .neg, .any        => pure (.bool .neg, .type (.prim .bool))
-      | _, _ => throw "Unary operator is not well-typed"
+      | _, _ => throw s!"Unary operator {op} has different type from expression {te.data} : {te.typ}"
     return (calls, ⟨tau, .unop op' te⟩)
 
   | .binop op l r      =>
