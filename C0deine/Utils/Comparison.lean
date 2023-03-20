@@ -12,10 +12,10 @@ inductive Comparator
 | greater_equal
 
 def Comparator.toString : Comparator → String
-  | less => "l"
-  | greater => "g"
-  | equal => "e"
-  | not_equal => "ne"
-  | less_equal => "le"
-  | greater_equal => "ge"
+  | less => "<"
+  | greater => ">"
+  | equal => "=="
+  | not_equal => "!="
+  | less_equal => "<="
+  | greater_equal => ">="
 instance : ToString Comparator where toString := Comparator.toString

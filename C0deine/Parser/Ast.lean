@@ -225,6 +225,17 @@ end
 instance : ToString Stmt        where toString := Stmt.toString
 instance : ToString (List Stmt) where toString := Stmt.listToString
 
+def Stmt.toPrettyString (s : Stmt) : String :=
+  match s with
+  | .decl type name init _body =>
+    let initStr :=
+      match init with
+      | none => ""
+      | some i => s!" = {i}"
+    s!"{type} {name}{initStr};"
+  | .ite cond _tt _ff => s!"if({cond}) ..."
+  | .while cond _body => s!"while({cond}) ..."
+  | _ => s.toString
 
 instance : ToString Field where toString f := s!"{f.type} {f.name};"
 instance : ToString (List Field) where

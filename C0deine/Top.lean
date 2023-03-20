@@ -69,10 +69,11 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   -- if verbose then IO.println ast
   if verbose then IO.println "typechecking"
 
-  match (Typechecker.typecheck ast).run ctx with
-  | (.error e, _) =>
-    panic! s!"{e}"
-  | (.ok tst, ctx) =>
+  match Typechecker.typecheck ast with
+  | .error e =>
+    IO.println s!"\n{e}\n"
+    return 1
+  | .ok tst =>
 
   if tcOnly then return 0
 

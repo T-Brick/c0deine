@@ -188,11 +188,11 @@ def Stmt.toString (s : Stmt) : String :=
   | .assign lv (.none) v => s!"{lv} = {v}"
   | .assign lv (.some op) v => s!"{lv} {op}= {v}"
   | .ite cond tt ff =>
-    s!"if({cond})\n{Stmt.listToString tt}\n{Stmt.listToString ff}"
-  | .while cond body => s!"while({cond})\n{Stmt.listToString body}"
+    s!"if{cond}\n{Stmt.listToString tt}\n{Stmt.listToString ff}"
+  | .while cond body => s!"while{cond}\n{Stmt.listToString body}"
   | .«return» .none => s!"return"
   | .«return» (.some e) => s!"return {e}"
-  | .assert e => s!"assert({e})"
+  | .assert e => s!"assert{e}"
   | .expr e => s!"{e}"
 
 def Stmt.listToString (stmts : List Stmt) : String :=
