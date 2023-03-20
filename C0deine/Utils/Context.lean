@@ -13,9 +13,9 @@ structure Context.State where
 
 def Context.State.new : Context.State where
   nextTemp := (1:)
-  nextLabel := (1:)
+  nextLabel := ⟨2, none⟩
   nextSymbolId := 1
-  symbolCache := .empty
+  symbolCache := Std.HashMap.empty.insert Symbol.main.name Symbol.main
 
 def Context := StateM Context.State
 
@@ -31,7 +31,7 @@ end Temp
 namespace Label
 
 def fresh : Context Label :=
-  fun s => (s.nextLabel, {s with nextLabel := (show Nat from s.nextLabel) + 1})
+  fun s => (s.nextLabel, {s with nextLabel := ⟨s.nextLabel.id + 1, none⟩})
 
 end Label
 

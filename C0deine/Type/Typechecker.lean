@@ -712,7 +712,7 @@ def func (ctx : GlobalCtx)
     | some (.func f) =>
       if defining && f.defined
       then throw s!"Function {name} was already defined"
-      else pure (.func f)
+      else pure (.func {f with defined := f.defined || defining})
     | some _ => throw s!"Function {name} collides with another name"
     | none => pure status
 

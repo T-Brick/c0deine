@@ -180,7 +180,7 @@ def Stmt.toString (s : Stmt) : String :=
       match init with
       | none => ""
       | some i => s!", {i}"
-    s!"declare({name}{initStr}, {Stmt.listToString body})"
+    s!"declare({name}{initStr}, {Stmt.listToString body}\n\t)"
   | .assign lv op v => s!"{lv} {op} {v}"
   | .ite cond tt ff =>
     s!"if({cond})\n{Stmt.listToString tt}\n{Stmt.listToString ff}"

@@ -24,6 +24,7 @@ inductive Typ.Check
 | type : Typ → Typ.Check
 | void
 | any
+deriving Inhabited
 
 namespace Typ
 
@@ -51,6 +52,8 @@ def Check.toString : Check → String
 instance : ToString Memory where toString := Memory.toString
 instance : ToString Typ where toString := Typ.toString
 instance : ToString Typ.Check where toString := Typ.Check.toString
+instance : ToString (Option Typ) where
+  toString | none => "void" | some t => s!"{t}"
 
 mutual
 -- encoding structural equality

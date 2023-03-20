@@ -114,6 +114,8 @@ def Typ.toString : Typ → String
   | .arr ty => s!"{ty.toString}[]"
   | .struct (name : Ident) => s!"struct {name}"
 instance : ToString Typ where toString := Typ.toString
+instance : ToString (Option Typ) where
+  toString | none => "void" | some t => s!"{t}"
 
 
 def UnOp.Int.toString : UnOp.Int → String
@@ -203,12 +205,13 @@ def Stmt.toString (s : Stmt) : String :=
       match init with
       | none => ""
       | some i => s!", {i}"
-    s!"declare({type}, {name}{initStr}, {Stmt.listToString body})"
+    s!"declare({type}, {name}{initStr}, {Stmt.listToString body}\n\t)"
   | .assn lv op v => s!"{lv} {op} {v}"
   | .ite cond tt ff =>
     s!"if({cond})\n{Stmt.listToString tt}\n{Stmt.listToString ff}"
   | .while cond body => s!"while({cond})\n{Stmt.listToString body}"
-  | .«return» e => s!"return {e}"
+  | .«return» .none => "return"
+  | .«return» (.some e) => s!"return {e}"
   | .assert e => s!"assert({e})"
   | .exp e => s!"{e}"
 

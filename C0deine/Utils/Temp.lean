@@ -2,7 +2,7 @@
 namespace C0deine
 
 def Temp := Nat
-deriving DecidableEq, Inhabited
+deriving DecidableEq, Inhabited, Hashable
 
 namespace Temp
 

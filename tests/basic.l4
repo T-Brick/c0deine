@@ -9,8 +9,12 @@ struct A {
   bool d;
 };
 
-typedef int ************** eeeee;
+typedef int************** soManyPointersOhMyGah;
 
 int main() {
-  return 0;
+  int x = 5;
+  int y = x;
+  struct S * s = alloc(struct S);
+  soManyPointersOhMyGah* p = alloc(soManyPointersOhMyGah *);
+  return x;
 }
