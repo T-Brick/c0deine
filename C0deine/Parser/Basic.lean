@@ -532,12 +532,12 @@ def gdecl : C0Parser s GDecl :=
       <|> (return .fdef (← fdef tydefs sig))
   ]
 
-partial def prog : C0Parser s Prog := do
+partial def prog (tydefs : Std.RBSet Symbol compare := .empty) : C0Parser s (Prog × Std.RBSet Symbol compare) := do
   ws
-  let gdecls ← aux (Std.RBSet.empty) #[]
-  return gdecls.toList
+  let (gdecls,tydefs) ← aux tydefs #[]
+  return (gdecls.toList,tydefs)
 where aux tydefs acc :=
-  (do eof; return acc)
+  (do eof; return (acc,tydefs))
   <|> (do
     let g ← gdecl tydefs
     ws

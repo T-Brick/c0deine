@@ -76,6 +76,13 @@ inductive LValue
 | deref (lv : LValue)
 | index (lv : LValue) (index : Expr)
 
+def LValue.toExpr : LValue → Expr
+| .var name => .var name
+| .dot lv field => .dot lv.toExpr field
+| .arrow lv field => .arrow lv.toExpr field
+| .deref lv => .deref lv.toExpr
+| .index lv idx => .index lv.toExpr idx
+
 mutual
 inductive Control
 | ite (cond : Expr) (tt : Stmt) (ff : Stmt)
@@ -145,31 +152,31 @@ instance : ToString Typ where toString := Typ.toString
 
 
 def UnOp.Int.toString : UnOp.Int → String
-  | neg => "~"
-  | not => "!"
+  | .neg => "~"
+  | .not => "!"
 instance : ToString UnOp.Int where toString := UnOp.Int.toString
 
 def UnOp.Bool.toString : UnOp.Bool → String
-  | neg => "!"
+  | .not => "!"
 instance : ToString UnOp.Bool where toString := UnOp.Bool.toString
 
 def UnOp.toString : UnOp → String
-  | int op  => s!"{op}"
-  | bool op => s!"{op}"
+  | .int op  => s!"{op}"
+  | .bool op => s!"{op}"
 instance : ToString UnOp where toString := UnOp.toString
 
 
 def BinOp.Int.toString : BinOp.Int → String
-  | plus => "+"
-  | minus => "-"
-  | times => "*"
-  | div => "/"
-  | mod => "%"
-  | and => "&"
-  | xor => "^"
-  | or => "|"
-  | lsh => "<<"
-  | rsh => ">>"
+  | .plus => "+"
+  | .minus => "-"
+  | .times => "*"
+  | .div => "/"
+  | .mod => "%"
+  | .and => "&"
+  | .xor => "^"
+  | .or => "|"
+  | .lsh => "<<"
+  | .rsh => ">>"
 instance : ToString BinOp.Int where toString := BinOp.Int.toString
 
 def BinOp.Cmp.toString : BinOp.Cmp → String

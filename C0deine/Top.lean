@@ -10,14 +10,23 @@ open Cli
 def runTopCmd (p : Parsed) : IO UInt32 := do
   if !p.hasPositionalArg "input" then
     panic! "Missing file argument"
-  let input : System.FilePath := p.positionalArg! "input" |>.as! String
+  let input : System.FilePath :=
+    p.positionalArg! "input" |>.as! String
+  let libInput : Option System.FilePath :=
+    p.flag? "library" |>.map (·.as! String)
   let tcOnly : Bool := p.hasFlag "typecheck"
   let verbose : Bool := p.hasFlag "verbose"
 
   if !(← input.pathExists) then
-    panic! "Input file does not exist"
+    panic! "Input file does not exist: {input}"
   if ← input.isDir then
-    panic! "Input path is a directory"
+    panic! "Input path is a directory: {input}"
+
+  if libInput.isSome then
+    if !(← libInput.get!.pathExists) then
+      panic! "Header file does not exist: {libInput}"
+    if ← libInput.get!.isDir then
+      panic! "Header path is a directory: {libInput}"
 
   let lang : Language :=
     match input.extension with
@@ -28,14 +37,29 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
       | .none => panic! s!"Unrecognized extension/language {l}"
 
   let contents ← IO.FS.readFile input
+  let header ← libInput.mapM (IO.FS.readFile)
 
-  if verbose then IO.println "parsing"
+  if verbose then IO.println "parsing header"
 
-  match Parser.C0Parser.prog.run contents.toUTF8 Context.State.new with
+  let (header, headerTydefs, ctx) ← do
+    match header with
+    | none =>
+      pure (none, .empty, .new)
+    | some h =>
+    match Parser.C0Parser.prog.run h.toUTF8 .new with
+    | ((.error e, state), _) =>
+      IO.println s!"{e () |>.formatPretty state}"
+      return 1
+    | ((.ok (cst, tydefs), _), ctx) =>
+      pure (some cst, tydefs, ctx)
+
+  if verbose then IO.println "parsing input"
+
+  match (Parser.C0Parser.prog headerTydefs).run contents.toUTF8 ctx with
   | ((.error e, state), _) =>
     IO.println s!"{e () |>.formatPretty state}"
     return 1
-  | ((.ok cst, _), ctx) =>
+  | ((.ok (cst,_), _), ctx) =>
 
   -- if verbose then IO.println cst
   if verbose then IO.println "abstracting"
