@@ -14,8 +14,8 @@ namespace C0Parser
 
 open ParserT Cst
 
-nonrec def withBacktracking (p : C0Parser s α) := withBacktracking p 
-nonrec def withBacktrackingUntil (p : C0Parser s α) (q : α → C0Parser s β)
+@[inline] nonrec def withBacktracking (p : C0Parser s α) := withBacktracking p 
+@[inline] nonrec def withBacktrackingUntil (p : C0Parser s α) (q : α → C0Parser s β)
   := withBacktrackingUntil p q
 
 def intmin : Int := -2147483648
@@ -271,7 +271,7 @@ where
           ws; char ')'
           return .alloc_array ty e)
     , (do let name ← ident tydefs
-          (do ws; char '('; ws
+          (do withBacktrackingUntil ws (fun () => char '('); ws
               let args ← foldl
                 (do let e ← expr; return #[e])
                 (fun acc => do ws; char ','; ws; return acc.push (← expr))

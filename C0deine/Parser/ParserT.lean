@@ -319,28 +319,8 @@ termination_by aux p _ => s.size - p.pos
   (do let a ← p; return some a)
   <|> (return none)
 
-/-@[inline] def fix (p : ParserT m s (α → α)) (q : ParserT m s α) : ParserT m s α :=
-  fun s => aux s
-where aux state := do
-  match ← p state with
-  | (.error e, state') => return (.error e, state')
-  | (.ok f, state') =>
-  if h:state.pos < state'.pos then
-    have : s.size - state'.pos.pos < s.size - state.pos.pos :=
-      Nat.sub_lt_sub_left
-        (Nat.lt_of_lt_of_le h state'.pos.h_pos)
-        h
-    match ← aux state' with
-    | (.error e, state'') => return (.error e, state'')
-    | (.ok a, state'') =>
-    return (f a, state'')
-  else
-    panic! "backtracked in fix"
-termination_by aux state => s.size - state.pos.pos
--/
-
 @[inline] def char (c : Char) : ParserT m s Unit :=
-  atomically (name := c.toString) <| do
+  atomically (name := "\"{c}\"") <| do
   let c' ← any
   guard (c = c')
 
