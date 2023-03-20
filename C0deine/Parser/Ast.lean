@@ -228,7 +228,7 @@ instance : ToString (List Stmt) where toString := Stmt.listToString
 
 instance : ToString Field where toString f := s!"{f.type} {f.name};"
 instance : ToString (List Field) where
-  toString fs := "{".append (fs.foldr (fun f acc => s!"\t{f}\n{acc}") "}")
+  toString fs := "{\n\t".append (fs.foldr (fun f acc => s!"\t{f}\n{acc}") "}")
 
 instance : ToString SDef where toString s := s!"struct {s.name} {s.fields};"
 instance : ToString SDecl where toString s := s!"struct {s.name};"

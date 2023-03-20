@@ -155,6 +155,8 @@ end
 
 instance : ToString Expr where toString := Expr.toString
 instance : ToString (Typed Expr) where toString := Expr.typedToString
+instance : ToString (List (Typed Expr)) where
+  toString texps := texps.map Expr.typedToString |> String.intercalate ", "
 
 mutual
 def LValue.toString : LValue → String
@@ -171,6 +173,8 @@ instance : ToString (Typed LValue) where toString := LValue.typedToString
 
 instance : ToString (Typed Symbol) where
   toString ts := s!"({ts.data} : {ts.typ})"
+instance : ToString (List (Typed Symbol)) where
+  toString tss := tss.map toString |> String.intercalate ", "
 
 mutual
 def Stmt.toString (s : Stmt) : String :=
@@ -185,7 +189,8 @@ def Stmt.toString (s : Stmt) : String :=
   | .ite cond tt ff =>
     s!"if({cond})\n{Stmt.listToString tt}\n{Stmt.listToString ff}"
   | .while cond body => s!"while({cond})\n{Stmt.listToString body}"
-  | .«return» e => s!"return {e}"
+  | .«return» .none => s!"return"
+  | .«return» (.some e) => s!"return {e}"
   | .assert e => s!"assert({e})"
   | .expr e => s!"{e}"
 
@@ -200,7 +205,9 @@ instance : ToString Stmt        where toString := Stmt.toString
 instance : ToString (List Stmt) where toString := Stmt.listToString
 
 
-instance : ToString SDef where toString s := s!"struct {s.name} {s.fields};"
+instance : ToString SDef where
+  toString s :=
+    s!"struct {s.name}".append ("{".append ( s!"{s.fields}".append "};"))
 
 instance : ToString FDecl where toString f := s!"{f.ret} {f.name}({f.params})"
 instance : ToString FDef where

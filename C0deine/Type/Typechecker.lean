@@ -576,9 +576,10 @@ def stmt (ctx : FuncCtx) (s : Ast.Stmt) : Result := do
           if e'.typ = .type tau
           then pure (calls, some e')
           else throw s!"Variable {name} has mismatched types"
-      -- don't use new context since no longer in scope, but keep calls
+      -- don't use new context since no longer in scope, but keep calls, returns
       let (ctx'', body') ← stmts {ctx' with calls} body
-      let calledOldCtx := { ctx with calls := ctx''.calls }
+      let calledOldCtx :=
+        { ctx with calls := ctx''.calls, returns := ctx''.returns }
       return (calledOldCtx, .decl ⟨.type tau, name⟩ init' body'.reverse)
 
   | .assn lv op e =>
@@ -741,7 +742,11 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef) : Result := do
         | some ty => pure (⟨.type ty, p.name⟩ :: acc)
         | none => throw s!"Function input must have non-void, declared type"
       ) []
-    let (_, body') ← Stmt.stmts fctx f.body
+    let (fctx', body') ← Stmt.stmts fctx f.body
+    let () ←
+      if ret.isNone || fctx'.returns
+      then pure ()
+      else throw s!"Function {fctx'.name} does not return on some paths"
     let fdef := .fdef ⟨ret, f.name, params, body'⟩
     return (ctx', some fdef)
 
