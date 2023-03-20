@@ -170,9 +170,9 @@ def typ : C0Parser s Typ :=
   let t ← simpleTyp
   -- parse as many * and [] as we can
   foldl (return t)
-    (fun t =>
-      (do withBacktracking (do ws; char '*'); return Typ.ptr t)
-      <|> (do withBacktracking (do ws; char '['); ws; char ']'; return Typ.arr t) )
+    (fun t => withBacktrackingUntil ws fun () =>
+      (do char '*'; return Typ.ptr t)
+      <|> (do char '['; ws; char ']'; return Typ.arr t) )
 end
 
 def unop.int : C0Parser s UnOp.Int :=
@@ -286,11 +286,11 @@ where
     ]
   right (lhs) := do
     first [
-      (do char '.'; ws; let f ← ident tydefs
+      (do char '.'; ws; let f ← rawIdent
           return (.dot lhs f))
-    , (do wholeString "->"; ws; let f ← ident tydefs
+    , (do wholeString "->"; ws; let f ← rawIdent
           return (.arrow lhs f))
-    , (do char '['; ws; let e ← expr
+    , (do char '['; ws; let e ← expr; ws; char ']'
           return (.index lhs e))
     ]
 
@@ -384,11 +384,11 @@ partial def lvalue : C0Parser s LValue :=
       (fun () => first [
         (do
         char '.'; ws
-        let field ← ident tydefs
+        let field ← rawIdent
         return (.dot lv field))
       , (do
         wholeString "->"; ws
-        let field ← ident tydefs
+        let field ← rawIdent
         return (.arrow lv field))
       , (do
         char '['; ws; let index ← expr tydefs; char ']'
@@ -464,7 +464,7 @@ def field : C0Parser s Field :=
   withContext "<struct-field>" do
   let type ← typ tydefs
   ws
-  let name ← ident tydefs
+  let name ← rawIdent
   char ';'
   return ⟨type, name⟩
 
