@@ -103,7 +103,10 @@ def Trans.type [Ctx α] (ctx : α) : Ast.Typ → Option Typ
     Trans.type ctx tau |>.map (Typ.mem ∘ Typ.Memory.pointer)
   | .arr (tau : Ast.Typ) =>
     Trans.type ctx tau |>.map (Typ.mem ∘ Typ.Memory.array)
-  | .struct name => some <| Typ.mem (Typ.Memory.struct name)
+  | .struct name =>
+    match (Ctx.structs ctx).find? name with
+    | none   => none
+    | some _ => some <| Typ.mem (Typ.Memory.struct name)
 
 def Trans.int_binop : Ast.BinOp.Int → Tst.BinOp.Int
   | .plus  => .plus
@@ -565,9 +568,10 @@ mutual
 def stmt (ctx : FuncCtx) (s : Ast.Stmt) : Result := do
   match s with
   | .decl type name init body =>
+    -- todo: this is kinda a mess, probably could be refactored a little
     let opt_tau := Trans.type ctx type
     match opt_tau with
-    | none => throw s!"Variable {name} must have declared type"
+    | none => throw s!"Variable {name} has undeclared type {type}"
     | some tau =>
       let ctx' ← Validate.var ctx name tau (init.isSome)
       let (calls, init') ←
@@ -575,8 +579,20 @@ def stmt (ctx : FuncCtx) (s : Ast.Stmt) : Result := do
         | none => pure (ctx.calls, none)
         | some e =>
           let (calls, e') ← Synth.Expr.expr ctx e
+          -- types must be equivalent on both sides
           if e'.typ.equiv (.type tau)
-          then pure (calls, some e')
+          then
+            let res := (calls, some e')
+            -- if we are assigning something to struct type, must be defined
+            match e'.typ with
+            | .type (.mem (.struct sname)) =>
+              match ctx.structs.find? sname with
+              | some status =>
+                if status.defined
+                then pure res
+                else throw s!"Expression {e'.data} has undefined type {e'.typ}"
+              | _ => throw s!"Expression {e'.data} has undefined/undeclared type {e'.typ}"
+            | _ => pure res
           else throw s!"Variable {name} has mismatched types\n  Declaration expects {tau} but {e'.data} has type {e'.typ}"
       -- don't use new context since no longer in scope, but keep calls, returns
       let (ctx'', body') ← stmts {ctx' with calls} body
