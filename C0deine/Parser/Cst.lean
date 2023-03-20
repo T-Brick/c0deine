@@ -3,7 +3,7 @@ import C0deine.Utils.Symbol
 namespace C0deine.Cst
 
 def Ident := Symbol
-deriving ToString
+deriving ToString, Repr
 
 inductive Typ
 | int
@@ -13,35 +13,47 @@ inductive Typ
 | ptr : Typ → Typ
 | arr : Typ → Typ
 | struct (name : Ident)
+deriving Repr
 
 inductive UnOp.Int | neg | not
+deriving Repr
+
 inductive UnOp.Bool | not
+deriving Repr
+
 inductive UnOp
 | int (op : UnOp.Int)
 | bool (op : UnOp.Bool)
+deriving Repr
 
 inductive BinOp.Int
 | plus | minus | times | div | mod | and | xor | or | lsh | rsh
+deriving Repr
 
 inductive BinOp.Cmp
 | lt | le | gt | ge | eq | ne
+deriving Repr
 
 inductive BinOp.Bool
 | and | or
+deriving Repr
 
 inductive BinOp
 | int (op : BinOp.Int)
 | cmp (op : BinOp.Cmp)
 | bool (op : BinOp.Bool)
+deriving Repr
 
 inductive AsnOp
 | eq | aseq (op : BinOp.Int)
+deriving Repr
 
 inductive PostOp
 | incr | decr
+deriving Repr
 
 inductive Expr
-| num (v : UInt32)
+| num (v : Int)
 | «true» | «false»
 | null
 | unop (op : UnOp) (e : Expr)
@@ -55,6 +67,7 @@ inductive Expr
 | arrow (e : Expr) (field : Ident)
 | deref (e : Expr)
 | index (e : Expr) (index : Expr)
+deriving Repr
 
 inductive LValue
 | var (name : Ident)

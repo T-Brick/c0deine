@@ -14,5 +14,5 @@ lean_exe c0deine {
   root := `Main
 }
 
-require Parser from git "https://github.com/fgdorais/lean4-parser" @ "main"
+require Std from git "https://github.com/leanprover/std4" @ "main"
 require Cli from git "https://github.com/mhuisi/lean4-cli" @ "nightly"

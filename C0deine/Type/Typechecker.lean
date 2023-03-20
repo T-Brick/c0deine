@@ -298,6 +298,15 @@ mutual
 def expr (ctx : FuncCtx) (e : Ast.Expr) : Result := do
   match e with
   | .num n             =>
+    let n : UInt32 ←
+      if n = -2147483648 then
+        pure 0x80000000
+      else if h : 0 ≤ n ∧ n < UInt32.size then
+        pure ⟨n.toNat, by cases n <;> simp at h
+                          simp [Int.natAbs_ofNat]
+                          exact h.2⟩
+      else
+        throw s!"Int literal {n} is not representable as a 32-bit signed integer"
     return (ctx.calls, ⟨.type (.prim (.int)), .num n⟩)
   | .«true»            =>
     return (ctx.calls, ⟨.type (.prim (.bool)), .«true»⟩)

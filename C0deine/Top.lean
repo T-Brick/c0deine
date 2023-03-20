@@ -31,11 +31,11 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
 
   if verbose then IO.println "parsing"
 
-  match (Parser.C0Parser.prog <* Parser.endOfInput).run contents.toSubstring Context.State.new with
-  | (.error e, _)
-  | (.ok (.error e), _) =>
-    panic! s!"parser error: {e}"
-  | (.ok (.ok _ cst), ctx) =>
+  match Parser.C0Parser.prog.run contents.toUTF8 Context.State.new with
+  | ((.error e, state), _) =>
+    IO.println s!"{e () |>.formatPretty state}"
+    return 1
+  | ((.ok cst, _), ctx) =>
 
   if verbose then IO.println "abstracting"
 
