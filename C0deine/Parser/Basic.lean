@@ -363,8 +363,7 @@ end
 
 partial def lvalue : C0Parser s LValue :=
   withContext "<lvalue>" <|
-  foldl
-    (do let name ← ident tydefs; return .var name)
+  foldl left
     (fun lv =>
       withBacktrackingUntil ws
       (fun () => first [
@@ -377,13 +376,18 @@ partial def lvalue : C0Parser s LValue :=
         let field ← ident tydefs
         return (.arrow lv field))
       , (do
-        char '*'; ws
-        return (.deref lv))
-      , (do
         char '['; ws; let index ← expr tydefs; char ']'
         return (.index lv index))
       ])
     )
+where
+  left : C0Parser s LValue :=
+    (do char '*'; ws; let lv ← lvalue; return .deref lv)
+    <|>
+    (do char '('; ws; let lv ← lvalue; char ')'; return lv)
+    <|>
+    (do let name ← ident tydefs; return .var name)
+
 
 
 mutual
