@@ -677,10 +677,9 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
             | _ => pure res
           else throw <| Error.stmt stm <|
             s!"Variable '{name}' has mismatched types. Declaration expects '{tau}' but {e'.data} has type '{e'.typ}'"
-      -- don't use new context since no longer in scope, but keep calls, returns
       let (ctx'', body') ← stmts {ctx' with calls} body
-      let calledOldCtx :=
-        { ctx with calls := ctx''.calls, returns := ctx''.returns }
+      let symbols' := ctx''.symbols.erase name
+      let calledOldCtx := { ctx'' with symbols := symbols' }
       return (calledOldCtx, .decl ⟨.type tau, name⟩ init' body'.reverse)
 
   | .assn lv op e =>
