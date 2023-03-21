@@ -156,9 +156,9 @@ def Trans.sizedType [Ctx α] (ctx : α) : Ast.Typ → Option Typ
   | .tydef name =>
     match (Ctx.symbols ctx).find? name with
     | some (.alias tau) => some tau
-    | _ => none
-  | .ptr (tau : Ast.Typ) => Trans.sizedType ctx tau |>.map (.mem ∘ .pointer)
-  | .arr (tau : Ast.Typ) => Trans.sizedType ctx tau |>.map (.mem ∘ .array)
+    | _ => none             -- intentionally using Trans.type here
+  | .ptr (tau : Ast.Typ) => Trans.type ctx tau |>.map (.mem ∘ .pointer)
+  | .arr (tau : Ast.Typ) => Trans.type ctx tau |>.map (.mem ∘ .array)
   | .struct name =>
     match (Ctx.structs ctx).find? name with
     | some status =>
