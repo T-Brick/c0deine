@@ -38,13 +38,20 @@ def Trans.type (lang : Language)
     then unsupported lang "pointer types"
     else
       let tau'Opt ← Trans.type lang tau
-      return tau'Opt.map (fun tau' => .ptr tau')
+      match tau'Opt with
+      | none =>
+        if lang.under .c1
+        then unsupported lang "void pointers"
+        else panic "todo -- void pointers"
+      | some tau' => return some (.ptr tau')
   | .arr tau =>
     if lang.under .l4
     then unsupported lang "array types"
     else
       let tau'Opt ← Trans.type lang tau
-      return tau'Opt.map (fun tau' => .arr tau')
+      match tau'Opt with
+      | none => throw "Cannot have an array of void"
+      | some tau' => return some (.arr tau')
   | .struct name =>
     if lang.under .l4
     then unsupported lang "structs"

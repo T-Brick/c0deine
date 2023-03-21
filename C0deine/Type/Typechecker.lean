@@ -299,25 +299,6 @@ def Validate.callsDefined (ctx : GlobalCtx)
     | _ => err name
   ) ()
 
-
-def Synth.intersect_types (tau1 tau2 : Typ) : Except Error Typ := do
-  match tau1, tau2 with
-  | .prim .int, .prim .int
-  | .prim .bool, .prim .bool => return tau1
-  | .mem (.pointer tau1'), .mem (.pointer tau2') =>
-    let res ← Synth.intersect_types tau1' tau2'
-    return .mem (.pointer res)
-  | .mem (.array tau1'), .mem (.array tau2') =>
-    let res ← Synth.intersect_types tau1' tau2'
-    return .mem (.array res)
-  | .mem (.struct s1), .mem (.struct s2) =>
-    if s1 = s2
-    then return tau1
-    else throw <| Error.msg "Cannot intersect incompatible types {tau1} {tau2}"
-  | _, _ =>
-    throw <| Error.msg "Cannot intersect incompatible types {tau1} {tau2}"
-
-
 namespace Synth.Expr
 
 def Result := Except Error (Calls × Tst.Typed Tst.Expr)
@@ -428,12 +409,6 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
     if c'.typ ≠ .type (.prim .bool)
     then throw <| Error.expr exp s!"Ternary condition {c'} must be a bool"
     else
-      -- let tau ←
-      --   match tt'.typ, ff'.typ with
-      --   | .any, .any => pure .any
-      --   | .void, _
-      --   | _, .void  => throw <| Error.expr exp "Ternary branches must have valid type"
-      --   Synth.intersect_types tt'.typ ff'.typ
       if tt'.typ.equiv ff'.typ
       then return (calls, ⟨tt'.typ, .ternop c' tt' ff'⟩)
       else throw <| Error.expr exp <|
@@ -521,8 +496,7 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
   | .deref e           =>
     let (calls, e') ← small <| expr ctx e
     match e'.typ with
-    | .any => throw <| Error.expr e <|
-      "Cannot dereference a null pointer/function"
+    | .any => return (calls, ⟨.any, .deref e'⟩)
     | .type (.mem (.pointer tau))  => return (calls, ⟨.type tau, .deref e'⟩)
     | _ => throw <| Error.expr e <| "Cannot dereference a non-pointer type '{e'.typ}'"
 
