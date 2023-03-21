@@ -8,7 +8,7 @@ import C0deine.Utils.Context
 
 namespace C0deine.Typechecker
 
-def Typed := Tst.Typed
+@[inline] def Typed := Tst.Typed
 
 structure FuncType where
   ret : Option Typ
@@ -300,17 +300,17 @@ def Validate.callsDefined (ctx : GlobalCtx)
   ) ()
 
 
-def Synth.intersect_types (tau1 tau2 : Typ.Check) : Except Error Typ.Check := do
+def Synth.intersect_types (tau1 tau2 : Typ) : Except Error Typ := do
   match tau1, tau2 with
-  | .any, _  => return tau2
-  | _ , .any => return tau1
-  | .type (.prim .int), .type (.prim .int)
-  | .type (.prim .bool), .type (.prim .bool)
-  | .void, .void   => return tau1
-  | .type (.mem (.pointer tau1')), .type (.mem (.pointer tau2'))
-  | .type (.mem (.array tau1')), .type (.mem (.array tau2'))     =>
-    Synth.intersect_types (.type tau1') (.type tau2')
-  | .type (.mem (.struct s1)), .type (.mem (.struct s2)) =>
+  | .prim .int, .prim .int
+  | .prim .bool, .prim .bool => return tau1
+  | .mem (.pointer tau1'), .mem (.pointer tau2') =>
+    let res ← Synth.intersect_types tau1' tau2'
+    return .mem (.pointer res)
+  | .mem (.array tau1'), .mem (.array tau2') =>
+    let res ← Synth.intersect_types tau1' tau2'
+    return .mem (.array res)
+  | .mem (.struct s1), .mem (.struct s2) =>
     if s1 = s2
     then return tau1
     else throw <| Error.msg "Cannot intersect incompatible types {tau1} {tau2}"
@@ -320,7 +320,7 @@ def Synth.intersect_types (tau1 tau2 : Typ.Check) : Except Error Typ.Check := do
 
 namespace Synth.Expr
 
-def Result := Except Error (Calls × Typed Tst.Expr)
+def Result := Except Error (Calls × Tst.Typed Tst.Expr)
 deriving Inhabited
 
 def binop_type (expect : Typ)
@@ -426,10 +426,18 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
     let (cf, ff') ← small_nonvoid <| expr ctx ff
     let calls := cc.merge ct |>.merge cf
     if c'.typ ≠ .type (.prim .bool)
-    then throw <| Error.expr exp "Ternary condition {c'} must be a bool"
+    then throw <| Error.expr exp s!"Ternary condition {c'} must be a bool"
     else
-      let tau ← Synth.intersect_types tt'.typ ff'.typ
-      return (calls, ⟨tau, .ternop c' tt' ff'⟩)
+      -- let tau ←
+      --   match tt'.typ, ff'.typ with
+      --   | .any, .any => pure .any
+      --   | .void, _
+      --   | _, .void  => throw <| Error.expr exp "Ternary branches must have valid type"
+      --   Synth.intersect_types tt'.typ ff'.typ
+      if tt'.typ.equiv ff'.typ
+      then return (calls, ⟨tt'.typ, .ternop c' tt' ff'⟩)
+      else throw <| Error.expr exp <|
+        s!"Ternary true branch has type '{tt'.typ}' but the false branch has type '{ff'.typ}'"
 
   | .app f args        =>
     match ctx.symbols.find? f with
@@ -466,7 +474,7 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
     | some tau', .type (.prim .int) =>
       return (calls, ⟨.type (.mem (.array tau')), .alloc_array tau' e'⟩)
     | _, _ => throw <| Error.expr exp <|
-      "Array length expected an '{Typ.prim .int}' but got '{e'.typ}'"
+      s!"Array length expected an '{Typ.prim .int}' but got '{e'.typ}'"
 
   | .var name          =>
     match ctx.symbols.find? name with
