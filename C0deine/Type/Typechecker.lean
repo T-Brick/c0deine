@@ -246,6 +246,7 @@ def Validate.params (ctx : FuncCtx)
 
 -- does not add function to the global context!
 def Validate.func (ctx : GlobalCtx)
+                  (extern : Bool)
                   (defining : Bool)
                   (name : Symbol)
                   (inputs : List Ast.Param)
@@ -253,27 +254,28 @@ def Validate.func (ctx : GlobalCtx)
                   : Except Error (Status.Symbol × FuncCtx) := do
   let fctx := GlobalCtx.toFuncCtx name output ctx
   let intypes ← Trans.params fctx inputs
-  let status := .func ⟨⟨output, intypes⟩, defining⟩
+  let status := .func ⟨⟨output, intypes⟩, extern || defining⟩
   let symbols' := fctx.symbols.insert name status
   let fctx ← Validate.params {fctx with symbols := symbols'} inputs
   if ¬(output.all Typ.isSmall)
-  then throw <| Error.msg s!"Function has non-small output type '{output}'"
+  then throw <| Error.func name <|
+    s!"Function has non-small output type '{output}'"
   else
     match ctx.symbols.find? name with
     | some (.var _var) =>
-      throw <| Error.msg s!"Function name is already used as a variable"
+      throw <| Error.func name s!"Function name is already used as a variable"
     | some (.func f) =>
-      if defining && f.defined
-      then throw <| Error.msg s!"Function cannot be redefined"
+      if ¬extern && defining && f.defined
+      then throw <| Error.func name s!"Function cannot be redefined"
       else if intypes ≠ f.type.args
-      then throw <| Error.msg <|
+      then throw <| Error.func name <|
         s!"Function inputs don't match prior declarations\n  Previously: {f.type.args}\n  Here: {intypes}"
       else if output ≠ f.type.ret
-      then throw <| Error.msg <|
+      then throw <| Error.func name <|
         s!"Function return type differs from prior declarations\n  Previously: {f.type.ret}\n  Here: {output}"
       else return (status, fctx)
     | some (.alias _type) =>
-      throw <| Error.msg <| s!"Identifier is already used as a type"
+      throw <| Error.func name <| s!"Identifier is already used as a type"
     | _ => return (status, fctx)
 
 def Validate.callsDefined (ctx : GlobalCtx)
@@ -810,13 +812,13 @@ def func (ctx : GlobalCtx)
         s!"Function must have a declared type"
     )
 
-  let (status, fctx) ← Validate.func ctx defining name params ret'
+  let (status, fctx) ← Validate.func ctx extern defining name params ret'
   let status' ←
     match ctx.symbols.find? name with
     | some (.func f) =>
       if ¬extern && defining && f.defined
       then throw <| Error.func name <| s!"Function was already defined"
-      else pure (.func {f with defined := f.defined || defining})
+      else pure (.func {f with defined := extern || f.defined || defining})
     | some (.alias _) => throw <| Error.func name <|
       s!"Function name collides with type alias"
     | some (.var _) => throw <| Error.func name <| -- shouldn't happen
@@ -831,7 +833,7 @@ def fdecl (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDecl) : Result := do
   then throw <| Error.func f.name <|
     s!"Function 'main' cannot appear in headers"
   else
-    let (ctx', fctx, ret) ← func ctx extern extern f.name f.type f.params
+    let (ctx', fctx, ret) ← func ctx extern false f.name f.type f.params
     let params ← Trans.params fctx f.params
     let fdecl := .fdecl ⟨ret, f.name, params⟩
     return (ctx', some fdecl)
