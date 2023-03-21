@@ -755,22 +755,28 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
       eOpt.mapM (handle ∘ Synth.Expr.small_nonvoid ∘ Synth.Expr.expr ctx)
     let eOpt' := calls_eOpt'.map (fun (_, e') => e')
     let calls := calls_eOpt'.elim ctx.calls (fun (calls, _) => calls)
-    let ret_type ← eOpt'.mapM (fun e' =>
-        match e'.typ with
-        | .type t => pure t
-        | _ => throw <| Error.stmt stm <|
-          s!"Return type must be valid type, not '{e'.typ}'"
+    let () ←
+      match eOpt', ctx.ret_type with
+      | none, none => pure ()
+      | some e', some tau =>
+        if e'.typ.equiv (.type tau)
+        then pure ()
+        else throw <| Error.stmt stm <|
+          s!"Expected return type was '{ctx.ret_type}' but got '{e'.typ}'"
+      | some e', _ =>
+        throw <| Error.stmt stm <|
+          s!"Expected return type was '{ctx.ret_type}' but got '{e'.typ}'"
+      | none, _ =>
+        throw <| Error.stmt stm <|
+          s!"Expected return type is '{ctx.ret_type}'"
+
+    let symbols' := ctx.symbols.mapVal (fun _ status =>
+        match status with
+        | .var vstatus => Status.Symbol.var {vstatus with initialised := true}
+        | _ => status
       )
-    if ret_type = ctx.ret_type
-    then
-      let symbols' := ctx.symbols.mapVal (fun _ status =>
-          match status with
-          | .var vstatus => Status.Symbol.var {vstatus with initialised := true}
-          | _ => status
-        )
-      let ctx' := {ctx with symbols := symbols', calls, returns := true}
-      return (ctx', .«return» eOpt')
-    else throwS s!"Expected return type was '{ctx.ret_type}' but got '{ret_type}'"
+    let ctx' := {ctx with symbols := symbols', calls, returns := true}
+    return (ctx', .«return» eOpt')
 
   | .assert e =>
     let (calls, e') ←

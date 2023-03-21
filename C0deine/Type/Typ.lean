@@ -46,8 +46,8 @@ end
 
 def Check.toString : Check → String
   | .type t => s!"{Typ.toString t}"
-  | .void => "'void"
-  | .any => "'any"
+  | .void => "`void"
+  | .any => "`any"
 
 instance : ToString Memory where toString := Memory.toString
 instance : ToString Typ where toString := Typ.toString
