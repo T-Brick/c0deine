@@ -816,7 +816,7 @@ def func (ctx : GlobalCtx)
     | some (.func f) =>
       if ¬extern && defining && f.defined
       then throw <| Error.func name <| s!"Function was already defined"
-      else pure (.func {f with defined := extern || f.defined || defining})
+      else pure (.func {f with defined := f.defined || defining})
     | some (.alias _) => throw <| Error.func name <|
       s!"Function name collides with type alias"
     | some (.var _) => throw <| Error.func name <| -- shouldn't happen
@@ -831,7 +831,7 @@ def fdecl (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDecl) : Result := do
   then throw <| Error.func f.name <|
     s!"Function 'main' cannot appear in headers"
   else
-    let (ctx', fctx, ret) ← func ctx extern false f.name f.type f.params
+    let (ctx', fctx, ret) ← func ctx extern extern f.name f.type f.params
     let params ← Trans.params fctx f.params
     let fdecl := .fdecl ⟨ret, f.name, params⟩
     return (ctx', some fdecl)
@@ -914,7 +914,7 @@ def typecheck (prog : Ast.Prog) : Except Error Tst.Prog := do
   let init_context : GlobalCtx :=
     ⟨init_symbols, Std.HashMap.empty, init_calls, Std.HashMap.empty⟩
 
-  let checkDec := fun extern => fun (ctx, prog) g => do
+  let checkDec := fun extern (ctx, prog) g => do
     -- run through the program, carrying the global context
     let (ctx', gOpt) ← liftM <| Global.gdec extern ctx g
     match gOpt with

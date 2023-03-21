@@ -266,7 +266,7 @@ instance : ToString GDecl where toString := GDecl.toString
 
 instance : ToString Prog where
   toString prog :=
-    "Header:\n\n"
+    "---------\nHeader:\n---------\n\n"
     |>.append (String.intercalate "\n\n" (prog.header.map GDecl.toString))
-    |>.append "Source:\n\n"
+    |>.append "\n\n---------\nSource:\n---------\n\n"
     |>.append (String.intercalate "\n\n" (prog.program.map GDecl.toString))
