@@ -358,16 +358,6 @@ mutual
 def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
   match exp with
   | .num n             =>
-    let n : UInt32 ←
-      if n = -2147483648 then
-        pure 0x80000000
-      else if h : 0 ≤ n ∧ n < UInt32.size then
-        pure ⟨n.toNat, by cases n <;> simp at h
-                          simp [Int.natAbs_ofNat]
-                          exact h.2⟩
-      else
-        throw <| Error.expr exp <|
-          s!"Int literal {n} is not representable as a 32-bit signed integer"
     return (ctx.calls, ⟨.type (.prim (.int)), .num n⟩)
   | .«true»            =>
     return (ctx.calls, ⟨.type (.prim (.bool)), .«true»⟩)
@@ -910,7 +900,7 @@ end Global
 
 -- todo: add logic for headers also called functions
 -- todo: preserve function call information (mostly for purity checks)
-def typecheck (ast : Ast.Prog) : Except Error Tst.Prog := do
+def typecheck (prog : Ast.Prog) : Except Error Tst.Prog := do
   let main_info := .func ⟨⟨some (.prim .int), []⟩, false⟩
   let main_sym := Symbol.main
 
@@ -919,13 +909,16 @@ def typecheck (ast : Ast.Prog) : Except Error Tst.Prog := do
   let init_context : GlobalCtx :=
     ⟨init_symbols, Std.HashMap.empty, init_calls, Std.HashMap.empty⟩
 
-  ast.foldlM (m := Except Error) (fun (ctx, prog) g => do
+  let checkDec := fun extern => fun (ctx, prog) g => do
     -- run through the program, carrying the global context
-    let (ctx', gOpt) ← liftM <| Global.gdec false ctx g
+    let (ctx', gOpt) ← liftM <| Global.gdec extern ctx g
     match gOpt with
     | some g' => return (ctx', g' :: prog)
     | none => return (ctx', prog)
-  ) (init_context, [])
+
+  prog.header.foldlM (m := Except Error) (checkDec true) (init_context, [])
+  |>.bind (fun hres =>
+    prog.program.foldlM (m := Except Error) (checkDec false) hres)
   |>.bind (fun ((ctx : GlobalCtx), (prog : List Tst.GDecl)) => do
     -- check the all called functions are defined
     let () ← Validate.callsDefined ctx main_sym

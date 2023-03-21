@@ -391,5 +391,16 @@ def Trans.gdecl (lang : Language)
     then unsupported lang "struct definitions"
     else return .sdef ⟨s.name, ← s.fields.mapM (Trans.field lang)⟩
 
-def abstract (lang : Language) (prog : Cst.Prog) : Except String Ast.Prog :=
-  prog.mapM (Trans.gdecl lang)
+def abstract (lang : Language)
+             (header : Option Cst.Prog)
+             (prog : Cst.Prog)
+             : Except String Ast.Prog := do
+  let hast ←
+    match header with
+    | some hcst =>
+      if lang.under .l3
+      then unsupported lang "header files"
+      else hcst.mapM (Trans.gdecl lang)
+    | none => pure []
+  let ast ← prog.mapM (Trans.gdecl lang)
+  return ⟨hast, ast⟩

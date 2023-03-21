@@ -103,7 +103,9 @@ inductive GDecl
 | sdecl : SDecl → GDecl
 | sdef  : SDef  → GDecl
 
-def Prog := List GDecl
+structure Prog where
+  header : List GDecl
+  program : List GDecl
 
 
 def Typ.toString : Typ → String
@@ -263,4 +265,8 @@ def GDecl.toString : GDecl → String
 instance : ToString GDecl where toString := GDecl.toString
 
 instance : ToString Prog where
-  toString prog := String.intercalate "\n\n" (prog.map GDecl.toString)
+  toString prog :=
+    "Header:\n\n"
+    |>.append (String.intercalate "\n\n" (prog.header.map GDecl.toString))
+    |>.append "Source:\n\n"
+    |>.append (String.intercalate "\n\n" (prog.program.map GDecl.toString))

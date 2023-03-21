@@ -64,7 +64,7 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   -- if verbose then IO.println cst
   if verbose then IO.println "abstracting"
 
-  let ast ← IO.ofExcept <| Abstractor.abstract lang cst
+  let ast ← IO.ofExcept <| Abstractor.abstract lang header cst
 
   if verbose then IO.println ast
   if verbose then IO.println "typechecking"
