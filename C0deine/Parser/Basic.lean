@@ -475,19 +475,19 @@ def field : C0Parser s Field :=
   let type ← typ tydefs
   ws
   let name ← rawIdent
-  char ';'
+  ws; char ';'
   return ⟨type, name⟩
 
 def sdef : C0Parser s SDef :=
   withContext "<struct-def>" do
   let name ← withBacktracking do
     kw_struct; ws
-    let name ← rawIdent; ws
-    char '{'
+    let name ← rawIdent
+    ws; char '{'
     pure name
   ws
   let fields ← sepBy ws (field tydefs)
-  ws; char '}'; char ';'
+  ws; char '}'; ws; char ';'
   return ⟨name, fields.toList⟩
 
 def sdecl : C0Parser s SDecl :=
