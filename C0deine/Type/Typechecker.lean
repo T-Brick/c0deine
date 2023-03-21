@@ -150,10 +150,7 @@ def Trans.type [Ctx α] (ctx : α) : Ast.Typ → Option Typ
     Trans.type ctx tau |>.map (Typ.mem ∘ Typ.Memory.pointer)
   | .arr (tau : Ast.Typ) =>
     Trans.type ctx tau |>.map (Typ.mem ∘ Typ.Memory.array)
-  | .struct name =>
-    match (Ctx.structs ctx).find? name with
-    | none   => none
-    | some _ => some <| Typ.mem (Typ.Memory.struct name)
+  | .struct name => some <| Typ.mem (Typ.Memory.struct name)
 
 def Trans.int_binop : Ast.BinOp.Int → Tst.BinOp.Int
   | .plus  => .plus
