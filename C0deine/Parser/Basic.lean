@@ -376,9 +376,14 @@ partial def expr : C0Parser s Expr :=
   withContext "<expr>" expr.prec_1
 end
 
-partial def lvalue : C0Parser s LValue :=
-  withContext "<lvalue>" <|
-  foldl left
+mutual
+partial def lvalue.prec_13.left : C0Parser s LValue :=
+  (do char '('; ws; let lv ← lvalue; ws; char ')'; return lv)
+  <|>
+  (do let name ← ident tydefs; return .var name)
+
+partial def lvalue.prec_13 : C0Parser s LValue :=
+  foldl lvalue.prec_13.left
     (fun lv =>
       withBacktrackingUntil ws
       (fun () => first [
@@ -395,14 +400,15 @@ partial def lvalue : C0Parser s LValue :=
         return (.index lv index))
       ])
     )
-where
-  left : C0Parser s LValue :=
-    (do char '*'; ws; let lv ← lvalue; return .deref lv)
-    <|>
-    (do char '('; ws; let lv ← lvalue; ws; char ')'; return lv)
-    <|>
-    (do let name ← ident tydefs; return .var name)
 
+partial def lvalue.prec_12 : C0Parser s LValue :=
+  (do char '*'; ws; let lv ← lvalue.prec_12; return .deref lv)
+  <|> lvalue.prec_13
+
+partial def lvalue : C0Parser s LValue :=
+  withContext "<lvalue>" (lvalue.prec_12)
+    
+end
 
 
 mutual
@@ -435,13 +441,12 @@ partial def simp : C0Parser s Simp :=
       let name ← ident tydefs; ws;
       let init ← option (do char '='; ws; expr tydefs)
       return .decl type name init)
-  , (withBacktrackingUntil (lvalue tydefs <* ws)
-      fun lv => do
-      -- either an asnop, or a postop, OR an expression
-      -- with `lv` on the LHS
-      (do let op ← asnop; ws; let v ← expr tydefs; return .assn lv op v)
-      <|>
-      (do let op ← postop; return .post lv op))
+  , withBacktrackingUntil
+    -- post-op needs a higher precedence lvalue than asnop
+      (lvalue.prec_13 tydefs <* ws) (fun lv =>
+      do let op ← postop; return .post lv op)
+  , withBacktrackingUntil (lvalue tydefs <* ws) (fun lv =>
+      do let op ← asnop; ws; let v ← expr tydefs; return .assn lv op v)
   , (do let e ← expr tydefs; return .exp e)
   ]
 
