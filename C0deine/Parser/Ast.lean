@@ -208,8 +208,8 @@ def Stmt.toString (s : Stmt) : String :=
     s!"declare({type}, {name}{initStr}, {Stmt.listToString body}\n\t)"
   | .assn lv op v => s!"{lv} {op} {v}"
   | .ite cond tt ff =>
-    s!"if({cond})\n{Stmt.listToString tt}\n{Stmt.listToString ff}"
-  | .while cond body => s!"while({cond})\n{Stmt.listToString body}"
+    s!"if({cond}){Stmt.listToString tt}\nelse\n{Stmt.listToString ff}\nendif\n"
+  | .while cond body => s!"while({cond})\n{Stmt.listToString body}\nendwhile\n"
   | .«return» .none => "return"
   | .«return» (.some e) => s!"return {e}"
   | .assert e => s!"assert({e})"

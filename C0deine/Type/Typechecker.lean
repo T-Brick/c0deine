@@ -742,11 +742,11 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
   | .while cond body =>
     let (calls, cond') ←
       handle <| Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx cond
-    let ctx := {ctx with calls}
+    let ctx' := {ctx with calls}
     match cond'.typ with
     | .type (.prim .bool) =>
-      let (ctx'', body') ← stmts ctx body
-      return ({ctx'' with calls := ctx''.calls}, .while cond' body')
+      let (ctx'', body') ← stmts ctx' body
+      return ({ctx' with calls := ctx''.calls}, .while cond' body')
     | _ => throwS s!"Loop condition must be of type '{Typ.prim .bool}' not '{cond'.typ}'"
 
   | .return eOpt =>
@@ -790,7 +790,7 @@ def stmts (ctx : FuncCtx)
   | b::bs =>
     let (ctx', b') ← stmt ctx b
     let (ctx'', bs') ← stmts ctx' bs
-    return (ctx'', bs'.append [b'])
+    return (ctx'', b' :: bs')
 end
 
 termination_by

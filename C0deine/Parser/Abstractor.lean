@@ -300,7 +300,7 @@ partial def Trans.control (lang : Language)
       let tt' ← Trans.stmts lang [tt]
       let ff' ← Trans.stmts lang [ff]
       let rest' ← Trans.stmts lang rest
-      return .ite cond' tt' ff' :: rest'
+      return (.ite cond' tt' ff') :: rest'
   | .while cond body =>
     if lang.under .l2
     then unsupported lang "while loops"
@@ -308,7 +308,7 @@ partial def Trans.control (lang : Language)
       let cond' ← Trans.expr lang cond
       let body' ← Trans.stmts lang [body]
       let rest' ← Trans.stmts lang rest
-      return .while cond' body' :: rest'
+      return (.while cond' body') :: rest'
   | .«for» initOpt cond stepOpt body =>
     if lang.under .l2
     then unsupported lang "for loops"
