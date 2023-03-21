@@ -140,17 +140,15 @@ end Error
 
 
 def Trans.type [Ctx α] (ctx : α) : Ast.Typ → Option Typ
-  | .int => some <| Typ.prim (Typ.Primitive.int)
-  | .bool => some <| Typ.prim (Typ.Primitive.bool)
+  | .int => some <| .prim .int
+  | .bool => some <| .prim .bool
   | .tydef name =>
     match (Ctx.symbols ctx).find? name with
     | some (.alias tau) => some tau
     | _ => none
-  | .ptr (tau : Ast.Typ) =>
-    Trans.type ctx tau |>.map (Typ.mem ∘ Typ.Memory.pointer)
-  | .arr (tau : Ast.Typ) =>
-    Trans.type ctx tau |>.map (Typ.mem ∘ Typ.Memory.array)
-  | .struct name => some <| Typ.mem (Typ.Memory.struct name)
+  | .ptr (tau : Ast.Typ) => Trans.type ctx tau |>.map (.mem ∘ .pointer)
+  | .arr (tau : Ast.Typ) => Trans.type ctx tau |>.map (.mem ∘ .array)
+  | .struct name => some <| .mem (.struct name)
 
 def Trans.int_binop : Ast.BinOp.Int → Tst.BinOp.Int
   | .plus  => .plus
@@ -222,14 +220,25 @@ def Validate.typedef (ctx : GlobalCtx)
 def Validate.fields (ctx : GlobalCtx)
                     (fields : List Ast.Field)
                     : Except Error (List (Symbol × Typ)) :=
-  fields.foldrM (fun field acc =>
+  fields.foldrM (fun field acc => do
     if acc.any (fun (f', _tau') => field.name == f')
     then throw <| Error.msg <|
       s!"Struct field '{field.name}' appeared more than once"
     else
-      match Trans.type ctx field.type with
-      | some tau => pure ((field.name, tau) :: acc)
-      | none => throw <| Error.msg s!"Struct field must have a known type"
+      let tau ←
+        match Trans.type ctx field.type with
+        | some (.mem (.struct name)) =>
+          match ctx.structs.find? name with
+          | some status =>
+            if status.defined
+            then pure (.mem (.struct name))
+            else throw <| Error.msg <|
+              s!"Struct field '{field.name}' must have a known size ('{Typ.mem (.struct name)}' needs to be defined)"
+          | none => pure (.mem (.struct name))
+        | some tau => pure tau
+        | none => throw <| Error.msg <|
+          s!"Struct field '{field.name}' must have a known type"
+      pure ((field.name, tau) :: acc)
   ) []
 
 def Validate.params (ctx : FuncCtx)
