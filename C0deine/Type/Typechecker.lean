@@ -410,7 +410,7 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
       | .bool .or           => binop_type (.prim .bool) exp op l'.typ r'.typ
       | .cmp .equal
       | .cmp .not_equal     =>
-        if l'.typ = r'.typ
+        if l'.typ.equiv r'.typ
         then pure (.prim .bool)
         else throw <| Error.expr exp <|
            s!"Binary operator '{op}' expects both sides to have same type but got '{l'.typ}' and '{r'.typ}'"
