@@ -827,7 +827,7 @@ def fdecl (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDecl) : Result := do
   then throw <| Error.func f.name <|
     s!"Function 'main' cannot appear in headers"
   else
-    let (ctx', fctx, ret) ← func ctx false f.name f.type f.params
+    let (ctx', fctx, ret) ← func ctx extern f.name f.type f.params
     let params ← Trans.params fctx f.params
     let fdecl := .fdecl ⟨ret, f.name, params⟩
     return (ctx', some fdecl)
