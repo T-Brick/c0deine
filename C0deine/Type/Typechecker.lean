@@ -150,6 +150,23 @@ def Trans.type [Ctx α] (ctx : α) : Ast.Typ → Option Typ
   | .arr (tau : Ast.Typ) => Trans.type ctx tau |>.map (.mem ∘ .array)
   | .struct name => some <| .mem (.struct name)
 
+def Trans.sizedType [Ctx α] (ctx : α) : Ast.Typ → Option Typ
+  | .int => some <| .prim .int
+  | .bool => some <| .prim .bool
+  | .tydef name =>
+    match (Ctx.symbols ctx).find? name with
+    | some (.alias tau) => some tau
+    | _ => none
+  | .ptr (tau : Ast.Typ) => Trans.sizedType ctx tau |>.map (.mem ∘ .pointer)
+  | .arr (tau : Ast.Typ) => Trans.sizedType ctx tau |>.map (.mem ∘ .array)
+  | .struct name =>
+    match (Ctx.structs ctx).find? name with
+    | some status =>
+      if status.defined
+      then some <| .mem (.struct name)
+      else none
+    | none => none
+
 def Trans.int_binop : Ast.BinOp.Int → Tst.BinOp.Int
   | .plus  => .plus
   | .minus => .minus
@@ -226,19 +243,10 @@ def Validate.fields (ctx : GlobalCtx)
       s!"Struct field '{field.name}' appeared more than once"
     else
       let tau ←
-        match Trans.type ctx field.type with
-        | some (.mem (.struct name)) =>
-          match ctx.structs.find? name with
-          | some status =>
-            if status.defined
-            then pure (.mem (.struct name))
-            else throw <| Error.msg <|
-              s!"Struct field '{field.name}' must have a known size ('{Typ.mem (.struct name)}' needs to be defined)"
-          | none => throw <| Error.msg <|
-            s!"Struct field '{field.name}' must have a known size ('{Typ.mem (.struct name)}' needs to be defined)"
+        match Trans.sizedType ctx field.type with
         | some tau => pure tau
         | none => throw <| Error.msg <|
-          s!"Struct field '{field.name}' must have a known type"
+          s!"Struct field '{field.name}' must have a known type size"
       pure ((field.name, tau) :: acc)
   ) []
 
@@ -337,12 +345,8 @@ def binop_type (expect : Typ)
     else throw <| Error.expr expr <|
       s!"Binary operator '{op}' expects both sides to have type {expect} but they both have type '{ty}'"
   match lhs, rhs with
-  | .type (.prim .int), .type (.prim .int)
-  | .type (.prim .int), .any
-  | .any, .type (.prim .int)  => check (.prim .int)
-  | .type (.prim .bool), .type (.prim .bool)
-  | .type (.prim .bool), .any
-  | .any, .type (.prim .bool) => check (.prim .bool)
+  | .type (.prim .int), .type (.prim .int)   => check (.prim .int)
+  | .type (.prim .bool), .type (.prim .bool) => check (.prim .bool)
   | .any, .any                => pure expect
   | _, _ => throw <| Error.expr expr <|
       s!"Binary operator '{op}' expects both sides to have the same type but instead got '{lhs}' and '{rhs}'"
@@ -459,13 +463,13 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
       s!"Cannot call undeclared/undefined function {f}"
 
   | .alloc tau         =>
-    let opt_tau' := Trans.type ctx tau
+    let opt_tau' := Trans.sizedType ctx tau
     match opt_tau' with
     | some tau' => return (ctx.calls, ⟨.type (.mem (.pointer tau')), .alloc tau'⟩)
     | none      => throw <| Error.expr exp s!"Invalid allocation type"
 
   | .alloc_array tau e =>
-    let opt_tau' := Trans.type ctx tau
+    let opt_tau' := Trans.sizedType ctx tau
     let (calls, e') ← small_nonvoid <| expr ctx e
     match opt_tau', e'.typ with
     | none, _ => throw <| Error.expr exp s!"Invalid array type"
@@ -648,41 +652,44 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
   match stm with
   | .decl type name init body =>
     -- todo: this is kinda a mess, probably could be refactored a little
-    let opt_tau := Trans.type ctx type
+    let opt_tau := Trans.sizedType ctx type
     match opt_tau with
     | none => throwS s!"Unknown declaration type"
     | some tau =>
-      let ctx' ← Validate.var ctx name tau (init.isSome)
-      let (calls, init') ←
-        match init with
-        | none => pure (ctx.calls, none)
-        | some e =>
-          let (calls, e') ← handle <| Synth.Expr.expr ctx e
-          -- types must be equivalent on both sides
-          if e'.typ.equiv (.type tau)
-          then
-            let res := (calls, some e')
-            -- if we are assigning something to struct type, must be defined
-            match e'.typ with
-            | .type (.mem (.struct sname)) =>
-              match ctx.structs.find? sname with
-              | some status =>
-                if status.defined
-                then pure res
-                else throw <| Error.stmt stm <|
-                  s!"Expression '{e'.data}' has undefined type '{e'.typ}'"
-              | _ => throw <| Error.stmt stm <|
-                s!"Expression '{e'.data}' has undefined/undeclared type '{e'.typ}'"
-            | _ => pure res
-          else throw <| Error.stmt stm <|
-            s!"Variable '{name}' has mismatched types. Declaration expects '{tau}' but {e'.data} has type '{e'.typ}'"
-      let (ctx'', body') ← stmts {ctx' with calls} body
-      let symbols' := -- restore old symbol status
-        match ctx.symbols.find? name with
-        | some status => ctx''.symbols.insert name status
-        | none => ctx''.symbols.erase name
-      let calledOldCtx := { ctx'' with symbols := symbols' }
-      return (calledOldCtx, .decl ⟨.type tau, name⟩ init' body'.reverse)
+      if ¬tau.isSmall
+      then throwS s!"Declarations must have small types"
+      else
+        let ctx' ← Validate.var ctx name tau (init.isSome)
+        let (calls, init') ←
+          match init with
+          | none => pure (ctx.calls, none)
+          | some e =>
+            let (calls, e') ← handle <| Synth.Expr.expr ctx e
+            -- types must be equivalent on both sides
+            if e'.typ.equiv (.type tau)
+            then
+              let res := (calls, some e')
+              -- if we are assigning something to struct type, must be defined
+              match e'.typ with
+              | .type (.mem (.struct sname)) =>
+                match ctx.structs.find? sname with
+                | some status =>
+                  if status.defined
+                  then pure res
+                  else throw <| Error.stmt stm <|
+                    s!"Expression '{e'.data}' has undefined type '{e'.typ}'"
+                | _ => throw <| Error.stmt stm <|
+                  s!"Expression '{e'.data}' has undefined/undeclared type '{e'.typ}'"
+              | _ => pure res
+            else throw <| Error.stmt stm <|
+              s!"Variable '{name}' has mismatched types. Declaration expects '{tau}' but {e'.data} has type '{e'.typ}'"
+        let (ctx'', body') ← stmts {ctx' with calls} body
+        let symbols' := -- restore old symbol status
+          match ctx.symbols.find? name with
+          | some status => ctx''.symbols.insert name status
+          | none => ctx''.symbols.erase name
+        let calledOldCtx := { ctx'' with symbols := symbols' }
+        return (calledOldCtx, .decl ⟨.type tau, name⟩ init' body'.reverse)
 
   | .assn lv op e =>
     match lv with

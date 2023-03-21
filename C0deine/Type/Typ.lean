@@ -115,12 +115,13 @@ end
 
 def Check.equiv (a b : Check) : Bool :=
   match a, b with
-  | .type t1, .type t2            => Typ.equiv t1 t2
-  | .void, .void                  => true
+  | .type t1, .type t2                          => Typ.equiv t1 t2
+  | .void, .void                                => true
   | .any, .type (.mem (.array _))
-  | .type (.mem (.array _)), .any => false
-  | .any, _ | _, .any             => true
-  | _, _ => false
+  | .type (.mem (.array _)), .any               => false
+  | .any, .type (.mem _) | .type (.mem _), .any => true
+  | .any, .any => true
+  | _, _       => false
 
 def isScalar : Typ → Bool
   | .prim .int => true
