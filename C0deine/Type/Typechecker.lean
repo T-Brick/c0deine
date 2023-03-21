@@ -668,7 +668,10 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
           else throw <| Error.stmt stm <|
             s!"Variable '{name}' has mismatched types. Declaration expects '{tau}' but {e'.data} has type '{e'.typ}'"
       let (ctx'', body') ← stmts {ctx' with calls} body
-      let symbols' := ctx''.symbols.erase name
+      let symbols' := -- restore old symbol status
+        match ctx.symbols.find? name with
+        | some status => ctx''.symbols.insert name status
+        | none => ctx''.symbols
       let calledOldCtx := { ctx'' with symbols := symbols' }
       return (calledOldCtx, .decl ⟨.type tau, name⟩ init' body'.reverse)
 
@@ -794,6 +797,7 @@ def Result := Except Error (GlobalCtx × Option Tst.GDecl)
 deriving Inhabited
 
 def func (ctx : GlobalCtx)
+         (extern : Bool)
          (defining : Bool)
          (name : Ast.Ident)
          (ret : Option Ast.Typ)
@@ -810,9 +814,9 @@ def func (ctx : GlobalCtx)
   let status' ←
     match ctx.symbols.find? name with
     | some (.func f) =>
-      if defining && f.defined
+      if ¬extern && defining && f.defined
       then throw <| Error.func name <| s!"Function was already defined"
-      else pure (.func {f with defined := f.defined || defining})
+      else pure (.func {f with defined := extern || f.defined || defining})
     | some (.alias _) => throw <| Error.func name <|
       s!"Function name collides with type alias"
     | some (.var _) => throw <| Error.func name <| -- shouldn't happen
@@ -827,7 +831,7 @@ def fdecl (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDecl) : Result := do
   then throw <| Error.func f.name <|
     s!"Function 'main' cannot appear in headers"
   else
-    let (ctx', fctx, ret) ← func ctx extern f.name f.type f.params
+    let (ctx', fctx, ret) ← func ctx extern false f.name f.type f.params
     let params ← Trans.params fctx f.params
     let fdecl := .fdecl ⟨ret, f.name, params⟩
     return (ctx', some fdecl)
@@ -837,7 +841,7 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef) : Result := do
   then throw <| Error.func f.name <|
     s!"Function definintions cannot be in headers"
   else
-    let (ctx', fctx, ret) ← func ctx true f.name f.type f.params
+    let (ctx', fctx, ret) ← func ctx extern true f.name f.type f.params
     let params : List (Typed Symbol) ← f.params.foldrM (fun p acc =>
         match Trans.type fctx p.type with
         | some ty => pure (⟨.type ty, p.name⟩ :: acc)
