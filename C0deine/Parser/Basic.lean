@@ -245,7 +245,7 @@ def binop.int : C0Parser s BinOp.Int :=
   ]
 
 def asnop : C0Parser s AsnOp :=
-    (do char '='; return .eq)
+    (do withBacktracking (do char '='; notFollowedBy <| char '='); return .eq)
 <|> (do let op ← withBacktrackingUntil binop.int
                     (fun op => do char '='; return op)
         return .aseq op)
