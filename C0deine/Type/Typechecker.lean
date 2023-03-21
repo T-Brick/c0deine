@@ -234,7 +234,8 @@ def Validate.fields (ctx : GlobalCtx)
             then pure (.mem (.struct name))
             else throw <| Error.msg <|
               s!"Struct field '{field.name}' must have a known size ('{Typ.mem (.struct name)}' needs to be defined)"
-          | none => pure (.mem (.struct name))
+          | none => throw <| Error.msg <|
+            s!"Struct field '{field.name}' must have a known size ('{Typ.mem (.struct name)}' needs to be defined)"
         | some tau => pure tau
         | none => throw <| Error.msg <|
           s!"Struct field '{field.name}' must have a known type"
