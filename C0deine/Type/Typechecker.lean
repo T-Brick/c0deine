@@ -720,11 +720,11 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
   | .ite cond tt ff =>
     let (calls, cond') ←
       handle <| Synth.Expr.small_nonvoid <|Synth.Expr.expr ctx cond
-    let ctx := {ctx with calls}
+    let ctx' := {ctx with calls}
     match cond'.typ with
     | .type (.prim .bool) =>
-      let (ctx1, tt') ← stmts ctx tt
-      let (ctx2, ff') ← stmts ctx ff
+      let (ctx1, tt') ← stmts ctx' tt
+      let (ctx2, ff') ← stmts ctx' ff
       return (ctx1.join ctx2, .ite cond' tt' ff')
     | _ => throwS s!"If condition must be of type '{Typ.prim .bool}' not '{cond'.typ}'"
 
@@ -820,10 +820,7 @@ def func (ctx : GlobalCtx)
     | none => pure status
 
   let symbols := ctx.symbols.insert name status'
-  let funcCalls := ctx.funcCalls.insert name fctx.calls
-  let calls := ctx.calls.merge fctx.calls
-
-  return ({ctx with symbols, funcCalls, calls}, fctx, ret')
+  return ({ctx with symbols}, fctx, ret')
 
 def fdecl (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDecl) : Result := do
   if extern && Symbol.main == f.name
@@ -855,8 +852,12 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef) : Result := do
       then pure ()
       else throw <| Error.func f.name <|
         s!"Function does not return on some paths"
+
+    let funcCalls := ctx'.funcCalls.insert f.name fctx'.calls
+    let calls := ctx'.calls.merge fctx'.calls
+
     let fdef := .fdef ⟨ret, f.name, params, body'⟩
-    return (ctx', some fdef)
+    return ({ctx' with calls, funcCalls}, some fdef)
 
 def tydef (ctx : GlobalCtx) (t : Ast.TyDef) : Result := do
   let tau' ←
