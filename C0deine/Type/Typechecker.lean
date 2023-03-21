@@ -150,22 +150,12 @@ def Trans.type [Ctx α] (ctx : α) : Ast.Typ → Option Typ
   | .arr (tau : Ast.Typ) => Trans.type ctx tau |>.map (.mem ∘ .array)
   | .struct name => some <| .mem (.struct name)
 
-def Trans.sizedType [Ctx α] (ctx : α) : Ast.Typ → Option Typ
-  | .int => some <| .prim .int
-  | .bool => some <| .prim .bool
-  | .tydef name =>
-    match (Ctx.symbols ctx).find? name with
-    | some (.alias tau) => some tau
-    | _ => none             -- intentionally using Trans.type here
-  | .ptr (tau : Ast.Typ) => Trans.type ctx tau |>.map (.mem ∘ .pointer)
-  | .arr (tau : Ast.Typ) => Trans.type ctx tau |>.map (.mem ∘ .array)
-  | .struct name =>
+def Trans.isSized [Ctx α] (ctx : α) : Typ → Bool
+  | .mem (.struct name) =>
     match (Ctx.structs ctx).find? name with
-    | some status =>
-      if status.defined
-      then some <| .mem (.struct name)
-      else none
-    | none => none
+    | some status => status.defined
+    | none => false
+  | _ => true
 
 def Trans.int_binop : Ast.BinOp.Int → Tst.BinOp.Int
   | .plus  => .plus
@@ -243,7 +233,7 @@ def Validate.fields (ctx : GlobalCtx)
       s!"Struct field '{field.name}' appeared more than once"
     else
       let tau ←
-        match Trans.sizedType ctx field.type with
+        match Trans.type ctx field.type |>.filter (Trans.isSized ctx) with
         | some tau => pure tau
         | none => throw <| Error.msg <|
           s!"Struct field '{field.name}' must have a known type size"
@@ -463,13 +453,13 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
       s!"Cannot call undeclared/undefined function {f}"
 
   | .alloc tau         =>
-    let opt_tau' := Trans.sizedType ctx tau
+    let opt_tau' := Trans.type ctx tau |>.filter (Trans.isSized ctx)
     match opt_tau' with
     | some tau' => return (ctx.calls, ⟨.type (.mem (.pointer tau')), .alloc tau'⟩)
     | none      => throw <| Error.expr exp s!"Invalid allocation type"
 
   | .alloc_array tau e =>
-    let opt_tau' := Trans.sizedType ctx tau
+    let opt_tau' := Trans.type ctx tau |>.filter (Trans.isSized ctx)
     let (calls, e') ← small_nonvoid <| expr ctx e
     match opt_tau', e'.typ with
     | none, _ => throw <| Error.expr exp s!"Invalid array type"
@@ -652,7 +642,7 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
   match stm with
   | .decl type name init body =>
     -- todo: this is kinda a mess, probably could be refactored a little
-    let opt_tau := Trans.sizedType ctx type
+    let opt_tau := Trans.type ctx type |>.filter (Trans.isSized ctx)
     match opt_tau with
     | none => throwS s!"Unknown declaration type"
     | some tau =>
@@ -906,7 +896,7 @@ def sdef (ctx : GlobalCtx) (s : Ast.SDef) : Result := do
     match ctx.structs.find? s.name with
     | some status =>
       if status.defined
-      then throw <| Error.msg <| s!"Struct {s.name} has already been declared"
+      then throw <| Error.msg <| s!"Struct {s.name} has already been defined"
       else pure ()
     | none => pure ()
   let fieldsMap ← Validate.fields ctx s.fields
