@@ -18,17 +18,14 @@ open ParserT Cst
 @[inline] nonrec def withBacktrackingUntil (p : C0Parser s α) (q : α → C0Parser s β)
   := withBacktrackingUntil p q
 
-def intmin : Int := -2147483648
-
-def num : C0Parser s Int :=
+def num : C0Parser s Nat :=
   first
   [ dec
   , hex
   , (do char '0'; notFollowedBy (do let _ ← charMatching (·.isHexDigit)); return 0)
-  , (do wholeString "-2147483648"; return intmin)
   ]
 where
-  dec : C0Parser s Int := do
+  dec : C0Parser s Nat := do
     let digs ←
       foldl
         (do return (← charMatching (fun c => '1' ≤ c && c ≤ '9')).toString)
@@ -36,7 +33,7 @@ where
           let c ← charMatching (fun c => '0' ≤ c && c ≤ '9')
           return String.push acc c)
     return Nat.ofDigits? 10 digs |>.get!
-  hex : C0Parser s Int := do
+  hex : C0Parser s Nat := do
     withBacktracking (do
       char '0'
       (char 'x' <|> char 'X')

@@ -53,7 +53,7 @@ inductive PostOp
 deriving Repr
 
 inductive Expr
-| num (v : Int)
+| num (v : Nat)
 | «true» | «false»
 | null
 | unop (op : UnOp) (e : Expr)
