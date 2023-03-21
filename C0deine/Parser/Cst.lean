@@ -1,3 +1,4 @@
+import C0deine.Utils.Int32
 import C0deine.Utils.Symbol
 
 namespace C0deine.Cst
@@ -53,7 +54,7 @@ inductive PostOp
 deriving Repr
 
 inductive Expr
-| num (v : Nat)
+| num (v : Int32)
 | «true» | «false»
 | null
 | unop (op : UnOp) (e : Expr)

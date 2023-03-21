@@ -1,5 +1,6 @@
-import C0deine.Utils.Symbol
 import C0deine.Utils.Comparison
+import C0deine.Utils.Int32
+import C0deine.Utils.Symbol
 
 namespace C0deine.Ast
 
@@ -35,7 +36,7 @@ inductive AsnOp
 | eq | aseq (op : BinOp.Int)
 
 inductive Expr
-| num (v : UInt32)
+| num (v : Int32)
 | «true» | «false»
 | null
 | unop (op : UnOp) (e : Expr)

@@ -1,6 +1,7 @@
 import Std
 
 import C0deine.Utils.Context
+import C0deine.Utils.Int32
 import C0deine.Parser.Cst
 import C0deine.Parser.ParserT
 import C0deine.AuxDefs
@@ -18,35 +19,42 @@ open ParserT Cst
 @[inline] nonrec def withBacktrackingUntil (p : C0Parser s α) (q : α → C0Parser s β)
   := withBacktrackingUntil p q
 
-def num : C0Parser s Nat :=
+def num : C0Parser s Int32 :=
   first
   [ dec
   , hex
-  , (do char '0'; notFollowedBy (do let _ ← charMatching (·.isHexDigit)); return 0)
+  , (do char '0'; notFollowedBy (do let _ ← charMatching (·.isHexDigit)); return .ofUInt32 0)
   ]
 where
-  dec : C0Parser s Nat := do
+  dec : C0Parser s Int32 := do
     let digs ←
       foldl
         (do return (← charMatching (fun c => '1' ≤ c && c ≤ '9')).toString)
         (fun acc => do
           let c ← charMatching (fun c => '0' ≤ c && c ≤ '9')
           return String.push acc c)
-    return Nat.ofDigits? 10 digs |>.get!
-  hex : C0Parser s Nat := do
+    let nat := Nat.ofDigits? 10 digs |>.get!
+    if nat = 2^31 then
+      return Int32.MIN
+    else if h : nat < 2^31 then
+      return .ofUInt32 ⟨nat, Nat.lt_trans h (by decide)⟩
+    else
+      throwExpected (fun () => [s!"dec literal ≤ {2^31}"])
+  hex : C0Parser s Int32 := do
     withBacktracking (do
       char '0'
       (char 'x' <|> char 'X')
     )
     let digs ←
-      foldl (return "") (fun s => do
-        let c ← charMatching (fun c => '0' ≤ c && c ≤ '9' || 'a' ≤ c && c ≤ 'f' || 'A' ≤ c && c ≤ 'F')
+      foldl (do return (← hexDig).toString) (fun s => do
+        let c ← hexDig
         return s.push c)
-    if digs.length = 0 then
-      throwUnexpected -- fun () => "expected [0-9a-fA-F]"
     let nat := Nat.ofDigits? 16 digs |>.get!
-    return nat
-
+    if h : nat < UInt32.size then
+      return .ofUInt32 ⟨nat,h⟩
+    else
+      throwExpected (fun () => [s!"hex literal ≤ {2^32-1 |>.toDigits (base := 16) |> String.mk}"])
+  hexDig := charMatching (fun c => '0' ≤ c && c ≤ '9' || 'a' ≤ c && c ≤ 'f' || 'A' ≤ c && c ≤ 'F')
 
 def lineComment : C0Parser s Unit := do
   wholeString "//"
