@@ -311,6 +311,7 @@ partial def Trans.control (lang : Language)
     then unsupported lang "for loops"
     else
       match stepOpt with
+      | some (.decl _ _ _) => throw s!"For loop steps cannot have declarations"
       | some step =>
         let bodyStep := .block [body, .simp step]
         let whileStmt := .ctrl (.while cond bodyStep)
