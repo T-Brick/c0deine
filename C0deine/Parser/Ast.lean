@@ -35,7 +35,7 @@ inductive AsnOp
 | eq | aseq (op : BinOp.Int)
 
 inductive Expr
-| num (v : Int)
+| num (v : UInt32)
 | «true» | «false»
 | null
 | unop (op : UnOp) (e : Expr)

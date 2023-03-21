@@ -130,7 +130,11 @@ def Trans.asnop (lang : Language)
 
 partial def Trans.expr (lang : Language) (e : Cst.Expr) : Except String Ast.Expr := do
   match e with
-  | .num n   => return .num n
+  | .num n   =>
+    if h : n ≤ 1 <<< 31 then
+      return .num ⟨n, Nat.lt_of_le_of_lt h (by decide)⟩
+    else
+      throw s!"integer literal {n} is too large for a uint32"
   | .«true»  =>
     if lang.under .l2
     then unsupported lang "true"
