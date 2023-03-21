@@ -130,10 +130,7 @@ def Trans.asnop (lang : Language)
 
 partial def Trans.expr (lang : Language) (e : Cst.Expr) : Except String Ast.Expr := do
   match e with
-  | .num n   =>
-    if n > 2147483647 || n < -2147483648 -- Out of 32-bit bounds
-    then throw "Integer {n} does not fit in 32 bits"
-    return .num n
+  | .num n   => return .num n
   | .«true»  =>
     if lang.under .l2
     then unsupported lang "true"
