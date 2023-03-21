@@ -482,7 +482,7 @@ def sdef : C0Parser s SDef :=
   withContext "<struct-def>" do
   let name ← withBacktracking do
     kw_struct; ws
-    let name ← ident tydefs; ws
+    let name ← rawIdent; ws
     char '{'
     pure name
   ws
@@ -494,7 +494,7 @@ def sdecl : C0Parser s SDecl :=
   withContext "<struct-decl>" <|
   withBacktracking do
   kw_struct; ws
-  let name ← ident tydefs; ws
+  let name ← rawIdent; ws
   char ';'
   return ⟨name⟩
 
@@ -534,12 +534,13 @@ def fdef (sig : FDecl) : C0Parser s FDef :=
 
 def gdecl : C0Parser s GDecl :=
   first
-  [do return .tydef (← tydef tydefs)
-  ,do return .sdecl (← sdecl tydefs)
-  ,do return .sdef  (← sdef  tydefs)
-  ,do let sig ← signature tydefs
-      (return .fdecl (← fdecl sig)) 
-      <|> (return .fdef (← fdef tydefs sig))
+  [ do return .tydef (← tydef tydefs)
+  , do return .sdecl (← sdecl)
+  , do return .sdef  (← sdef  tydefs)
+  , do
+    let sig ← signature tydefs
+    (return .fdecl (← fdecl sig)) 
+    <|> (return .fdef (← fdef tydefs sig))
   ]
 
 partial def prog (tydefs : Std.RBSet Symbol compare := .empty) : C0Parser s (Prog × Std.RBSet Symbol compare) := do
