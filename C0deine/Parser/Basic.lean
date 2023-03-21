@@ -435,7 +435,7 @@ partial def control : C0Parser s Control :=
         return Control.«for» init cond step body)
   , (do kw_return; ws; let e ← option (expr tydefs); ws; char ';'
         return Control.«return» e)
-  , (do kw_assert; ws; char '('; ws; let e ← expr tydefs; ws; char ')'; ws char ';'
+  , (do kw_assert; ws; char '('; ws; let e ← expr tydefs; ws; char ')'; ws; char ';'
         return Control.assert e)
   ]
 

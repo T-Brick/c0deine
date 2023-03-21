@@ -2,8 +2,9 @@
   A Typed Syntax Tree, which is similar to the AST, but with expressions
   having typed annotations. Types are dealiased in this representation.
  -/
-import C0deine.Utils.Symbol
+import C0deine.Utils.Int32
 import C0deine.Utils.Comparison
+import C0deine.Utils.Symbol
 import C0deine.Type.Typ
 
 namespace C0deine.Tst
@@ -35,7 +36,7 @@ inductive BinOp
 | bool (op : BinOp.Bool)
 
 inductive Expr
-| num (v : UInt32)
+| num (v : Int32)
 | var (name : Symbol)
 | «true» | «false»
 | null

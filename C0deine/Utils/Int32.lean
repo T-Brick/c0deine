@@ -34,6 +34,8 @@ def ofInt? (i : Int) : Option Int32 :=
 
 def ofNat? (n : Nat) : Option Int32 := ofInt? n
 
+instance : OfNat Int32 n := ⟨.ofUInt32 <| .ofNat n⟩
+
 instance : Coe Int32 Int := ⟨toInt⟩
 instance : ToString Int32 := ⟨toString ∘ toInt⟩
 instance : Repr Int32 := ⟨reprPrec ∘ toInt⟩
