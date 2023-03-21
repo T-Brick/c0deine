@@ -64,38 +64,25 @@ def Trans.unop (lang : Language) (op : Cst.UnOp) : Except String Ast.UnOp := do
   | .int .not  => return .int .not
   | .bool .not =>
     if lang.under .l2
-    then unsupported lang "!"
+    then unsupported lang "{op}"
     else return .bool .neg
 
 def Trans.binop_int (lang : Language)
                     (op : Cst.BinOp.Int)
                     : Except String Ast.BinOp.Int := do
+  let ret := fun res =>
+    if lang.under .l2 then unsupported lang s!"{op}" else return res
   match op with
   | .plus  => return .plus
   | .minus => return .minus
   | .times => return .times
   | .div   => return .div
   | .mod   => return .mod
-  | .and   =>
-    if lang.under .l2
-    then unsupported lang "&"
-    else return .and
-  | .xor   =>
-    if lang.under .l2
-    then unsupported lang "^"
-    else return .and
-  | .or    =>
-    if lang.under .l2
-    then unsupported lang "|"
-    else return .and
-  | .lsh   =>
-    if lang.under .l2
-    then unsupported lang "<<"
-    else return .and
-  | .rsh   =>
-    if lang.under .l2
-    then unsupported lang ">>"
-    else return .and
+  | .and   => ret .and
+  | .xor   => ret .xor
+  | .or    => ret .or
+  | .lsh   => ret .lsh
+  | .rsh   => ret .rsh
 
 def Trans.binop (lang : Language)
                 (op : Cst.BinOp)
@@ -128,21 +115,15 @@ def Trans.asnop (lang : Language)
   | .eq => return .eq
   | .aseq bop => Trans.binop_int lang bop |>.map .aseq
 
-partial def Trans.expr (lang : Language) (e : Cst.Expr) : Except String Ast.Expr := do
+mutual
+def Trans.expr (lang : Language) (e : Cst.Expr) : Except String Ast.Expr := do
+  let ret := fun l' res =>
+    if lang.under l' then unsupported lang s!"{e}" else return res
   match e with
   | .num n   => return .num n
-  | .«true»  =>
-    if lang.under .l2
-    then unsupported lang "true"
-    else return .«true»
-  | .«false» =>
-    if lang.under .l2
-    then unsupported lang "false"
-    else return .«false»
-  | .null    =>
-    if lang.under .l4
-    then unsupported lang "NULL"
-    else return .null
+  | .«true»  => ret .l2 .«true»
+  | .«false» => ret .l2 .«false»
+  | .null    => ret .l4 .null
   | .unop op e =>
     let op' ← Trans.unop lang op
     let e' ← Trans.expr lang e
@@ -164,7 +145,7 @@ partial def Trans.expr (lang : Language) (e : Cst.Expr) : Except String Ast.Expr
     if lang.under .l3
     then unsupported lang "function application"
     else
-      let args' ← args.mapM (Trans.expr lang)
+      let args' ← Trans.exprs lang args
       return .app f args'
   | .alloc ty =>
     if lang.under .l4
@@ -205,6 +186,21 @@ partial def Trans.expr (lang : Language) (e : Cst.Expr) : Except String Ast.Expr
       let e' ← Trans.expr lang e
       let indx' ← Trans.expr lang indx
       return .index e' indx'
+
+def Trans.exprs (lang : Language)
+                (exps : List Cst.Expr)
+                : Except String (List Ast.Expr) := do
+  match exps with
+  | [] => return []
+  | e :: es =>
+    let e' ← Trans.expr lang e
+    let es' ← Trans.exprs lang es
+    return e'::es'
+end
+
+termination_by
+  Trans.expr lang e => sizeOf e
+  Trans.exprs lang e => sizeOf e
 
 def Trans.lvalue (lang : Language)
                  (lv : Cst.LValue)
