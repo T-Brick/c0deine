@@ -5,7 +5,7 @@ import C0deine.Utils.Symbol
 namespace C0deine.Ast
 
 def Ident := Symbol
-deriving ToString
+deriving ToString, DecidableEq
 
 inductive Typ
 | int
@@ -86,16 +86,13 @@ structure Param where
   type : Typ
   name : Ident
 
-structure FDef where
-  type : Option Typ
-  name : Ident
-  params : List Param
-  body : List Stmt
-
 structure FDecl where
   type : Option Typ
   name : Ident
   params : List Param
+
+structure FDef extends FDecl where
+  body : List Stmt
 
 inductive GDecl
 | fdecl : FDecl → GDecl
