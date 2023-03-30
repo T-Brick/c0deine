@@ -15,6 +15,12 @@ def _root_.C0deine.Ast.Typ.isResolved : Typ → Bool
 
 nonrec def Typ := { t : Typ // t.isResolved }
 
+def Typ.int : Typ := ⟨.int, rfl⟩
+def Typ.bool : Typ := ⟨.int, rfl⟩
+def Typ.struct (name : Ident) : Typ := ⟨.struct name, rfl⟩
+def Typ.ptr (t : Typ) : Typ := ⟨.ptr t.1, by unfold Typ.isResolved; exact t.2⟩
+def Typ.arr (t : Typ) : Typ := ⟨.arr t.1, by unfold Typ.isResolved; exact t.2⟩
+
 structure StructSig where
   fieldTys : Ident → Option Typ
 
@@ -34,12 +40,6 @@ def GCtx.empty : GCtx := {
 , tydef  := fun _ => none
 , func   := fun _ => none
 }
-
-def Typ.int : Typ := ⟨.int, rfl⟩
-def Typ.bool : Typ := ⟨.int, rfl⟩
-def Typ.struct (name : Ident) : Typ := ⟨.struct name, rfl⟩
-def Typ.ptr (t : Typ) : Typ := ⟨.ptr t.1, by unfold Typ.isResolved; exact t.2⟩
-def Typ.arr (t : Typ) : Typ := ⟨.arr t.1, by unfold Typ.isResolved; exact t.2⟩
 
 inductive TypResolves (Δ : GCtx) : Ast.Typ → Typ → Prop
 | int    : TypResolves Δ .int .int
