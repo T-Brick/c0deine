@@ -509,7 +509,7 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
   | .deref e           =>
     let (calls, e') ← small <| expr ctx e
     match e'.typ with
-    | .any => throw <| Error.expr e <|
+    | .mem (.pointer .any) => throw <| Error.expr e <|
       "Cannot dereference a null pointer"
     | .mem (.pointer tau)  => return (calls, ⟨tau, .deref e'⟩)
     | _ => throw <| Error.expr e <| "Cannot dereference a non-pointer type '{e'.typ}'"
