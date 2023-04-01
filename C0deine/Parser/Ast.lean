@@ -119,8 +119,8 @@ instance : ToString (Option Typ) where
 
 
 def UnOp.Int.toString : UnOp.Int → String
-  | neg => "~"
-  | not => "!"
+  | neg => "-"
+  | not => "~"
 instance : ToString UnOp.Int where toString := UnOp.Int.toString
 
 def UnOp.Bool.toString : UnOp.Bool → String
