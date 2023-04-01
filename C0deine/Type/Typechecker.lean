@@ -127,11 +127,11 @@ def toString (err : Error) : String :=
     | some (.inl <| .inr e) => s!"in expression {e.data} with type {e.typ}\n  "
     | some (.inl <| .inl e) => s!"in expression {e}\n  "
     | some (.inr lv)        => s!"in lvalue {lv}\n  "
-    | none                  => ""
+    | none                  => s!""
   let sMsg :=
     match err.statement with
     | some s => s!"at statement '{s.toPrettyString}'\n  "
-    | none => ""
+    | none => s!""
   s!"Type error occurred{funcMsg}\n  {sMsg}{eMsg}  {err.message}"
 
 instance : ToString Error where toString := Error.toString
@@ -245,7 +245,8 @@ def Validate.params (ctx : FuncCtx)
                     : Except Error FuncCtx :=
   params.foldlM (fun ctx param =>
     match Trans.type ctx param.type with
-    | none     => throw <| Error.msg "Function paramter must have a known type"
+    | none     => throw <| Error.msg <|
+      s!"Function paramter must have a known type"
     | some tau => Validate.var ctx param.name tau true
   ) ctx
 
@@ -510,9 +511,9 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
     let (calls, e') ← small <| expr ctx e
     match e'.typ with
     | .mem (.pointer .any) => throw <| Error.expr e <|
-      "Cannot dereference a null pointer"
+      s!"Cannot dereference a null pointer"
     | .mem (.pointer tau)  => return (calls, ⟨tau, .deref e'⟩)
-    | _ => throw <| Error.expr e <| "Cannot dereference a non-pointer type '{e'.typ}'"
+    | _ => throw <| Error.expr e <| s!"Cannot dereference a non-pointer type '{e'.typ}'"
 
   | .index arr indx    =>
     let (ca, arr') ← small_nonvoid <| expr ctx arr
@@ -522,9 +523,9 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
     | .mem (.array tau), .prim .int =>
       return (calls, ⟨tau, .index arr' index'⟩)
     | .mem (.array _tau), _ => throw <| Error.expr exp <|
-      "Array indices must be type '{Typ.prim .int}' not type '{index'.typ}'"
+      s!"Array indices must be type '{Typ.prim .int}' not type '{index'.typ}'"
     | _, _ => throw <| Error.expr exp <|
-      "Array indexing must be on array types not type '{arr'.typ}'"
+      s!"Array indexing must be on array types not type '{arr'.typ}'"
 
 def exprs (ctx : FuncCtx)
           (exps : List Ast.Expr)
@@ -552,7 +553,7 @@ def small (res : Result) : Result := do
   let (calls, tv) ← res
   if tv.typ.isSmall
   then return (calls, tv)
-  else throw <| Error.msg "LValue has large type"
+  else throw <| Error.msg s!"LValue has large type"
 
 def lvalue (ctx : FuncCtx) (lval : Ast.LValue) : Result := do
   match lval with
@@ -561,8 +562,8 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue) : Result := do
     | some (.var status) =>
       if status.initialised
       then return (ctx.calls, ⟨status.type, .var var⟩)
-      else throw <| Error.lval lval "Variable not initialised"
-    | _ => throw <| Error.lval lval "Variable not declared"
+      else throw <| Error.lval lval s!"Variable not initialised"
+    | _ => throw <| Error.lval lval s!"Variable not declared"
 
   | .dot lv field =>
     let (calls, lv') ← lvalue ctx lv
@@ -602,7 +603,8 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue) : Result := do
     let (calls, lv') ← lvalue ctx lv
     match lv'.typ with
     | .mem (.pointer tau)  => return (calls, ⟨tau, .deref lv'⟩)
-    | _ => throw <| Error.lval lval <| "Cannot dereference a non-pointer type '{lv'.typ}'"
+    | _ => throw <| Error.lval lval <|
+      s!"Cannot dereference a non-pointer type '{lv'.typ}'"
 
   | .index arr indx =>
     let (ca, arr') ← lvalue ctx arr
@@ -612,9 +614,9 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue) : Result := do
     | .mem (.array tau), .prim .int =>
       return (calls, ⟨tau, .index arr' index'⟩)
     | .mem (.array _tau), _ => throw <| Error.lval lval <|
-      "Array indices must be type '{Typ.prim .int}' not type '{index'.typ}'"
+      s!"Array indices must be type '{Typ.prim .int}' not type '{index'.typ}'"
     | _, _ => throw <| Error.lval lval <|
-      "Array indexing must be on array types not type '{arr'.typ}'"
+      s!"Array indexing must be on array types not type '{arr'.typ}'"
 
 end Synth.LValue
 
