@@ -650,7 +650,8 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
           match init with
           | none => pure (ctx.calls, none)
           | some e =>
-            let (calls, e') ← handle <| Synth.Expr.expr ctx e
+            let (calls, e') ← handle <|
+              Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx e
             -- types must be equivalent on both sides
             if e'.typ.equiv tau
             then
@@ -690,7 +691,7 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
         match status with
         | .var vstatus =>
           let (calls, e') ←
-            handle <| Synth.Expr.small <| Synth.Expr.expr ctx elab_e
+            handle <| Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx elab_e
           let ctx := {ctx with calls}
           if e'.typ.equiv vstatus.type
           then
