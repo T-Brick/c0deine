@@ -381,7 +381,7 @@ def Trans.gdecl (lang : Language)
       let type' ← Trans.type lang f.type
       let params' ← f.params.mapM (Trans.param lang)
       let body' ← Trans.stmts lang [f.body]
-      return .fdef ⟨type', f.name, params', body'⟩
+      return .fdef ⟨⟨type', f.name, params'⟩, body'⟩
   | .tydef t =>
     if lang.under .l3
     then unsupported lang "typdefs"

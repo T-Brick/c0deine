@@ -11,11 +11,11 @@ namespace C0deine.Tst
 
 -- todo: maybe we can restrict this to just be the types we want?
 inductive Typed (α : Type) where
-  | typed (typ : Typ.Check) (data : α)
+  | typed (typ : Typ) (data : α)
 
 def Typed.data : Typed α → α
   | typed _typ data => data
-def Typed.typ : Typed α → Typ.Check
+def Typed.typ : Typed α → Typ
   | typed typ _data => typ
 
 inductive UnOp.Int | neg | not

@@ -90,12 +90,12 @@ end Env
 
 namespace MkTyped
 
-def int (e : IrTree.Expr) : IrTree.TypedExpr := .typed (.type (.prim .int)) e
-def bool (e : IrTree.Expr) : IrTree.TypedExpr := .typed (.type (.prim .bool)) e
+def int (e : IrTree.Expr) : IrTree.TypedExpr := .typed (.prim .int) e
+def bool (e : IrTree.Expr) : IrTree.TypedExpr := .typed (.prim .bool) e
 def null (e : IrTree.Expr) : IrTree.TypedExpr := .typed .any e
 
 def expr (env : Env.Func ((List IrTree.Stmt) × IrTree.Expr))
-         (typ : Typ.Check)
+         (typ : Typ)
          : Env.Func ((List IrTree.Stmt) × IrTree.TypedExpr) := do
   let (stmts, e') ← env
   return (stmts, .typed typ e')
@@ -128,7 +128,7 @@ partial def Trans.expr
                (exp : Tst.Expr)
                : Env.Func ((List IrTree.Stmt) × IrTree.Expr) := do
   match exp with
-  | .num (v : UInt32) => return ([], .const (Int.ofNat v.toNat))
+  | .num (v : Int32) => return ([], .const v)
   | .var (name : Symbol) => return ([], .temp (← Env.Func.var name))
   | .«true» => return ([], .byte 1)
   | .«false» => return ([], .byte 0)

@@ -23,11 +23,11 @@ inductive Expr
 deriving Inhabited
 
 inductive TypedExpr
-| typed (type : Typ.Check) (expr : Expr)
+| typed (type : Typ) (expr : Expr)
 deriving Inhabited
 end
 
-def TypedExpr.type : TypedExpr → Typ.Check
+def TypedExpr.type : TypedExpr → Typ
 | .typed type _expr => type
 
 def TypedExpr.expr : TypedExpr → Expr
