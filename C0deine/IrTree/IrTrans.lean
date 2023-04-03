@@ -14,13 +14,15 @@ namespace C0deine.IrTrans
 open IrTree
 
 structure StructInfo where
-  size : Nat
-  alignment : Nat
-  fields : Symbol.Map Nat
+  size : UInt64
+  alignment : UInt64
+  fields : Symbol.Map UInt64
+instance : Inhabited StructInfo where default := ⟨0, 0, Std.HashMap.empty⟩
 
 namespace Env
 
 structure Prog.State : Type where
+  isUnsafe : Bool
   vars : Symbol.Map Temp
   functions : Symbol.Map Label
   structs : Symbol.Map StructInfo
@@ -28,6 +30,7 @@ structure Prog.State : Type where
 
 
 def Prog.State.new : Env.Prog.State where
+  isUnsafe := false
   vars := Std.HashMap.empty
   functions := Std.HashMap.empty
   structs := Std.HashMap.empty
@@ -45,7 +48,12 @@ def Func.State.new (label : Label) : Func.State :=
   { Prog.State.new with curBlockLabel := label, curBlockType := .funcEntry }
 
 def Func := StateT Func.State Context
+instance [Inhabited α] : Inhabited (Func α) :=
+  show Inhabited (StateT _ _ α) from inferInstance
 instance : Monad Func := show Monad (StateT _ _) from inferInstance
+
+def Func.unsafe : Env.Func Bool :=
+  fun env => return ⟨env.isUnsafe, env⟩
 
 def Func.var (v : Symbol) : Env.Func Temp :=
   fun env =>
@@ -86,6 +94,9 @@ def Func.addBlock (block : Block)
                            curBlockType := nextType
                 })
 
+def Func.structs : Env.Func (Symbol.Map StructInfo) :=
+  fun env => return ⟨env.structs, env⟩
+
 end Env
 
 namespace MkTyped
@@ -102,8 +113,21 @@ def expr (env : Env.Func ((List IrTree.Stmt) × IrTree.Expr))
 
 end MkTyped
 
-def Trans.binop_op_int (op : Tst.BinOp.Int)
-                       : IrTree.PureBinop ⊕ IrTree.EffectBinop :=
+def Typ.size (tau : Typ) : Env.Func (Option UInt64) := do
+  match tau with
+  | .any => return none
+  | .prim .int  => return some 4
+  | .prim .bool => return some 4
+  | .mem (.pointer _) => return some 8
+  | .mem (.array _)   => return some 8
+  | .mem (.struct n)  =>
+    let s ← Env.Func.structs
+    return s.find? n |>.map (fun info => info.size)
+
+namespace Trans
+
+def binop_op_int (op : Tst.BinOp.Int)
+                  : IrTree.PureBinop ⊕ IrTree.EffectBinop :=
   match op with
   | .plus => .inl (.add)
   | .minus => .inl (.sub)
@@ -116,17 +140,17 @@ def Trans.binop_op_int (op : Tst.BinOp.Int)
   | .lsh => .inr (.lsh)
   | .rsh => .inr (.rsh)
 
-def Trans.binop_op (op : Tst.BinOp)
-                   : IrTree.PureBinop ⊕ IrTree.EffectBinop :=
+def binop_op (op : Tst.BinOp)
+             : IrTree.PureBinop ⊕ IrTree.EffectBinop :=
   match op with
   | .int iop => Trans.binop_op_int iop
   | .bool bop => sorry
   | .cmp c => .inl (.comp c)
 
 mutual
-partial def Trans.expr
-               (exp : Tst.Expr)
-               : Env.Func ((List IrTree.Stmt) × IrTree.Expr) := do
+partial def expr (tau : Typ)
+         (exp : Tst.Expr)
+         : Env.Func ((List IrTree.Stmt) × IrTree.Expr) := do
   match exp with
   | .num (v : Int32) => return ([], .const v)
   | .var (name : Symbol) => return ([], .temp (← Env.Func.var name))
@@ -194,22 +218,128 @@ partial def Trans.expr
     let call := .call dest func_lbl args'
     return (stmts.append [call], .temp dest)
 
-  | .alloc ty => sorry
-  | .alloc_array ty e => sorry
-  | .dot e field => sorry
-  | .deref e => sorry
-  | .index e indx => sorry
+  | .alloc ty =>
+    match ← Typ.size ty with
+    | some size =>
+      let dest ← Env.Func.freshTemp
+      return ([.alloc dest (MkTyped.int (.memory size.toNat))], .temp dest)
+    | none => panic! "IR Trans: Alloc type size not known"
 
-partial def Trans.texpr (texp : Tst.Typed Tst.Expr)
-                  : Env.Func ((List IrTree.Stmt) × IrTree.TypedExpr) :=
-  MkTyped.expr (Trans.expr texp.data) texp.typ
+  | .alloc_array ty e =>
+    match ← Typ.size ty with
+    | some size =>
+      let (stmts, e') ← Trans.texpr e
+      let dest ← Env.Func.freshTemp
+      if ← Env.Func.unsafe
+      then
+        let size' := -- don't need to store length if unsafe
+          match e' with -- optimise if size is constant
+          | .typed _tau (.const c) =>
+            match c.toNat' with
+            | some n => .memory (n * size.toNat)
+            | none   => .binop .mul e' (MkTyped.int (.const size.toNat))
+          | .typed _tau _len => .binop .mul e' (MkTyped.int (.const size.toNat))
+        return (stmts.append [.alloc dest (MkTyped.int size')], .temp dest)
+      else
+        let lengthSize := MkTyped.int (.memory 8)
+        -- todo maybe add bounds checks here?
+        let size' : Expr :=
+          match e' with -- optimise if size is constant
+          | .typed _tau (.const c) =>
+            match c.toNat' with
+            | some n => .memory (n * size.toNat + 8)
+            | none   =>
+              .binop .mul e' (MkTyped.int (.const size.toNat))
+              |> MkTyped.int
+              |> .binop .add lengthSize
+          | .typed _tau _len =>
+            .binop .mul e' (MkTyped.int (.const size.toNat))
+            |> MkTyped.int
+            |> .binop .add lengthSize
+        let alloc := .alloc dest (MkTyped.int size')
+        let storeLen := .store ⟨MkTyped.int (.temp dest), 0, none, 0⟩ e'
+        let arr := .binop .add (MkTyped.int (.temp dest)) lengthSize
+        return (stmts.append [alloc] |>.append [storeLen], arr)
+    | none => panic! "IR Trans: Alloc array type size not known"
 
-partial def Trans.args (args : List (Tst.Typed Tst.Expr))
-                : Env.Func ((List IrTree.Stmt) × (List IrTree.TypedExpr)) := do
+  | .dot _e _field
+  | .deref _e
+  | .index _e _indx =>
+    let (stmts, address, checks) ← Addr.addr ⟨tau, exp⟩ 0 false
+    let dest ← Env.Func.freshTemp
+    return (stmts.append checks |>.append [.load dest address], .temp dest)
+
+partial def texpr (texp : Tst.Typed Tst.Expr)
+          : Env.Func ((List IrTree.Stmt) × IrTree.TypedExpr) :=
+  MkTyped.expr (Trans.expr texp.typ texp.data) texp.typ
+
+partial def args (args : List (Tst.Typed Tst.Expr))
+         : Env.Func ((List IrTree.Stmt) × (List IrTree.TypedExpr)) := do
   match args with
   | [] => return ([], [])
   | arg :: args =>
     let (stmts, arg') ← Trans.texpr arg
     let (stmts', args') ← Trans.args args
     return (stmts.append stmts', arg' :: args')
+
+
+/- returns the elaborated statements, address, and pending memory checks
+ - This allows us to maintain the weird semantics for checks
+ -/
+partial def Addr.addr (texp : Tst.Typed Tst.Expr)
+         (offset : UInt64)
+         (check : Bool)
+         : Env.Func (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
+  match texp.data with
+  | .dot e field  => Addr.dot e field offset
+  | .deref e      => Addr.deref e offset check
+  | .index e indx => Addr.index e indx offset
+  | _ => panic! "IR Trans: Attempted to address a non-pointer"
+
+partial def Addr.dot (texp : Tst.Typed Tst.Expr)
+               (field : Symbol)
+               (offset : UInt64)
+               : Env.Func
+                  (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
+  let structs ← Env.Func.structs
+  let struct :=
+    match texp.typ with
+    | .mem (.struct name) =>
+      match structs.find? name with
+      | some info => info
+      | none => panic! s!"IR Trans: Could not find struct {name}"
+    | _ => panic! s!"IR Trans: Expression {texp} does not have struct type"
+  let foffset :=
+    match struct.fields.find? field with
+    | some foffset => foffset
+    | none => panic! s!"IR Trans: Could not find field offset {field}"
+  Addr.addr texp (offset + foffset) true
+
+partial def Addr.deref (texp : Tst.Typed Tst.Expr)
+         (offset : UInt64)
+         (check : Bool)
+         : Env.Func (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
+  let (stmts, texp') ← texpr texp
+  let address := ⟨texp', offset, none, 0⟩
+  if check
+  then return (stmts.append [.check (.null texp')], address, [])
+  else return (stmts, address, [.check (.null texp')])
+
+partial def Addr.index (arr indx : Tst.Typed Tst.Expr)
+               (offset : UInt64)
+               : Env.Func
+                (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
+  let (stmts1, arr') ← texpr arr
+  let (stmts2, indx') ← texpr indx
+  let scale ←
+    match arr.typ with
+    | .mem (.array tau) => do
+      match ← Typ.size tau with
+      | some s => pure s
+      | none => panic! "IR Trans: Can't determine array element size"
+    | _ => panic! s!"IR Trans: Indexing into non-array type"
+  let checks := .check (.null arr') :: .check (.bounds arr' indx') :: []
+  let address := ⟨arr', offset, some indx', scale.toNat⟩
+  return (stmts1.append stmts2 |>.append checks, address, [])
 end
+end Trans

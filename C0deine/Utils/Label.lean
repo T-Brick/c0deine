@@ -18,8 +18,13 @@ instance : Ord Label where compare l1 l2 := Ord.compare l1.id l2.id
 instance : Hashable Label where hash l := hash l.id
 
 
-def main : Label := ⟨0, "main"⟩
+def main   : Label := ⟨0, "main"⟩
 def calloc : Label := ⟨1, "calloc"⟩
+def abort  : Label := ⟨2, "abort"⟩
+def fpe    : Label := ⟨3, "sigfpe"⟩
+def memerr : Label := ⟨4, "sigusr2"⟩
+
+def startId := 5
 
 def Map (α : Type) := Std.HashMap Label α
 

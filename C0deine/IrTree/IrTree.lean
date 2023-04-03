@@ -28,16 +28,17 @@ deriving Inhabited
 end
 
 def TypedExpr.type : TypedExpr → Typ
-| .typed type _expr => type
+  | .typed type _expr => type
 
 def TypedExpr.expr : TypedExpr → Expr
-| .typed _type expr => expr
+  | .typed _type expr => expr
 
 structure Address where
   base : TypedExpr
-  offset : Option Int
+  offset : UInt64
   index : Option (TypedExpr)
   scale : Nat
+deriving Inhabited
 
 inductive Check
 | null : TypedExpr → Check
@@ -48,6 +49,7 @@ inductive Stmt
 | move (dest : Temp) (te : TypedExpr)
 | effect (dest : Temp) (op : EffectBinop) (lhs rhs : TypedExpr)
 | call (dest : Temp) (name : Label) (args : List (TypedExpr))
+| alloc (dest : Temp) (size : TypedExpr)
 | load (dest : Temp) (addr : Address)
 | store (addr : Address) (source : TypedExpr)
 | check (c : Check)
@@ -131,6 +133,7 @@ def Stmt.toString : Stmt → String
   | move dest te => s!"{dest} <-- {te}"
   | effect dest op lhs rhs => s!"{dest} <!- {lhs} {op} {rhs}"
   | call dest name args => s!"{dest} <-- {name}({args})"
+  | alloc dest size => s!"{dest} <-- alloc({size})"
   | load dest addr => s!"{dest} <-- M[{addr}]"
   | store addr source => s!"M[{addr}] <-- {source}"
   | check c => s!"{c}"

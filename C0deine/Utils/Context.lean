@@ -13,7 +13,7 @@ structure Context.State where
 
 def Context.State.new : Context.State where
   nextTemp := (1:)
-  nextLabel := ⟨2, none⟩
+  nextLabel := ⟨Label.startId, none⟩
   nextSymbolId := 1
   symbolCache := Std.HashMap.empty.insert Symbol.main.name Symbol.main
 
