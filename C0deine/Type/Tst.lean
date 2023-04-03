@@ -13,8 +13,11 @@ namespace C0deine.Tst
 inductive Typed (α : Type) where
   | typed (typ : Typ) (data : α)
 
+@[inline]
 def Typed.data : Typed α → α
   | typed _typ data => data
+
+@[inline]
 def Typed.typ : Typed α → Typ
   | typed typ _data => typ
 

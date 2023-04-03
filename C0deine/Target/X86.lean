@@ -40,7 +40,7 @@ instance : ToString Memory where toString := Memory.toString
 
 inductive Operand
 | const (c : Int)
-| reg (r : Register.SizedRegister)
+| reg (r : SizedRegister)
 | mem (m : Memory)
 
 def Operand.toString : Operand → String
@@ -53,20 +53,20 @@ inductive Instr
 | label (lbl : Label)
 | directive (str : String)
 | comment (str : String)
-| mov (src dest : Operand) (size : Register.Size)
-| lea (src dest : Operand) (size : Register.Size)
-| add (src dest : Operand) (size : Register.Size)
-| sub (src dest : Operand) (size : Register.Size)
-| imul (src : Operand) (size : Register.Size)
-| idiv (src : Operand) (size : Register.Size)
-| not (dest : Operand) (size : Register.Size)
-| and (src dest : Operand) (size : Register.Size)
-| xor (src dest : Operand) (size : Register.Size)
-| or (src dest : Operand) (size : Register.Size)
-| sal (src dest : Operand) (size : Register.Size)
-| sar (src dest : Operand) (size : Register.Size)
+| mov (src dest : Operand) (size : ValueSize)
+| lea (src dest : Operand) (size : ValueSize)
+| add (src dest : Operand) (size : ValueSize)
+| sub (src dest : Operand) (size : ValueSize)
+| imul (src : Operand) (size : ValueSize)
+| idiv (src : Operand) (size : ValueSize)
+| not (dest : Operand) (size : ValueSize)
+| and (src dest : Operand) (size : ValueSize)
+| xor (src dest : Operand) (size : ValueSize)
+| or (src dest : Operand) (size : ValueSize)
+| sal (src dest : Operand) (size : ValueSize)
+| sar (src dest : Operand) (size : ValueSize)
 | cdq
-| cmp (lhs : Operand) (rhs : Operand) (size : Register.Size)
+| cmp (lhs : Operand) (rhs : Operand) (size : ValueSize)
 | setcc (cc : Comparator) (dest : Operand)
 | jmp (lbl : Label)
 | jcc (cc : Comparator) (lbl : Label)
@@ -85,32 +85,32 @@ def Instr.toString : Instr → String
   | label (lbl : Label) => s!"{lbl}:"
   | directive (str : String) => s!".{str}"
   | comment (str : String) => s!"#{str}"
-  | mov (src : Operand) (dest : Operand) (size : Register.Size) =>
+  | mov (src : Operand) (dest : Operand) size =>
       Instr.binopToString s!"mov{size}" src dest
-  | lea (src : Operand) (dest : Operand) (size : Register.Size) =>
+  | lea (src : Operand) (dest : Operand) size =>
       Instr.binopToString s!"lea{size}" src dest
-  | add (src : Operand) (dest : Operand) (size : Register.Size) =>
+  | add (src : Operand) (dest : Operand) size =>
       Instr.binopToString s!"add{size}" src dest
-  | sub (src : Operand) (dest : Operand) (size : Register.Size) =>
+  | sub (src : Operand) (dest : Operand) size =>
       Instr.binopToString s!"sub{size}" src dest
-  | imul (src : Operand) (size : Register.Size) =>
+  | imul (src : Operand) size =>
       s!"\timul{size}\t\t{src}"
-  | idiv (src : Operand) (size : Register.Size) =>
+  | idiv (src : Operand) size =>
       s!"\tidiv{size}\t\t{src}"
-  | not (dest : Operand) (_size : Register.Size) =>
+  | not (dest : Operand) _size =>
       s!"\tnot\t\t{dest}"
-  | and (src : Operand) (dest : Operand) (_size : Register.Size) =>
+  | and (src : Operand) (dest : Operand) _size =>
       Instr.binopToString s!"and" src dest
-  | xor (src : Operand) (dest : Operand) (_size : Register.Size) =>
+  | xor (src : Operand) (dest : Operand) _size =>
       Instr.binopToString s!"xor" src dest
-  | or (src : Operand) (dest : Operand) (_size : Register.Size) =>
+  | or (src : Operand) (dest : Operand) _size =>
       Instr.binopToString s!"or" src dest
-  | sal (src : Operand) (dest : Operand) (size : Register.Size) =>
+  | sal (src : Operand) (dest : Operand) size =>
       Instr.binopToString s!"sal{size}" src dest
-  | sar (src : Operand) (dest : Operand) (size : Register.Size) =>
+  | sar (src : Operand) (dest : Operand) size =>
       Instr.binopToString s!"sar{size}" src dest
   | cdq => "\tcdq"
-  | cmp (lhs : Operand) (rhs : Operand) (size : Register.Size) =>
+  | cmp (lhs : Operand) (rhs : Operand) size =>
       Instr.binopToString s!"cmp{size}" lhs rhs
   | setcc (cc : Comparator) (dest : Operand) =>
       s!"\tset{cc}\t\t{dest}"

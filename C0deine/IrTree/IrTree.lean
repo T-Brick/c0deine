@@ -1,4 +1,5 @@
 import Std
+import C0deine.Utils.ValueSize
 import C0deine.Type.Typ
 import C0deine.Utils.Temp
 import C0deine.Utils.Label
@@ -17,7 +18,7 @@ mutual
 inductive Expr
 | byte : UInt8 → Expr
 | const : Int → Expr
-| temp : Temp → Expr
+| temp : SizedTemp → Expr
 | memory : Nat → Expr
 | binop (op : PureBinop) (lhs rhs : TypedExpr)
 deriving Inhabited
@@ -34,10 +35,10 @@ def TypedExpr.expr : TypedExpr → Expr
   | .typed _type expr => expr
 
 structure Address where
-  base : TypedExpr
+  base   : TypedExpr
   offset : UInt64
-  index : Option (TypedExpr)
-  scale : Nat
+  index  : Option (TypedExpr)
+  scale  : Nat
 deriving Inhabited
 
 inductive Check
@@ -46,20 +47,22 @@ inductive Check
 | bounds (source index : TypedExpr)
 
 inductive Stmt
-| move (dest : Temp) (te : TypedExpr)
-| effect (dest : Temp) (op : EffectBinop) (lhs rhs : TypedExpr)
-| call (dest : Temp) (name : Label) (args : List (TypedExpr))
+| move (dest : SizedTemp) (te : TypedExpr)
+| effect (dest : SizedTemp) (op : EffectBinop) (lhs rhs : TypedExpr)
+| call (dest : SizedTemp) (name : Label) (args : List (TypedExpr))
 | alloc (dest : Temp) (size : TypedExpr)
-| load (dest : Temp) (addr : Address)
+| load (dest : SizedTemp) (addr : Address)
 | store (addr : Address) (source : TypedExpr)
 | check (c : Check)
 
 inductive BlockExit
 | jump (lbl : Label)
-| cjump (e : TypedExpr) (tt : Label) (ff : Label)
+    -- hotpath = some true => tt will be most likely jump
+| cjump (e : TypedExpr) (hotpath : Option Bool) (tt : Label) (ff : Label)
 | «return» (e : Option (TypedExpr))
 
 inductive BlockType
+| unknown
 | loop
 | loopguard
 | funcEntry
@@ -68,8 +71,10 @@ inductive BlockType
 | elseClause
 | ternaryTrue
 | ternaryFalse
+| afterLoop
 | afterITE
 | afterTernary
+| afterRet
 
 structure Block where
   label : Label
@@ -141,13 +146,18 @@ instance : ToString Stmt where toString := Stmt.toString
 
 def BlockExit.toString : BlockExit → String
   | jump lbl => s!"jump {lbl}"
-  | cjump e tt ff =>
+  | cjump e none tt ff =>
     s!"cjump ({e}) {tt} {ff}"
+  | cjump e (some true) tt ff =>
+    s!"cjump ({e}) [{tt}] {ff}"
+  | cjump e (some false) tt ff =>
+    s!"cjump ({e}) {tt} [{ff}]"
   | «return» (.none) => "return"
   | «return» (.some e) => s!"return {e}"
 instance : ToString BlockExit where toString := BlockExit.toString
 
 def BlockType.toString : BlockType → String
+  | unknown => "unknown"
   | loop => "loop"
   | loopguard => "loop-guard"
   | funcEntry => "func-entry"
@@ -156,8 +166,10 @@ def BlockType.toString : BlockType → String
   | elseClause => "else-clause"
   | ternaryTrue => "ternary-true"
   | ternaryFalse => "ternary-false"
+  | afterLoop => "after-loop"
   | afterITE => "after-ifelse"
   | afterTernary => "after-ternary"
+  | afterRet => "after-return"
 instance : ToString BlockType where toString := BlockType.toString
 
 def Block.toString (b : Block) :=

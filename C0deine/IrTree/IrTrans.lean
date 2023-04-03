@@ -23,7 +23,7 @@ namespace Env
 
 structure Prog.State : Type where
   isUnsafe : Bool
-  vars : Symbol.Map Temp
+  vars : Symbol.Map SizedTemp
   functions : Symbol.Map Label
   structs : Symbol.Map StructInfo
   blocks : Label.Map Block         -- finished blocks
@@ -55,14 +55,25 @@ instance : Monad Func := show Monad (StateT _ _) from inferInstance
 def Func.unsafe : Env.Func Bool :=
   fun env => return ⟨env.isUnsafe, env⟩
 
-def Func.var (v : Symbol) : Env.Func Temp :=
+def Func.new_var (size : ValueSize) (v : Symbol) : Env.Func SizedTemp :=
   fun env =>
     match env.vars.find? v with
     | some t => return (t, env)
     | none => do
       let t ← Temp.fresh
-      let env' := {env with vars := env.vars.insert v t}
-      return (t, env')
+      let vt := ⟨size, t⟩
+      let env' := {env with vars := env.vars.insert v vt}
+      return (vt, env')
+
+def Func.var (v : Symbol) : Env.Func SizedTemp :=
+  fun env =>
+    match env.vars.find? v with
+    | some t => return (t, env)
+    | none => do
+      let t ← Temp.fresh
+      let vt := ⟨.double, t⟩
+      let env' := {env with vars := env.vars.insert v vt}
+      return (vt, env')
 
 def Func.func (f : Symbol) : Env.Func Label :=
   fun env =>
@@ -124,28 +135,49 @@ def Typ.size (tau : Typ) : Env.Func (Option UInt64) := do
     let s ← Env.Func.structs
     return s.find? n |>.map (fun info => info.size)
 
+def Typ.tempSize (tau : Typ) : Env.Func ValueSize := do
+  match ← Typ.size tau with
+  | some 8 => return .quad
+  | some 4 => return .double
+  | some 2 => return .word
+  | some 1 => return .byte
+  | _      => return .double
+
+def Elab.lvalue (tlv : Tst.Typed Tst.LValue) : Tst.Typed Tst.Expr :=
+  .typed tlv.typ (
+    match tlv with
+    | .typed _ lv =>
+      match lv with
+      | .var name      => .var name
+      | .dot lv field  => .dot (Elab.lvalue lv) field
+      | .deref lv      => .deref (Elab.lvalue lv)
+      | .index lv indx => .index (Elab.lvalue lv) indx
+  )
+termination_by Elab.lvalue tlv => sizeOf tlv
+
 namespace Trans
 
 def binop_op_int (op : Tst.BinOp.Int)
                   : IrTree.PureBinop ⊕ IrTree.EffectBinop :=
   match op with
-  | .plus => .inl (.add)
+  | .plus  => .inl (.add)
   | .minus => .inl (.sub)
   | .times => .inl (.mul)
-  | .div => .inr (.div)
-  | .mod => .inr (.mod)
-  | .and => .inl (.and)
-  | .xor => .inl (.xor)
-  | .or => .inl (.or)
-  | .lsh => .inr (.lsh)
-  | .rsh => .inr (.rsh)
+  | .div   => .inr (.div)
+  | .mod   => .inr (.mod)
+  | .and   => .inl (.and)
+  | .xor   => .inl (.xor)
+  | .or    => .inl (.or)
+  | .lsh   => .inr (.lsh)
+  | .rsh   => .inr (.rsh)
 
 def binop_op (op : Tst.BinOp)
              : IrTree.PureBinop ⊕ IrTree.EffectBinop :=
   match op with
-  | .int iop => Trans.binop_op_int iop
-  | .bool bop => sorry
-  | .cmp c => .inl (.comp c)
+  | .int iop   => Trans.binop_op_int iop
+  | .bool .and => .inl .and
+  | .bool .or  => .inl .or
+  | .cmp c     => .inl (.comp c)
 
 mutual
 partial def expr (tau : Typ)
@@ -153,7 +185,9 @@ partial def expr (tau : Typ)
          : Env.Func ((List IrTree.Stmt) × IrTree.Expr) := do
   match exp with
   | .num (v : Int32) => return ([], .const v)
-  | .var (name : Symbol) => return ([], .temp (← Env.Func.var name))
+  | .var (name : Symbol) =>
+    let size ← Typ.tempSize tau
+    return ([], .temp (← Env.Func.var name))
   | .«true» => return ([], .byte 1)
   | .«false» => return ([], .byte 0)
   | .null => return ([], .memory 0)
@@ -176,7 +210,8 @@ partial def expr (tau : Typ)
     match Trans.binop_op op with
     | .inl op' => return (stmts1.append stmts2, .binop op' l' r') -- pure
     | .inr op' =>
-      let dest ← Env.Func.freshTemp
+      let size ← Typ.tempSize tau
+      let dest := ⟨size, ← Env.Func.freshTemp⟩
       let effect := .effect dest op' l' r'
       let shift := -- include bounds check
         match op' with
@@ -189,9 +224,10 @@ partial def expr (tau : Typ)
     let lF ← Env.Func.freshLabel
     let lN ← Env.Func.freshLabel
     let dest ← Env.Func.freshTemp
+    let sdest := ⟨← Typ.tempSize tau, dest⟩
 
     let (stmts, cond') ← Trans.texpr cond
-    let exit := .cjump cond' lT lF
+    let exit := .cjump cond' none lT lF
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
     let block := ⟨curLabel, curType, stmts, exit⟩
@@ -199,30 +235,33 @@ partial def expr (tau : Typ)
 
     let (stmtsT, tt') ← Trans.texpr tt
     let exitT := .jump lN
-    let destT := .move dest tt'
+    let destT := .move sdest tt'
     let blockT := ⟨lT, .ternaryTrue, stmtsT.append [destT], exitT⟩
     let () ← Env.Func.addBlock blockT lF .ternaryFalse
 
     let (stmtsF, ff') ← Trans.texpr ff
     let exitF := .jump lN
-    let destF := .move dest ff'
+    let destF := .move sdest ff'
     let blockF := ⟨lF, .ternaryFalse, stmtsF.append [destF], exitF⟩
     let () ← Env.Func.addBlock blockF lN .afterTernary
 
-    return ([], .temp dest)
+    return ([], .temp sdest)
 
   | .app f args =>
     let (stmts, args') ← Trans.args args
     let func_lbl ← Env.Func.func f
     let dest ← Env.Func.freshTemp
-    let call := .call dest func_lbl args'
-    return (stmts.append [call], .temp dest)
+    let sdest := ⟨← Typ.tempSize tau, dest⟩
+    let call := .call sdest func_lbl args'
+    let size ← Typ.tempSize tau
+    return (stmts.append [call], .temp ⟨size, dest⟩)
 
   | .alloc ty =>
     match ← Typ.size ty with
     | some size =>
       let dest ← Env.Func.freshTemp
-      return ([.alloc dest (MkTyped.int (.memory size.toNat))], .temp dest)
+      let sdest := ⟨← Typ.tempSize tau, dest⟩
+      return ([.alloc dest (MkTyped.int (.memory size.toNat))], .temp sdest)
     | none => panic! "IR Trans: Alloc type size not known"
 
   | .alloc_array ty e =>
@@ -239,7 +278,8 @@ partial def expr (tau : Typ)
             | some n => .memory (n * size.toNat)
             | none   => .binop .mul e' (MkTyped.int (.const size.toNat))
           | .typed _tau _len => .binop .mul e' (MkTyped.int (.const size.toNat))
-        return (stmts.append [.alloc dest (MkTyped.int size')], .temp dest)
+        let sdest := ⟨← Typ.tempSize tau, dest⟩
+        return (stmts.append [.alloc dest (MkTyped.int size')], .temp sdest)
       else
         let lengthSize := MkTyped.int (.memory 8)
         -- todo maybe add bounds checks here?
@@ -257,8 +297,9 @@ partial def expr (tau : Typ)
             |> MkTyped.int
             |> .binop .add lengthSize
         let alloc := .alloc dest (MkTyped.int size')
-        let storeLen := .store ⟨MkTyped.int (.temp dest), 0, none, 0⟩ e'
-        let arr := .binop .add (MkTyped.int (.temp dest)) lengthSize
+        let sdest := ⟨← Typ.tempSize tau, dest⟩
+        let storeLen := .store ⟨MkTyped.int (.temp sdest), 0, none, 0⟩ e'
+        let arr := .binop .add (MkTyped.int (.temp sdest)) lengthSize
         return (stmts.append [alloc] |>.append [storeLen], arr)
     | none => panic! "IR Trans: Alloc array type size not known"
 
@@ -267,7 +308,8 @@ partial def expr (tau : Typ)
   | .index _e _indx =>
     let (stmts, address, checks) ← Addr.addr ⟨tau, exp⟩ 0 false
     let dest ← Env.Func.freshTemp
-    return (stmts.append checks |>.append [.load dest address], .temp dest)
+    let sdest := ⟨← Typ.tempSize tau, dest⟩
+    return (stmts.append checks |>.append [.load sdest address], .temp sdest)
 
 partial def texpr (texp : Tst.Typed Tst.Expr)
           : Env.Func ((List IrTree.Stmt) × IrTree.TypedExpr) :=
@@ -342,4 +384,152 @@ partial def Addr.index (arr indx : Tst.Typed Tst.Expr)
   let address := ⟨arr', offset, some indx', scale.toNat⟩
   return (stmts1.append stmts2 |>.append checks, address, [])
 end
+
+mutual
+def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt) := do
+  match stm with
+  | .decl name init body =>
+    let t ← Env.Func.new_var (← Typ.tempSize name.typ) name.data
+    let init_stmts ← do
+      match init with
+      | some i =>
+        let (stmts, res) ← Trans.texpr i
+        pure (stmts.append [.move t res])
+      | none => pure []
+    stmts (past.append init_stmts) body
+  | .assign tlv oop rhs =>
+    match tlv.data, oop with
+    | .var name, none =>
+      let dest ← Env.Func.var name
+      let (stms, src) ← texpr rhs
+      return stms.append [.move dest src]
+    | .var _name, some _ =>
+      panic! s!"IR Trans: 'x += e' should have been elaborated away"
+    | _, _ =>
+      let lhs' := Elab.lvalue tlv
+      let (stms1, dest, checks) ← Addr.addr lhs' 0 false
+      let (stms2, src) ← texpr rhs
+      let size ← Typ.tempSize tlv.typ
+      match oop.map binop_op_int with
+      | none =>
+        return stms1.append stms2
+          |>.append checks
+          |>.append [.store dest src]
+      | some (.inl pure) =>
+        let temp := ⟨size, ← Env.Func.freshTemp⟩
+        let ttemp := ⟨rhs.typ, .temp temp⟩
+        let load := .load temp dest
+        let src' := ⟨lhs'.typ, .binop pure ttemp src⟩
+        let store := .store dest src'
+        return stms1.append stms2
+          |>.append checks
+          |>.append [load, store]
+      | some (.inr impure) =>
+        let t1 := ⟨size, ← Env.Func.freshTemp⟩
+        let t2 := ⟨size, ← Env.Func.freshTemp⟩
+        let tt1 := ⟨rhs.typ, .temp t1⟩
+        let tt2 := ⟨rhs.typ, .temp t2⟩
+        let load : IrTree.Stmt := .load t1 dest
+        let effect := .effect t2 impure tt1 src
+        let store := .store dest tt2
+        return stms1.append stms2
+          |>.append checks
+          |>.append [load]
+          |>.append [effect, store]
+
+  | .ite cond tt ff =>
+    let tLbl  ← Env.Func.freshLabel
+    let fLbl  ← Env.Func.freshLabel
+    let after ← Env.Func.freshLabel
+
+    let (cstms, cond') ← texpr cond
+    let exit := .cjump cond' none tLbl fLbl
+    let curLabel ← Env.Func.curBlockLabel
+    let curType ← Env.Func.curBlockType
+    let block := ⟨curLabel, curType, past.append cstms, exit⟩
+    let () ← Env.Func.addBlock block tLbl .thenClause
+
+    let tt' ← stmts [] tt
+    let exit := .jump after
+    let curLabel ← Env.Func.curBlockLabel
+    let curType ← Env.Func.curBlockType
+    let block := ⟨curLabel, curType, tt', exit⟩
+    let () ← Env.Func.addBlock block fLbl .elseClause
+
+    let ff' ← stmts [] ff
+    let exit := .jump after
+    let curLabel ← Env.Func.curBlockLabel
+    let curType ← Env.Func.curBlockType
+    let block := ⟨curLabel, curType, ff', exit⟩
+    let () ← Env.Func.addBlock block after .afterITE
+    return []
+
+  | .while cond body =>
+    -- elaborate to a `do while` which saves jumps
+    let loopBody  ← Env.Func.freshLabel
+    let afterLoop ← Env.Func.freshLabel
+
+    let (cstms, cond') ← texpr cond
+
+    let exit := .cjump cond' (some true) loopBody afterLoop
+    let curLabel ← Env.Func.curBlockLabel
+    let curType ← Env.Func.curBlockType
+    let block := ⟨curLabel, curType, past.append cstms, exit⟩
+    let () ← Env.Func.addBlock block loopBody .loop
+
+    let body' ← stmts [] body
+    let exit := .cjump cond' (some true) loopBody afterLoop
+    let curLabel ← Env.Func.curBlockLabel
+    let curType ← Env.Func.curBlockType
+    let block := ⟨curLabel, curType, body'.append cstms, exit⟩
+    let () ← Env.Func.addBlock block afterLoop .afterLoop
+    return []
+
+  | .«return» .none =>
+    let exit := .«return» none
+    let curLabel ← Env.Func.curBlockLabel
+    let curType ← Env.Func.curBlockType
+    let block := ⟨curLabel, curType, past, exit⟩
+    let nextLbl ← Env.Func.freshLabel
+    let () ← Env.Func.addBlock block nextLbl .afterRet
+    return []
+
+  | .«return» (.some e) =>
+    let (stms, e') ← texpr e
+    let exit := .«return» (some e')
+    let curLabel ← Env.Func.curBlockLabel
+    let curType ← Env.Func.curBlockType
+    let block := ⟨curLabel, curType, past.append stms, exit⟩
+    let nextLbl ← Env.Func.freshLabel
+    let () ← Env.Func.addBlock block nextLbl .afterRet
+    return []
+
+  | .assert e =>
+    let after ← Env.Func.freshLabel
+    let assertLbl := Label.abort
+
+    let (stms, e') ← texpr e
+    let exit := .cjump e' (some true) after assertLbl
+    let curLabel ← Env.Func.curBlockLabel
+    let curType ← Env.Func.curBlockType
+    let block := ⟨curLabel, curType, past.append stms, exit⟩
+    let () ← Env.Func.addBlock block after curType
+    return []
+
+  | .expr e =>
+    let (stms, _) ← texpr e -- drop pure expression
+    return past.append stms
+
+def stmts (past : List IrTree.Stmt)
+          (stms : List Tst.Stmt)
+          : Env.Func (List IrTree.Stmt) := do
+  match stms with
+  | []      => return past
+  | s :: ss =>
+    let past' ← stmt past s
+    stmts past' ss
+
+end
+
+
 end Trans

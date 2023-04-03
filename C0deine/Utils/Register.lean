@@ -1,6 +1,10 @@
+import C0deine.Utils.ValueSize
+
 /-
   Registers and utilities for x86-64 assembly.
  -/
+
+namespace C0deine
 
 inductive Register
 | rax
@@ -113,29 +117,22 @@ def quadRegisterString : Register → String
 
 instance : ToString (Register) where toString := quadRegisterString
 
-inductive Size
-| byte
-| word
-| double
-| quad
+end Register
 
-def Size.toString : Size → String
-  | byte   => "b"
-  | word   => "w"
-  | double => "l"
-  | quad   => "q"
-instance : ToString Size where toString := Size.toString
 
-structure SizedRegister where
-  size : Size
-  register : Register
+def SizedRegister := Sized Register
 
-def SizedRegister.toString (sreg : SizedRegister) : String :=
+namespace SizedRegister
+
+def register (sreg : SizedRegister) : Register := sreg.data
+
+def toString (sreg : SizedRegister) : String :=
   match sreg.size with
-  | .byte => byteRegisterString sreg.register
-  | .word => wordRegisterString sreg.register
-  | .double => doubleRegisterString sreg.register
-  | .quad => quadRegisterString sreg.register
+  | .byte => Register.byteRegisterString sreg.register
+  | .word => Register.wordRegisterString sreg.register
+  | .double => Register.doubleRegisterString sreg.register
+  | .quad => Register.quadRegisterString sreg.register
 instance : ToString (SizedRegister) where toString := SizedRegister.toString
 
-end Register
+end SizedRegister
+
