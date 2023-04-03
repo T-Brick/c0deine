@@ -2,6 +2,30 @@
  "packagesDir": "lake-packages",
  "packages":
  [{"git":
+   {"url": "https://github.com/lurk-lab/Megaparsec.lean",
+    "subDir?": null,
+    "rev": "93b28d0ee4be435b6b395d8b6f816fabfc085166",
+    "name": "Megaparsec",
+    "inputRev?": "93b28d0ee4be435b6b395d8b6f816fabfc085166"}},
+  {"git":
+   {"url": "https://github.com/lurk-lab/YatimaStdLib.lean",
+    "subDir?": null,
+    "rev": "974c288349a412aea92bb0780efc81fa5f79e442",
+    "name": "YatimaStdLib",
+    "inputRev?": "974c288349a412aea92bb0780efc81fa5f79e442"}},
+  {"git":
+   {"url": "https://github.com/lurk-lab/straume",
+    "subDir?": null,
+    "rev": "94c21db8da739e9f344ee9c23c75fd4a00d538f9",
+    "name": "Straume",
+    "inputRev?": "94c21db8da739e9f344ee9c23c75fd4a00d538f9"}},
+  {"git":
+   {"url": "https://github.com/lurk-lab/LSpec",
+    "subDir?": null,
+    "rev": "88f7d23e56a061d32c7173cea5befa4b2c248b41",
+    "name": "LSpec",
+    "inputRev?": "88f7d23e56a061d32c7173cea5befa4b2c248b41"}},
+  {"git":
    {"url": "https://github.com/mhuisi/lean4-cli",
     "subDir?": null,
     "rev": "5a858c32963b6b19be0d477a30a1f4b6c120be7e",
@@ -10,6 +34,12 @@
   {"git":
    {"url": "https://github.com/leanprover/std4",
     "subDir?": null,
-    "rev": "529a6587a15f1a4ce22a96c422d90f5235b0fecd",
+    "rev": "5507f9d8409f93b984ce04eccf4914d534e6fca2",
     "name": "Std",
-    "inputRev?": "main"}}]}
+    "inputRev?": "main"}},
+  {"git":
+   {"url": "https://github.com/leanprover/std4/",
+    "subDir?": null,
+    "rev": "fde95b16907bf38ea3f310af406868fc6bcf48d1",
+    "name": "std",
+    "inputRev?": "fde95b16907bf38ea3f310af406868fc6bcf48d1"}}]}
