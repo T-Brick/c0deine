@@ -2,11 +2,11 @@
 import C0deine.IrTree.IrTree
 import C0deine.Type.Tst
 import C0deine.Type.Typ
-import C0deine.Utils.Symbol
+import C0deine.Context.Symbol
+import C0deine.Context.Context
+import C0deine.Context.Temp
+import C0deine.Context.Label
 import C0deine.Utils.Comparison
-import C0deine.Utils.Context
-import C0deine.Utils.Temp
-import C0deine.Utils.Label
 
 
 namespace C0deine.IrTrans
@@ -75,6 +75,11 @@ def Func.var (v : Symbol) : Env.Func SizedTemp :=
       let env' := {env with vars := env.vars.insert v vt}
       return (vt, env')
 
+def Func.addFunc (f : Symbol) (lbl : Label) : Env.Func Unit :=
+  fun env =>
+    let env' := {env with functions := env.functions.insert f lbl}
+    return ((), env')
+
 def Func.func (f : Symbol) : Env.Func Label :=
   fun env =>
     match env.functions.find? f with
@@ -88,6 +93,8 @@ def Func.freshTemp : Env.Func Temp :=
   fun env => return (← Temp.fresh, env)
 def Func.freshLabel : Env.Func Label :=
   fun env => return (← Label.fresh, env)
+def Prog.namedLabel (name : String) : Env.Func Label :=
+  fun env => return (← Label.namedFresh name, env)
 
 def Func.curBlockLabel : Env.Func Label :=
   fun env => return (env.curBlockLabel, env)
@@ -185,9 +192,7 @@ partial def expr (tau : Typ)
          : Env.Func ((List IrTree.Stmt) × IrTree.Expr) := do
   match exp with
   | .num (v : Int32) => return ([], .const v)
-  | .var (name : Symbol) =>
-    let size ← Typ.tempSize tau
-    return ([], .temp (← Env.Func.var name))
+  | .var (name : Symbol) => return ([], .temp (← Env.Func.var name))
   | .«true» => return ([], .byte 1)
   | .«false» => return ([], .byte 0)
   | .null => return ([], .memory 0)
@@ -528,8 +533,32 @@ def stmts (past : List IrTree.Stmt)
   | s :: ss =>
     let past' ← stmt past s
     stmts past' ss
-
 end
+
+def dec_args (args : List (Tst.Typed Symbol)) : Env.Func (List SizedTemp) := do
+  match args with
+  | [] => return []
+  | arg :: args =>
+    let size ← Typ.tempSize arg.typ
+    let t ← Env.Func.new_var size arg.data
+    let ts ← dec_args args
+    return t :: ts
+
+def gdecl (header : Bool) (glbl : Tst.GDecl) : Env.Func (Option Func) := do
+  match glbl with
+  | .fdecl fdec =>
+    let label ←
+      if header
+      then Env.Prog.namedLabel fdec.name.name
+      else Env.Prog.namedLabel s!"_c0_{fdec.name.name}"
+    let () ← Env.Func.addFunc fdec.name label
+    return none
+  | .fdef fdef =>
+    let args ← dec_args fdef.params
+    let _remain ← stmts [] fdef.body
+    let lbl ← Env.Func.freshLabel
+    sorry
+  | .sdef sd => sorry
 
 
 end Trans

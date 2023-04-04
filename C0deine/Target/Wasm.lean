@@ -6,7 +6,7 @@
   format based on sexp. To generate WASM bytecode, there is a
   wat2wasm utility which will do so.
 -/
-import C0deine.Utils.Label
+import C0deine.Context.Label
 import C0deine.Utils.Comparison
 
 -- TODO: implement more!

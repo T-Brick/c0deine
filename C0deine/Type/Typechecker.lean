@@ -2,9 +2,9 @@ import Std
 import C0deine.Parser.Ast
 import C0deine.Type.Typ
 import C0deine.Type.Tst
-import C0deine.Utils.Symbol
+import C0deine.Context.Symbol
+import C0deine.Context.Context
 import C0deine.Utils.Comparison
-import C0deine.Utils.Context
 
 namespace C0deine.Typechecker
 
@@ -933,11 +933,13 @@ def typecheck (prog : Ast.Prog) : Except Error Tst.Prog := do
     | none => return (ctx', prog)
 
   prog.header.foldlM (m := Except Error) (checkDec true) (init_context, [])
-  |>.bind (fun hres =>
-    prog.program.foldlM (m := Except Error) (checkDec false) hres)
-  |>.bind (fun ((ctx : GlobalCtx), (prog : List Tst.GDecl)) => do
+  |>.bind (fun (ctx, hres) => do
+    let (ctx', bres) ←
+      prog.program.foldlM (m := Except Error) (checkDec false) (ctx, [])
+    pure (ctx', hres, bres)
+  ) |>.bind (fun (ctx, hres, bres) => do
     -- check the all called functions are defined
     let () ← Validate.callsDefined ctx main_sym
     -- program is reversed so flip it back
-    return prog.reverse
+    return ⟨hres.reverse, bres.reverse⟩
   )

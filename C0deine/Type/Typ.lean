@@ -1,4 +1,4 @@
-import C0deine.Utils.Symbol
+import C0deine.Context.Symbol
 
 namespace C0deine
 

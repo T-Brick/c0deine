@@ -3,10 +3,10 @@ import C0deine.Parser.Cst
 import C0deine.Parser.Ast
 import C0deine.Type.Typ
 import C0deine.Type.Tst
-import C0deine.Utils.Symbol
+import C0deine.Context.Context
+import C0deine.Context.Symbol
+import C0deine.Config.Language
 import C0deine.Utils.Comparison
-import C0deine.Utils.Context
-import C0deine.Utils.Language
 
 /- Converts the concrete syntax tree to an abstract syntax tree
     as well as enforces a specific language level

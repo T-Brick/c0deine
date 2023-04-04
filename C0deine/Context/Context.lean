@@ -1,7 +1,7 @@
 import Std
-import C0deine.Utils.Temp
-import C0deine.Utils.Label
-import C0deine.Utils.Symbol
+import C0deine.Context.Temp
+import C0deine.Context.Label
+import C0deine.Context.Symbol
 
 namespace C0deine
 
@@ -32,6 +32,11 @@ namespace Label
 
 def fresh : Context Label :=
   fun s => (s.nextLabel, {s with nextLabel := ⟨s.nextLabel.id + 1, none⟩})
+def namedFresh (name : String) : Context Label :=
+  fun s =>
+    ( {s.nextLabel with name := some name}
+    , {s with nextLabel := ⟨s.nextLabel.id + 1, none⟩}
+    )
 
 end Label
 

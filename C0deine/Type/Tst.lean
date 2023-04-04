@@ -2,10 +2,10 @@
   A Typed Syntax Tree, which is similar to the AST, but with expressions
   having typed annotations. Types are dealiased in this representation.
  -/
+import C0deine.Type.Typ
+import C0deine.Context.Symbol
 import C0deine.Utils.Int32
 import C0deine.Utils.Comparison
-import C0deine.Utils.Symbol
-import C0deine.Type.Typ
 
 namespace C0deine.Tst
 
@@ -88,7 +88,9 @@ inductive GDecl
 | fdef  : FDef  → GDecl
 | sdef  : SDef  → GDecl
 
-def Prog := List GDecl
+structure Prog where
+  header : List GDecl
+  body   : List GDecl
 
 
 def UnOp.Int.toString : UnOp.Int → String
@@ -225,4 +227,6 @@ def GDecl.toString : GDecl → String
 instance : ToString GDecl where toString := GDecl.toString
 
 instance : ToString Prog where
-  toString prog := String.intercalate "\n\n" (prog.map GDecl.toString)
+  toString prog :=
+    let fullProgram := prog.header |>.append prog.body
+    String.intercalate "\n\n" (fullProgram.map GDecl.toString)

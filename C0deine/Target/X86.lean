@@ -3,8 +3,8 @@
 
   Should be generated from the 2-address abstract assembly.
 -/
+import C0deine.Context.Label
 import C0deine.Utils.Register
-import C0deine.Utils.Label
 import C0deine.Utils.Comparison
 
 namespace C0deine.Target.X86

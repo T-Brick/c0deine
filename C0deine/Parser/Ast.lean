@@ -1,6 +1,6 @@
+import C0deine.Context.Symbol
 import C0deine.Utils.Comparison
 import C0deine.Utils.Int32
-import C0deine.Utils.Symbol
 
 namespace C0deine.Ast
 

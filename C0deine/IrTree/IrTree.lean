@@ -1,9 +1,9 @@
 import Std
-import C0deine.Utils.ValueSize
 import C0deine.Type.Typ
-import C0deine.Utils.Temp
-import C0deine.Utils.Label
+import C0deine.Context.Temp
+import C0deine.Context.Label
 import C0deine.Utils.Comparison
+import C0deine.Utils.ValueSize
 
 namespace C0deine.IrTree
 
@@ -85,7 +85,7 @@ structure Block where
 structure Func where
   name : Label
   enter : Label
-  args : List Temp
+  args : List SizedTemp
   blocks : List Block
 
 def Prog := List Func
