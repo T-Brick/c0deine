@@ -196,8 +196,6 @@ def Elab.lvalue (tlv : Tst.Typed Tst.LValue) : Tst.Typed Tst.Expr :=
   )
 termination_by Elab.lvalue tlv => sizeOf tlv
 
-namespace Trans
-
 def binop_op_int (op : Tst.BinOp.Int)
                   : IrTree.PureBinop ⊕ IrTree.EffectBinop :=
   match op with
@@ -215,7 +213,7 @@ def binop_op_int (op : Tst.BinOp.Int)
 def binop_op (op : Tst.BinOp)
              : IrTree.PureBinop ⊕ IrTree.EffectBinop :=
   match op with
-  | .int iop   => Trans.binop_op_int iop
+  | .int iop   => binop_op_int iop
   | .bool .and => .inl .and
   | .bool .or  => .inl .or
   | .cmp c     => .inl (.comp c)
@@ -231,7 +229,7 @@ partial def expr (tau : Typ)
   | .«false» => return ([], .byte 0)
   | .null => return ([], .memory 0)
   | .unop op e =>
-    let (stmts, e') ← Trans.texpr e
+    let (stmts, e') ← texpr e
     match op with
     | .int .neg =>
       let c := MkTyped.int (.const 0)
@@ -244,9 +242,9 @@ partial def expr (tau : Typ)
       return (stmts, .binop (.comp .equal) e' c)
 
   | .binop op l r =>
-    let (stmts1, l') ← Trans.texpr l
-    let (stmts2, r') ← Trans.texpr r
-    match Trans.binop_op op with
+    let (stmts1, l') ← texpr l
+    let (stmts2, r') ← texpr r
+    match binop_op op with
     | .inl op' => return (stmts1.append stmts2, .binop op' l' r') -- pure
     | .inr op' =>
       let size ← Env.Prog.toFunc (Typ.tempSize tau)
@@ -265,20 +263,20 @@ partial def expr (tau : Typ)
     let dest ← Env.Func.freshTemp
     let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
 
-    let (stmts, cond') ← Trans.texpr cond
+    let (stmts, cond') ← texpr cond
     let exit := .cjump cond' none lT lF
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
     let block := ⟨curLabel, curType, stmts, exit⟩
     let () ← Env.Func.addBlock block lT .ternaryTrue
 
-    let (stmtsT, tt') ← Trans.texpr tt
+    let (stmtsT, tt') ← texpr tt
     let exitT := .jump lN
     let destT := .move sdest tt'
     let blockT := ⟨lT, .ternaryTrue, stmtsT.append [destT], exitT⟩
     let () ← Env.Func.addBlock blockT lF .ternaryFalse
 
-    let (stmtsF, ff') ← Trans.texpr ff
+    let (stmtsF, ff') ← texpr ff
     let exitF := .jump lN
     let destF := .move sdest ff'
     let blockF := ⟨lF, .ternaryFalse, stmtsF.append [destF], exitF⟩
@@ -286,8 +284,8 @@ partial def expr (tau : Typ)
 
     return ([], .temp sdest)
 
-  | .app f args =>
-    let (stmts, args') ← Trans.args args
+  | .app f as =>
+    let (stmts, args') ← args as
     let func_lbl ← Env.Func.func f
     let dest ← Env.Func.freshTemp
     let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
@@ -306,7 +304,7 @@ partial def expr (tau : Typ)
   | .alloc_array ty e =>
     match ← Env.Prog.toFunc (Typ.size ty) with
     | some size =>
-      let (stmts, e') ← Trans.texpr e
+      let (stmts, e') ← texpr e
       let dest ← Env.Func.freshTemp
       if ← Env.Func.unsafe
       then
@@ -352,15 +350,15 @@ partial def expr (tau : Typ)
 
 partial def texpr (texp : Tst.Typed Tst.Expr)
           : Env.Func ((List IrTree.Stmt) × IrTree.TypedExpr) :=
-  MkTyped.expr (Trans.expr texp.typ texp.data) texp.typ
+  MkTyped.expr (expr texp.typ texp.data) texp.typ
 
-partial def args (args : List (Tst.Typed Tst.Expr))
+partial def args (as : List (Tst.Typed Tst.Expr))
          : Env.Func ((List IrTree.Stmt) × (List IrTree.TypedExpr)) := do
-  match args with
+  match as with
   | [] => return ([], [])
-  | arg :: args =>
-    let (stmts, arg') ← Trans.texpr arg
-    let (stmts', args') ← Trans.args args
+  | arg :: as =>
+    let (stmts, arg') ← texpr arg
+    let (stmts', args') ← args as
     return (stmts.append stmts', arg' :: args')
 
 
@@ -433,7 +431,7 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
     let init_stmts ← do
       match init with
       | some i =>
-        let (stmts, res) ← Trans.texpr i
+        let (stmts, res) ← texpr i
         pure (stmts.append [.move t res])
       | none => pure []
     stmts (past.append init_stmts) body
@@ -637,5 +635,3 @@ def prog (config : Config) (tst : Tst.Prog) : Context IrTree.Prog := do
     tst.header.foldlM (transOne true) (initState, [])
     |>.bind (tst.body.foldlM (transOne false))
   return funcsR.reverse
-
-end Trans

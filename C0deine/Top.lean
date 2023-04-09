@@ -36,6 +36,8 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
       | .some lang => lang
       | .none => panic! s!"Unrecognized extension/language {l}"
 
+  let config : Config := {(default : Config) with lang := lang}
+
   let contents ← IO.FS.readFile input
   let header ← libInput.mapM (IO.FS.readFile)
 
@@ -77,8 +79,14 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
 
   if tcOnly then return 0
 
-  IO.println "typechecked!"
-  IO.println tst
+  if verbose then IO.println "typechecked!"
+  if verbose then IO.println tst
+
+  if verbose then IO.println "ir translation..."
+  let (irtree, ctx) := IrTrans.prog config tst ctx
+  if verbose then IO.println "ir tree!"
+  if verbose then IO.println irtree
+
 
   return 0
 
