@@ -91,10 +91,9 @@ def Rect.padWidth (r : Rect) (width : Nat) (h_width : r.width ≤ width)
     )
   , h_height := by simp [r.h_height], h_width := by
       intros; have := List.mem_map.mp (by assumption)
-      match this with
-      | ⟨line,hmem,_⟩ =>
+      rcases this with ⟨line,hmem,rfl⟩
       have := r.h_width _ hmem
-      cases align <;> simp [*]
+      cases align <;> simp at * <;> simp [*]
       . apply Nat.add_sub_cancel' h_width
       . simp [String.length]; rw [Nat.sub_sub, Nat.add_comm r.width]
         apply Nat.add_sub_cancel'
