@@ -862,16 +862,20 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef) : Result := do
     let (fctx', body') ←
       Stmt.stmts fctx f.body |>.tryCatch
         (fun err => throw {err with function := some f.name})
-    let () ←
-      if ret.isNone || fctx'.returns
-      then pure ()
-      else throw <| Error.func f.name <|
+
+    if ¬(ret.isNone || fctx'.returns)
+    then throw <| Error.func f.name <|
         s!"Function does not return on some paths"
+
+    let body'' :=
+      if ret.isNone
+      then body'.append [.return none]
+      else body'
 
     let funcCalls := ctx'.funcCalls.insert f.name fctx'.calls
     let calls := ctx'.calls.merge fctx'.calls
 
-    let fdef := .fdef ⟨ret, f.name, params, body'⟩
+    let fdef := .fdef ⟨ret, f.name, params, body''⟩
     return ({ctx' with calls, funcCalls}, some fdef)
 
 def tydef (ctx : GlobalCtx) (t : Ast.TyDef) : Result := do

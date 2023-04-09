@@ -119,4 +119,5 @@ def sizeof : Typ → Option Nat
   | .mem (.pointer _) => some 8
   | .mem (.array _) => some 8
   | .mem (.struct _) => none
+
 end Typ

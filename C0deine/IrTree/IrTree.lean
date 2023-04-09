@@ -86,7 +86,7 @@ structure Func where
   name : Label
   enter : Label
   args : List SizedTemp
-  blocks : List Block
+  blocks : Label.Map Block
 
 def Prog := List Func
 
@@ -178,7 +178,7 @@ def Block.toString (b : Block) :=
 instance : ToString Block where toString := Block.toString
 
 def Func.toString (f : Func) :=
-  let blocks := f.blocks.map (fun b => s!"{b}\n") |> String.join
+  let blocks := f.blocks.toList.map (fun b => s!"{b.2}\n") |> String.join
   s!"{f.name}: ({f.args})\n\tjump {f.enter}\n{blocks}"
 instance : ToString Func where toString := Func.toString
 

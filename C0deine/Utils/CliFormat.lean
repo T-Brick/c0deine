@@ -27,7 +27,7 @@ def Rect.ofLines (lines : List String) : Rect :=
       rcases h with ⟨l',hl',rfl⟩
       simp; rw [Nat.add_comm]
       apply Nat.sub_add_cancel
-      apply this _ hl' 
+      apply this _ hl'
   }
 
 def Rect.ofString (s : String) : Rect :=

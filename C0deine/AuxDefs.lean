@@ -38,6 +38,9 @@ def Nat.ofDigits? (base : Nat) (s : String) : Option Nat :=
         none)
     (some 0)
 
+def UInt64.max (n m : UInt64) : UInt64 :=
+  if n > m then n else m
+
 @[simp] theorem UInt32.toNat_ofUInt8 : UInt32.toNat (UInt8.toUInt32 x) = x.val := by
   cases x; case mk val =>
   cases val; case mk val isLt =>

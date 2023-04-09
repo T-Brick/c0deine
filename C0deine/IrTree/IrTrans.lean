@@ -1,4 +1,5 @@
 
+import C0deine.AuxDefs
 import C0deine.IrTree.IrTree
 import C0deine.Type.Tst
 import C0deine.Type.Typ
@@ -6,6 +7,7 @@ import C0deine.Context.Symbol
 import C0deine.Context.Context
 import C0deine.Context.Temp
 import C0deine.Context.Label
+import C0deine.Config.Config
 import C0deine.Utils.Comparison
 
 
@@ -22,40 +24,26 @@ instance : Inhabited StructInfo where default := ⟨0, 0, Std.HashMap.empty⟩
 namespace Env
 
 structure Prog.State : Type where
-  isUnsafe : Bool
+  config : Config
   vars : Symbol.Map SizedTemp
   functions : Symbol.Map Label
   structs : Symbol.Map StructInfo
-  blocks : Label.Map Block         -- finished blocks
 
 
-def Prog.State.new : Env.Prog.State where
-  isUnsafe := false
+def Prog.State.new (config : Config) : Env.Prog.State where
+  config := config
   vars := Std.HashMap.empty
   functions := Std.HashMap.empty
   structs := Std.HashMap.empty
-  blocks := Std.HashMap.empty
 
 def Prog := StateT Env.Prog.State Context
 instance : Monad Env.Prog := show Monad (StateT _ _) from inferInstance
 
 
-structure Func.State extends Env.Prog.State where
-  curBlockLabel : Label
-  curBlockType : BlockType
+def Prog.config : Prog Config :=
+  fun env => return ⟨env.config, env⟩
 
-def Func.State.new (label : Label) : Func.State :=
-  { Prog.State.new with curBlockLabel := label, curBlockType := .funcEntry }
-
-def Func := StateT Func.State Context
-instance [Inhabited α] : Inhabited (Func α) :=
-  show Inhabited (StateT _ _ α) from inferInstance
-instance : Monad Func := show Monad (StateT _ _) from inferInstance
-
-def Func.unsafe : Env.Func Bool :=
-  fun env => return ⟨env.isUnsafe, env⟩
-
-def Func.new_var (size : ValueSize) (v : Symbol) : Env.Func SizedTemp :=
+def Prog.new_var (size : ValueSize) (v : Symbol) : Prog SizedTemp :=
   fun env =>
     match env.vars.find? v with
     | some t => return (t, env)
@@ -65,7 +53,7 @@ def Func.new_var (size : ValueSize) (v : Symbol) : Env.Func SizedTemp :=
       let env' := {env with vars := env.vars.insert v vt}
       return (vt, env')
 
-def Func.var (v : Symbol) : Env.Func SizedTemp :=
+def Prog.var (v : Symbol) : Prog SizedTemp :=
   fun env =>
     match env.vars.find? v with
     | some t => return (t, env)
@@ -75,12 +63,12 @@ def Func.var (v : Symbol) : Env.Func SizedTemp :=
       let env' := {env with vars := env.vars.insert v vt}
       return (vt, env')
 
-def Func.addFunc (f : Symbol) (lbl : Label) : Env.Func Unit :=
+def Prog.addFunc (f : Symbol) (lbl : Label) : Prog Unit :=
   fun env =>
     let env' := {env with functions := env.functions.insert f lbl}
     return ((), env')
 
-def Func.func (f : Symbol) : Env.Func Label :=
+def Prog.func (f : Symbol) : Prog Label :=
   fun env =>
     match env.functions.find? f with
     | some l => return (l, env)
@@ -89,12 +77,61 @@ def Func.func (f : Symbol) : Env.Func Label :=
       let env' := {env with functions := env.functions.insert f l}
       return (l, env')
 
-def Func.freshTemp : Env.Func Temp :=
+def Prog.freshTemp : Prog Temp :=
   fun env => return (← Temp.fresh, env)
-def Func.freshLabel : Env.Func Label :=
+def Prog.freshLabel : Prog Label :=
   fun env => return (← Label.fresh, env)
-def Prog.namedLabel (name : String) : Env.Func Label :=
+def Prog.namedLabel (name : String) : Prog Label :=
   fun env => return (← Label.namedFresh name, env)
+
+def Prog.structs : Prog (Symbol.Map StructInfo) :=
+  fun env => return ⟨env.structs, env⟩
+def Prog.addStruct (name : Symbol) (struct : StructInfo) : Prog (Unit) :=
+  fun env =>
+    return ⟨(), {env with structs := env.structs.insert name struct}⟩
+
+
+structure Func.State extends Env.Prog.State where
+  blocks : Label.Map Block         -- finished blocks
+  curBlockLabel : Label
+  curBlockType : BlockType
+
+def Func.State.new (config : Config) (label : Label) : Func.State :=
+  { Prog.State.new config
+    with blocks := Std.HashMap.empty
+       , curBlockLabel := label
+       , curBlockType := .funcEntry
+  }
+
+def Func := StateT Func.State Context
+instance [Inhabited α] : Inhabited (Func α) :=
+  show Inhabited (StateT _ _ α) from inferInstance
+instance : Monad Func := show Monad (StateT _ _) from inferInstance
+
+def Prog.startFunc (lbl : Label)
+                   (type : BlockType)
+                   (f : Func α)
+                   : Prog (α × Label.Map Block) :=
+  fun penv => do
+    let fstate := ⟨penv, Std.HashMap.empty, lbl, type⟩
+    let (res, fenv') ← f fstate
+    return ((res, fenv'.blocks), fenv'.toState)
+
+def Prog.toFunc (f : Prog α) : Func α :=
+  fun env => do
+    let (res, penv') ← f env.toState
+    return (res, {env with toState := penv'})
+
+def Func.unsafe : Func Bool := Prog.toFunc Prog.config |>.map (¬·.safe)
+def Func.new_var (size : ValueSize) (v : Symbol) : Func SizedTemp :=
+  Prog.toFunc (Prog.new_var size v)
+def Func.var (v : Symbol) : Func SizedTemp := Prog.toFunc (Prog.var v)
+def Func.func (f : Symbol) : Func Label := Prog.toFunc (Prog.func f)
+def Func.freshTemp : Func Temp := Prog.toFunc Prog.freshTemp
+def Func.freshLabel : Func Label := Prog.toFunc Prog.freshLabel
+def Func.namedLabel (name : String) : Func Label :=
+  Prog.toFunc (Prog.namedLabel name)
+def Func.structs : Func (Symbol.Map StructInfo) := Prog.toFunc Prog.structs
 
 def Func.curBlockLabel : Env.Func Label :=
   fun env => return (env.curBlockLabel, env)
@@ -112,9 +149,6 @@ def Func.addBlock (block : Block)
                            curBlockType := nextType
                 })
 
-def Func.structs : Env.Func (Symbol.Map StructInfo) :=
-  fun env => return ⟨env.structs, env⟩
-
 end Env
 
 namespace MkTyped
@@ -131,18 +165,18 @@ def expr (env : Env.Func ((List IrTree.Stmt) × IrTree.Expr))
 
 end MkTyped
 
-def Typ.size (tau : Typ) : Env.Func (Option UInt64) := do
+def Typ.size (tau : Typ) : Env.Prog (Option UInt64) := do
   match tau with
-  | .any => return none
-  | .prim .int  => return some 4
-  | .prim .bool => return some 4
+  | .any              => return none
+  | .prim .int        => return some 4
+  | .prim .bool       => return some 4
   | .mem (.pointer _) => return some 8
   | .mem (.array _)   => return some 8
   | .mem (.struct n)  =>
-    let s ← Env.Func.structs
+    let s ← Env.Prog.structs
     return s.find? n |>.map (fun info => info.size)
 
-def Typ.tempSize (tau : Typ) : Env.Func ValueSize := do
+def Typ.tempSize (tau : Typ) : Env.Prog ValueSize := do
   match ← Typ.size tau with
   | some 8 => return .quad
   | some 4 => return .double
@@ -215,7 +249,7 @@ partial def expr (tau : Typ)
     match Trans.binop_op op with
     | .inl op' => return (stmts1.append stmts2, .binop op' l' r') -- pure
     | .inr op' =>
-      let size ← Typ.tempSize tau
+      let size ← Env.Prog.toFunc (Typ.tempSize tau)
       let dest := ⟨size, ← Env.Func.freshTemp⟩
       let effect := .effect dest op' l' r'
       let shift := -- include bounds check
@@ -229,7 +263,7 @@ partial def expr (tau : Typ)
     let lF ← Env.Func.freshLabel
     let lN ← Env.Func.freshLabel
     let dest ← Env.Func.freshTemp
-    let sdest := ⟨← Typ.tempSize tau, dest⟩
+    let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
 
     let (stmts, cond') ← Trans.texpr cond
     let exit := .cjump cond' none lT lF
@@ -256,21 +290,21 @@ partial def expr (tau : Typ)
     let (stmts, args') ← Trans.args args
     let func_lbl ← Env.Func.func f
     let dest ← Env.Func.freshTemp
-    let sdest := ⟨← Typ.tempSize tau, dest⟩
+    let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
     let call := .call sdest func_lbl args'
-    let size ← Typ.tempSize tau
+    let size ← Env.Prog.toFunc (Typ.tempSize tau)
     return (stmts.append [call], .temp ⟨size, dest⟩)
 
   | .alloc ty =>
-    match ← Typ.size ty with
+    match ← Env.Prog.toFunc (Typ.size ty) with
     | some size =>
       let dest ← Env.Func.freshTemp
-      let sdest := ⟨← Typ.tempSize tau, dest⟩
+      let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
       return ([.alloc dest (MkTyped.int (.memory size.toNat))], .temp sdest)
     | none => panic! "IR Trans: Alloc type size not known"
 
   | .alloc_array ty e =>
-    match ← Typ.size ty with
+    match ← Env.Prog.toFunc (Typ.size ty) with
     | some size =>
       let (stmts, e') ← Trans.texpr e
       let dest ← Env.Func.freshTemp
@@ -283,7 +317,7 @@ partial def expr (tau : Typ)
             | some n => .memory (n * size.toNat)
             | none   => .binop .mul e' (MkTyped.int (.const size.toNat))
           | .typed _tau _len => .binop .mul e' (MkTyped.int (.const size.toNat))
-        let sdest := ⟨← Typ.tempSize tau, dest⟩
+        let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
         return (stmts.append [.alloc dest (MkTyped.int size')], .temp sdest)
       else
         let lengthSize := MkTyped.int (.memory 8)
@@ -302,7 +336,7 @@ partial def expr (tau : Typ)
             |> MkTyped.int
             |> .binop .add lengthSize
         let alloc := .alloc dest (MkTyped.int size')
-        let sdest := ⟨← Typ.tempSize tau, dest⟩
+        let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
         let storeLen := .store ⟨MkTyped.int (.temp sdest), 0, none, 0⟩ e'
         let arr := .binop .add (MkTyped.int (.temp sdest)) lengthSize
         return (stmts.append [alloc] |>.append [storeLen], arr)
@@ -313,7 +347,7 @@ partial def expr (tau : Typ)
   | .index _e _indx =>
     let (stmts, address, checks) ← Addr.addr ⟨tau, exp⟩ 0 false
     let dest ← Env.Func.freshTemp
-    let sdest := ⟨← Typ.tempSize tau, dest⟩
+    let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
     return (stmts.append checks |>.append [.load sdest address], .temp sdest)
 
 partial def texpr (texp : Tst.Typed Tst.Expr)
@@ -381,7 +415,7 @@ partial def Addr.index (arr indx : Tst.Typed Tst.Expr)
   let scale ←
     match arr.typ with
     | .mem (.array tau) => do
-      match ← Typ.size tau with
+      match ← Env.Prog.toFunc (Typ.size tau) with
       | some s => pure s
       | none => panic! "IR Trans: Can't determine array element size"
     | _ => panic! s!"IR Trans: Indexing into non-array type"
@@ -394,7 +428,8 @@ mutual
 def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt) := do
   match stm with
   | .decl name init body =>
-    let t ← Env.Func.new_var (← Typ.tempSize name.typ) name.data
+    let t ←
+      Env.Func.new_var (← Env.Prog.toFunc (Typ.tempSize name.typ)) name.data
     let init_stmts ← do
       match init with
       | some i =>
@@ -414,7 +449,7 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
       let lhs' := Elab.lvalue tlv
       let (stms1, dest, checks) ← Addr.addr lhs' 0 false
       let (stms2, src) ← texpr rhs
-      let size ← Typ.tempSize tlv.typ
+      let size ← Env.Prog.toFunc (Typ.tempSize tlv.typ)
       match oop.map binop_op_int with
       | none =>
         return stms1.append stms2
@@ -535,30 +570,72 @@ def stmts (past : List IrTree.Stmt)
     stmts past' ss
 end
 
-def dec_args (args : List (Tst.Typed Symbol)) : Env.Func (List SizedTemp) := do
+def dec_args (args : List (Tst.Typed Symbol)) : Env.Prog (List SizedTemp) := do
   match args with
   | [] => return []
   | arg :: args =>
     let size ← Typ.tempSize arg.typ
-    let t ← Env.Func.new_var size arg.data
+    let t ← Env.Prog.new_var size arg.data
     let ts ← dec_args args
     return t :: ts
 
-def gdecl (header : Bool) (glbl : Tst.GDecl) : Env.Func (Option Func) := do
+def gdecl (header : Bool) (glbl : Tst.GDecl) : Env.Prog (Option Func) := do
   match glbl with
   | .fdecl fdec =>
     let label ←
       if header
       then Env.Prog.namedLabel fdec.name.name
       else Env.Prog.namedLabel s!"_c0_{fdec.name.name}"
-    let () ← Env.Func.addFunc fdec.name label
+    let () ← Env.Prog.addFunc fdec.name label
     return none
   | .fdef fdef =>
+    let label ← Env.Prog.namedLabel s!"_c0_{fdef.name.name}"
     let args ← dec_args fdef.params
-    let _remain ← stmts [] fdef.body
-    let lbl ← Env.Func.freshLabel
-    sorry
-  | .sdef sd => sorry
+    let entry ← Env.Prog.freshLabel
+    let (_remain, blocks) ←
+      Env.Prog.startFunc entry .funcEntry (stmts [] fdef.body)
+    let () ← Env.Prog.addFunc fdef.name label
+    return some ⟨label, entry, args, blocks⟩
+  | .sdef sd =>
+    let alignList ← sd.fields |>.mapM (fun ts =>
+        match ts.typ with
+        | .mem (.struct str) => do
+          match (← Env.Prog.structs).find? str with
+          | some s' => pure s'.alignment
+          | none    => panic! s!"IR Trans: {sd.name} field has undefined struct"
+        | _ =>
+          match ts.typ.sizeof with
+          | some n => pure (UInt64.ofNat n)
+          | _ => panic! s!"IR Trans: {sd.name} has malformed field types"
+      )
+    let alignment := alignList.foldl UInt64.max (UInt64.ofNat 1)
 
+    let align : UInt64 → UInt64 → UInt64 := fun off a => off + (a - off) % a
+
+    let (size, offsetsR) := alignList.zip sd.fields
+      |>.foldl (fun (offset, acc) (a, f) =>
+        let size :=
+          match f.typ.sizeof with
+          | some n => UInt64.ofNat n
+          | _ => panic! s!"IR Trans: {sd.name} has malformed field types"
+        let offset' := align offset a
+        (offset' + size, (f.data, offset') :: acc)
+      ) (UInt64.ofNat 0, [])
+    let size' := align size alignment
+    let offsets := Std.HashMap.ofList offsetsR
+    let () ← Env.Prog.addStruct sd.name ⟨size', alignment, offsets⟩
+    return none
+
+def prog (config : Config) (tst : Tst.Prog) : Context IrTree.Prog := do
+  let initState := Env.Prog.State.new config
+  let transOne := fun header (state, acc) gd => do
+      let (fOpt, state') ← gdecl header gd state
+      match fOpt with
+      | some f => pure (state', f :: acc)
+      | none   => pure (state', acc)
+  let (_state, funcsR) ←
+    tst.header.foldlM (transOne true) (initState, [])
+    |>.bind (tst.body.foldlM (transOne false))
+  return funcsR.reverse
 
 end Trans
