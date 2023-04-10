@@ -1,6 +1,6 @@
 
 import C0deine.Config.Language
-import C0deine.Target.Targets
+import C0deine.Config.Targets
 
 namespace C0deine
 

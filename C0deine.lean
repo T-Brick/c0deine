@@ -3,6 +3,7 @@ import C0deine.Utils.Register
 
 import C0deine.Config.Config
 import C0deine.Config.Language
+import C0deine.Config.Targets
 
 import C0deine.Context.Context
 import C0deine.Context.Label
@@ -23,6 +24,7 @@ import C0deine.IrTree.IrTrans
 
 import C0deine.AbsAsm.AbsAsm2
 
-import C0deine.Target.Targets
-import C0deine.Target.Wasm
-import C0deine.Target.X86
+import C0deine.Wasm.Wasm
+import C0deine.Wasm.WasmTrans
+
+import C0deine.X86.X86

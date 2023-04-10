@@ -12,7 +12,7 @@ structure Context.State where
   symbolCache : Std.HashMap String Symbol
 
 def Context.State.new : Context.State where
-  nextTemp := (1:)
+  nextTemp := (Temp.startId:)
   nextLabel := ⟨Label.startId, none⟩
   nextSymbolId := 1
   symbolCache := Std.HashMap.empty.insert Symbol.main.name Symbol.main

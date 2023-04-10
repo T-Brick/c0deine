@@ -499,8 +499,9 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
         if ¬status.defined
         then throw <| Error.texpr e' s!"Struct '{name}' is not defined"
         else
+          let e'' := ⟨.mem (.struct name), .deref e'⟩
           match status.fields.find? field with
-          | some tau => return (calls, ⟨tau, .dot e' field⟩)
+          | some tau => return (calls, ⟨tau, .dot e'' field⟩)
           | none => throw <| Error.expr exp <|
             s!"Invalid field '{field}' for struct type '{e'.typ}'"
       | none => throw <| Error.texpr e' s!"Struct '{name}' is not defined"

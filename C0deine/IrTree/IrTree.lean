@@ -112,7 +112,7 @@ def Expr.toString : Expr → String
   | .byte b => s!"{b}"
   | .const c => s!"{c}"
   | .temp t => s!"{t}"
-  | .memory m => s!"m{m}"
+  | .memory m => s!"&{m}"
   | .binop op lhs rhs => s!"{lhs.toString} {op} {rhs.toString}"
 
 def TypedExpr.toString : TypedExpr → String
@@ -139,8 +139,8 @@ def Stmt.toString : Stmt → String
   | effect dest op lhs rhs => s!"{dest} <!- {lhs} {op} {rhs}"
   | call dest name args => s!"{dest} <-- {name}({args})"
   | alloc dest size => s!"{dest} <-- alloc({size})"
-  | load dest addr => s!"{dest} <-- M[{addr}]"
-  | store addr source => s!"M[{addr}] <-- {source}"
+  | load dest addr => s!"{dest} <-- {addr}"
+  | store addr source => s!"{addr} <-- {source}"
   | check c => s!"{c}"
 instance : ToString Stmt where toString := Stmt.toString
 

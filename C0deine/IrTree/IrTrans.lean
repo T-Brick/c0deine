@@ -11,9 +11,8 @@ import C0deine.Config.Config
 import C0deine.Utils.Comparison
 
 
-namespace C0deine.IrTrans
+namespace C0deine.IrTree.Trans
 
-open IrTree
 
 structure StructInfo where
   size : UInt64

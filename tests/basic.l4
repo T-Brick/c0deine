@@ -5,34 +5,18 @@ typedef int ahhh;
 struct A;
 struct A {
   int b;
-  int *c;
+  int *eee;
+  int c;
   bool d;
 };
 
-typedef int************** soManyPointersOhMyGah;
-
-int foo(int y, bool *x) {
-  if(*x) {
-    return 5;
-  }
-  return y;
-}
-
-bool bar(int x, bool *y) {
-  return *y;
-}
 
 int main() {
-  int a;
-  int x = 5;
-  int y = x;
-  int* b = NULL;
-  struct A * s = alloc(struct A);
-  bool *z = alloc(bool);
-  // int[] arr = NULL;
-  int [] arr = alloc_array(int, 5);
-  int************** * p = alloc(int**************);
-  return foo(y, z);
+  bool* b = NULL;
+  struct A* a = NULL;
+  int x = a->b;
+  int y = a->c;
+  bool z = a->d;
 
-  return a;
+  return 0;
 }
