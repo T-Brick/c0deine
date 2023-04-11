@@ -454,8 +454,8 @@ where aux tydefs acc :=
 
 nonrec def parse (s : String) :=
   show ExceptT String Context _ from do
-  let toks ← Except.mapError (toString) (parseT (m := Id) C0Lexer.tokens s)
-  ExceptT.adapt (toString) do
+  let toks ← Except.mapError (fun e => "Lexer error at " ++ toString e) (parseT (m := Id) C0Lexer.tokens s)
+  ExceptT.adapt (fun e => "Parser error at " ++ toString e) do
   let (prog, tydefs) ← (
     show Context (Except _ _) from
       parseT (prog tydefs) toks)
