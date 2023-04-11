@@ -14,7 +14,7 @@ inductive Typ
 | ptr : Typ → Typ
 | arr : Typ → Typ
 | struct (name : Ident)
-deriving Repr
+deriving Repr, Inhabited
 
 inductive UnOp.Int | neg | not
 deriving Repr
@@ -68,7 +68,7 @@ inductive Expr
 | arrow (e : Expr) (field : Ident)
 | deref (e : Expr)
 | index (e : Expr) (index : Expr)
-deriving Repr
+deriving Repr, Inhabited
 
 inductive LValue
 | var (name : Ident)
