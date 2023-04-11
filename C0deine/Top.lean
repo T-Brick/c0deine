@@ -48,20 +48,20 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     | none =>
       pure (none, .empty, .new)
     | some h =>
-    match Parser.C0Parser.prog.run h.toUTF8 (trace := verbose) .new with
-    | ((.error e, state), _) =>
-      IO.println s!"{e () |>.formatPretty state}"
+    match Parser.C0Parser.parse h .empty .new with
+    | (.error e, _) =>
+      IO.println e
       return 1
-    | ((.ok (cst, tydefs), _), ctx) =>
+    | (.ok (cst, tydefs), ctx) =>
       pure (some cst, tydefs, ctx)
 
   if verbose then IO.println "parsing input"
 
-  match (Parser.C0Parser.prog headerTydefs).run contents.toUTF8 (trace := verbose) ctx with
-  | ((.error e, state), _) =>
-    IO.println s!"{e () |>.formatPretty state}"
+  match Parser.C0Parser.parse contents headerTydefs ctx with
+  | (.error e, state) =>
+    IO.println e
     return 1
-  | ((.ok (cst,_), _), ctx) =>
+  | (.ok (cst,_), ctx) =>
 
   -- if verbose then IO.println cst
   if verbose then IO.println "abstracting"
@@ -83,7 +83,7 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   if verbose then IO.println tst
 
   if verbose then IO.println "ir translation..."
-  let (irtree, ctx) := IrTrans.prog config tst ctx
+  let (irtree, ctx) := IrTree.Trans.prog config tst ctx
   if verbose then IO.println "ir tree!"
   if verbose then IO.println irtree
 

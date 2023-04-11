@@ -1,6 +1,5 @@
 import C0deine.AuxDefs
-
-import Megaparsec
+import C0deine.Parser.AuxDefs
 
 namespace C0deine.Parser
 
@@ -160,6 +159,9 @@ def Token.toString : Token → String
 
 instance Token.instToString : ToString Token := ⟨Token.toString⟩
 
+instance : Megaparsec.Printable.Printable Token where
+  showTokens toks := toString <| toks.map (toString)
+
 structure C0Lexer.Error where
   pos : String.Pos
 deriving Inhabited, Repr
@@ -176,9 +178,6 @@ open Megaparsec Parsec Common
 abbrev C0Lexer := Parsec Char String C0Lexer.Error
 
 namespace C0Lexer
-
-partial def dropMany [Monad m] [Alternative m] (p : m PUnit) : m PUnit := do
-  (do p; dropMany p) <|> pure ⟨⟩
 
 def lineComment : C0Lexer Unit := do
   let _ ← string "//"
@@ -239,11 +238,17 @@ where aux (s : Token.Special) :=
   let _ ← string s.symbol
   return s
 
-def tokens : C0Lexer (List Token) :=
-  sepEndByP (sep := ws) (
-        (.keyword <$> keyword)
-    <|> (.special <$> special)
-    <|> (.num     <$> num)
-    <|> (.ident   <$> ident)
+def tokens : C0Lexer (TokenArraySource Token) := do
+  let arr ← sepBy (sep := ws) (do
+    let pos ← getSourcePos
+
+    let tok ←
+          (.keyword <$> keyword)
+      <|> (.special <$> special)
+      <|> (.num     <$> num)
+      <|> (.ident   <$> ident)
+
+    return (pos,tok)
   )
+  return {source := arr, index := 0, index_le := Nat.zero_le _}
 
