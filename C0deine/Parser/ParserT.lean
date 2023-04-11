@@ -36,20 +36,46 @@ def next (p : AsciiPos s) (h : ¬p.atEnd := by assumption) : AsciiPos s :=
 
 end AsciiPos
 
+namespace ParserT
 
-def ParserT.State.lineIndices (s : ByteArray) : Array (AsciiPos s) := Id.run do
+inductive Trace
+| success | fail
+| or (traces : List Trace)
+| seq (traces : List Trace)
+| label (l : String) (child : Trace)
+deriving Inhabited
+
+
+partial def Trace.toString (pref : String) : ParserT.Trace → String
+| success => "✓"
+| fail => "⚠"
+| or ts =>
+  "-or" ++ "\n" ++ (String.intercalate "\n" <|
+    ts.map (toString (pref ++ " |")))
+| seq ts =>
+  "-seq" ++ "\n" ++ (String.intercalate "\n" <|
+    ts.map (toString (pref ++ " ;")))
+| label l child =>
+  "-" ++ l ++ "\n" ++
+    toString (pref ++ " .") child
+
+instance : ToString ParserT.Trace where
+  toString := Trace.toString ""
+
+
+def State.lineIndices (s : ByteArray) : Array (AsciiPos s) := Id.run do
   let mut lines := #[⟨0, Nat.zero_le _⟩]
   for h:i in [0:s.size] do
     if s[i]'h.2 = '\n'.toUInt8 then
       lines := lines.push ⟨i+1, h.2⟩
   return lines
 
-structure ParserT.State (s : ByteArray) where
+structure State (s : ByteArray) where
   lines : ThunkCache (fun () => State.lineIndices s)
   pos : AsciiPos s
 deriving Inhabited
 
-namespace ParserT.State
+namespace State
 
 -- binary search for which line a position occurs in
 def getPosLine (state : State s) : Fin state.lines.val.get.size :=
@@ -109,15 +135,15 @@ def getLines (state : State s) (fr to : Fin state.lines.val.get.size) : String :
       ⟨s.size, Nat.le_refl _⟩
   s.extract fr.pos to.pos |> String.fromUTF8Unchecked
 
-end ParserT.State
+end State
 
 
-structure ParserT.Error (s) where
+structure Error (s) where
   expected : List String
   stack : List (String × AsciiPos s)
 deriving Inhabited, Repr
 
-namespace ParserT.Error
+namespace Error
 
 def addStack (name : String) (pos : AsciiPos s) : ParserT.Error s → ParserT.Error s
 | { expected, stack } => { expected, stack := (name, pos)::stack }
@@ -170,52 +196,100 @@ def formatPretty (state : State s) (e : ParserT.Error s) : String :=
 
 end ParserT.Error
 
-def ParserT (m s α) := ExceptT (Unit → ParserT.Error s) (StateT (ParserT.State s) m) α
+def ParserT (trace : Bool) (m s α) :=
+  ExceptT (Unit → ParserT.Error s) (fun α =>
+    StateT (ParserT.State s) m (
+      if trace then α × ParserT.Trace else α
+    )) α
 
 namespace ParserT
 
 variable [Monad m]
 
-instance : Inhabited (ParserT m s α) := ⟨fun _ => pure default⟩
+instance : Inhabited (ParserT t m s α) := ⟨fun _ => pure <| by cases t <;> (simp; exact default)⟩
 
-instance : Monad (ParserT m s) :=
-  show Monad (ExceptT _ _) from inferInstance
-instance : MonadStateOf (ParserT.State s) (ParserT m s) :=
-  show MonadStateOf _ (ExceptT _ _) from inferInstance
+@[inline] def pure (a : α) : ParserT t m s α :=
+  if h:t then
+    by simp [h, ParserT]; exact
+    fun state => Pure.pure ((.ok a, .success), state)
+  else
+    by simp [h, ParserT]; exact
+    Pure.pure a
 
-instance : MonadLift m (ParserT m s) where
-  monadLift m := fun s => do return (.ok (← m), s)
+@[inline] def bind (ma : ParserT t m s α) (f : α → ParserT t m s β) : ParserT t m s β :=
+  if h:t then
+    by simp [h, ParserT] at ma f ⊢; exact
+    fun state =>
+      Bind.bind (ma state) (fun ((exc,t1),state) =>
+        match exc with
+        | .ok a =>
+          f a state |> Functor.map fun ((res, t2), state) => ((res, .seq [t1,t2]), state)
+        | .error e =>
+          Pure.pure ((.error e, t1), state))
+  else
+    by simp [h, ParserT] at ma f ⊢; exact Bind.bind ma f
 
-nonrec def run (s : ByteArray) (p : ParserT m s α) :=
+instance : Monad (ParserT t m s) where
+  pure := pure
+  bind := bind
+
+instance : MonadLift (StateM (State s)) (ParserT t m s) where
+  monadLift f :=
+    if h:t then
+      by simp [h]; exact fun s => do
+        let (a,s) := f s
+        return ((.ok a, .success), s)
+    else
+      by simp [h]; exact fun s => do
+        let (a,s) := f s
+        return (.ok a,s)
+
+instance : MonadLift m (ParserT t m s) where
+  monadLift m :=
+    if h:t then
+      by simp [h]; exact fun s => do return ((.ok (← m), .success), s)
+    else
+      by simp [h]; exact fun s => do return (.ok (← m), s)
+
+nonrec def run (s : ByteArray) (p : ParserT t m s α) :=
   p.run { lines := .new, pos := ⟨0, Nat.zero_le _⟩ }
 
-@[inline] def getPos : ParserT m s (AsciiPos s) :=
+@[inline] def getPos : ParserT t m s (AsciiPos s) :=
   do return (← get).pos
 
-@[inline] def setPos (p : AsciiPos s) : ParserT m s Unit :=
+@[inline] def setPos (p : AsciiPos s) : ParserT t m s Unit :=
   do set { (← get) with pos := p}
 
-@[inline] def throwExpected (es : Unit → List String) : ParserT m s α :=
-  fun s => pure (.error (fun () => { expected := es (), stack := [] }), s)
+@[inline] def throwExpected (es : Unit → List String) : ParserT t m s α :=
+  if h:t then
+    by simp [h]; exact fun s =>
+      return (.error (fun () => { expected := es (), stack := [] }), s)
+  else
+    by simp [h]; exact fun s =>
+      return (.error (fun () => { expected := es (), stack := [] }), s)
 
-@[inline] def throwUnexpected : ParserT m s α := throwExpected (fun () => [])
+@[inline] def throwUnexpected : ParserT t m s α := throwExpected (fun () => [])
 
-@[inline] def withContext (name : String) (p : ParserT m s α) : ParserT m s α :=
+@[inline] def withContext (name : String) (p : ParserT t m s α) : ParserT t m s α :=
   fun s => do
+  let pref' :=
+    s.tracePref.map (fun pref =>
+      dbgTrace s!"{pref}{if s.firstLine then "-" else " "}{name}" fun () => pref ++ " .")
+  let s := {s with tracePref := pref', firstLine := true}
   match ← p s with
-  | (.ok a    , s') =>
-    return (.ok a, s')
+  | (.ok a    , s) =>
+    return (.ok a, s)
   | (.error e , s') =>
     return (.error <| fun () => (e ()).addStack name s.pos, s')
 
-@[inline] def eof : ParserT m s Unit := do
+@[inline] def eof : ParserT t m s Unit := do
   let p ← getPos
   if p.atEnd then
     return
   else
     throwExpected fun () => ["<eof>"]
 
-@[inline] def any : ParserT m s UInt8 := do
+@[inline] def any : ParserT t m s UInt8 := do
   let p ← getPos
   if h : p.atEnd then
     throwExpected fun () => ["<any-char>"]
@@ -223,19 +297,20 @@ nonrec def run (s : ByteArray) (p : ParserT m s α) :=
   setPos p.next
   return p.get
 
-@[inline] def withBacktracking (p : ParserT m s α) : ParserT m s α :=
+@[inline] def withBacktracking (p : ParserT t m s α) : ParserT t m s α :=
   fun s => do
   match ← p s with
   | (.ok a, s')   => return (.ok a, s')
-  | (.error e, _) => return (.error e, s)
+  | (.error e, s') =>
+    return (.error e, s)
 
-@[inline] def atomically (p : ParserT m s α) (name : Option String := none) : ParserT m s α :=
+@[inline] def atomically (p : ParserT t m s α) (name : Option String := none) : ParserT t m s α :=
   fun s => do
   match ← p s with
   | (.ok a, s')   => return (.ok a, s')
   | (.error _, _) => throwExpected (fun () => name.toList) s
 
-@[inline] def notFollowedBy (p : ParserT m s α) : ParserT m s Unit :=
+@[inline] def notFollowedBy (p : ParserT t m s α) : ParserT t m s Unit :=
   fun s => do
   match ← p s with
   | (.ok _, _) =>
@@ -243,11 +318,13 @@ nonrec def run (s : ByteArray) (p : ParserT m s α) :=
   | (.error _, _) =>
     return (.ok (), s)
 
-@[inline] def guard (b : Bool) : ParserT m s Unit := do
+@[inline] def guard (b : Bool) : ParserT t m s Unit := do
   if b then return else throwUnexpected
 
-@[inline] def or (p1 p2 : ParserT m s α) : ParserT m s α :=
+@[inline] def or (p1 p2 : ParserT t m s α) : ParserT t m s α :=
   fun state => do
+  let state := {state with tracePref := state.tracePref.map (fun pref =>
+    if pref.endsWith "|" then pref else pref ++ " |"), firstLine := true}
   match ← p1 state with
   | (.ok a, state') => return (.ok a, state')
   | (.error e, state') =>
@@ -263,10 +340,10 @@ nonrec def run (s : ByteArray) (p : ParserT m s α) :=
   else
     throwExpected (fun () => (e ()).headToks ++ (e2 ()).headToks) state 
 
-instance : OrElse (ParserT m s α) where
+instance : OrElse (ParserT t m s α) where
   orElse p q := or p (q ())
 
-@[inline] def withBacktrackingUntil (p : ParserT m s α) (q : α → ParserT m s β) : ParserT m s β :=
+@[inline] def withBacktrackingUntil (p : ParserT t m s α) (q : α → ParserT t m s β) : ParserT t m s β :=
   fun state => do
   match ← p state with
   | (.error e, _) =>
@@ -281,12 +358,12 @@ instance : OrElse (ParserT m s α) where
   | (.ok b, state'') =>
     return (.ok b, state'')
 
-@[inline] def first (ps : List (ParserT m s α)) (h : ps ≠ [] := by simp) :=
+@[inline] def first (ps : List (ParserT t m s α)) (h : ps ≠ [] := by simp) :=
   match ps with
   | [] => by contradiction
   | p::ps => List.foldl or p ps
 
-@[inline] def foldl (p : ParserT m s α) (q : α → ParserT m s α) : ParserT m s α := do
+@[inline] def foldl (p : ParserT t m s α) (q : α → ParserT t m s α) : ParserT t m s α := do
   let a ← p
   let pos ← getPos
   aux pos a
@@ -305,32 +382,32 @@ where @[inline] aux pos a := do
   <|> (return a)
 termination_by aux p _ => s.size - p.pos
 
-@[inline] def dropMany (p : ParserT m s Unit) : ParserT m s Unit :=
+@[inline] def dropMany (p : ParserT t m s Unit) : ParserT t m s Unit :=
   foldl (return ()) (fun () => p)
 
-@[inline] def sepBy (sep : ParserT m s Unit) (p : ParserT m s α) : ParserT m s (Array α) :=
+@[inline] def sepBy (sep : ParserT t m s Unit) (p : ParserT t m s α) : ParserT t m s (Array α) :=
   (do let a ← p
       foldl (return #[a]) (fun acc => do
         let a ← withBacktrackingUntil sep (fun () => p)
         return acc.push a))
   <|> (return #[])
 
-@[inline] def option (p : ParserT m s α) : ParserT m s (Option α) :=
+@[inline] def option (p : ParserT t m s α) : ParserT t m s (Option α) :=
   (do let a ← p; return some a)
   <|> (return none)
 
-@[inline] def char (c : Char) : ParserT m s Unit :=
+@[inline] def char (c : Char) : ParserT t m s Unit :=
   atomically (name := s!"\"{c}\"") <| do
   let c' ← any
   guard (c = c')
 
-@[inline] def charMatching (p : Char → Bool) : ParserT m s Char :=
+@[inline] def charMatching (p : Char → Bool) : ParserT t m s Char :=
   withBacktracking (do
   let c ← any
   guard (p c)
   return c)
 
-@[inline] def string (s : String) : ParserT m src Unit :=
+@[inline] def string (s : String) : ParserT t m src Unit :=
   let L := s.toList
   do aux L (← getPos)
 where aux L p := do
@@ -341,5 +418,5 @@ where aux L p := do
     char x
     aux xs p
 
-@[inline] def wholeString (s : String) : ParserT m src Unit :=
+@[inline] def wholeString (s : String) : ParserT t m src Unit :=
   withBacktracking (string s)

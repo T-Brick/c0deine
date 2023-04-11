@@ -48,7 +48,7 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     | none =>
       pure (none, .empty, .new)
     | some h =>
-    match Parser.C0Parser.prog.run h.toUTF8 .new with
+    match Parser.C0Parser.prog.run h.toUTF8 (trace := verbose) .new with
     | ((.error e, state), _) =>
       IO.println s!"{e () |>.formatPretty state}"
       return 1
@@ -57,7 +57,7 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
 
   if verbose then IO.println "parsing input"
 
-  match (Parser.C0Parser.prog headerTydefs).run contents.toUTF8 ctx with
+  match (Parser.C0Parser.prog headerTydefs).run contents.toUTF8 (trace := verbose) ctx with
   | ((.error e, state), _) =>
     IO.println s!"{e () |>.formatPretty state}"
     return 1
