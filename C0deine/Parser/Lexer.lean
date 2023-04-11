@@ -9,6 +9,7 @@ namespace Token
 inductive Num : Type
 | dec (str : String)
 | hex (str : String) -- str should include the 0x or 0X prefix
+deriving DecidableEq, Ord
 
 def Num.str : Num → String
 | dec s => s
@@ -52,8 +53,10 @@ def specialCharactersRaw := #[
   , ("plusplus"  , "++")
   , ("lparen"    , "(")
   , ("rparen"    , ")")
-  , ("lbrac"     , "[")
-  , ("rbrac"     , "]")
+  , ("lbrack"     , "[")
+  , ("rbrack"     , "]")
+  , ("lbrace"     , "{")
+  , ("rbrace"     , "}")
   , ("comma"     , ",")
   , ("semi"      , ";")
   , ("question"  , "?")
@@ -135,6 +138,9 @@ genSpecialType!
 instance : ToString Keyword := ⟨Keyword.toString⟩
 instance : ToString Special := ⟨Special.symbol⟩
 
+deriving instance DecidableEq, Ord for Keyword
+deriving instance DecidableEq, Ord for Special
+
 end Token
 
 inductive Token : Type
@@ -143,6 +149,7 @@ inductive Token : Type
 | special (s : Token.Special)
 | keyword (k : Token.Keyword)
 | unknown
+deriving Inhabited, DecidableEq, Ord
 
 def Token.toString : Token → String
 | ident str => s!"ident ({str})"
