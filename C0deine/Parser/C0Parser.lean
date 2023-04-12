@@ -458,5 +458,5 @@ nonrec def parse (s : String) :=
   ExceptT.adapt (fun e => "Parser error at " ++ toString e) do
   let (prog, tydefs) ← (
     show Context (Except _ _) from
-      parseT (prog tydefs) toks)
+      parseT (prog tydefs) {source := toks, index := 0, index_le := Nat.zero_le _})
   return (prog, tydefs)

@@ -187,8 +187,8 @@ partial def blockComment : C0Lexer Unit := do
   let _ ← string "/*"
   dropMany (
         (do let _ ← satisfy (! ['/', '*'].contains ·))
-    <|> (do let _ ← single '*'; notFollowedBy (single '/'))
-    <|> (do let _ ← single '/'; notFollowedBy (single '*'))
+    <|> attempt (do let _ ← single '*'; notFollowedBy (single '/'))
+    <|> attempt (do let _ ← single '/'; notFollowedBy (single '*'))
     <|> blockComment)
   let _ ← string "*/"
 
@@ -238,8 +238,9 @@ where aux (s : Token.Special) :=
   let _ ← string s.symbol
   return s
 
-def tokens : C0Lexer (TokenArraySource Token) := do
-  let arr ← sepBy (sep := ws) (do
+def tokens : C0Lexer (Array (ParserState.SourcePos × Token)) := do
+  ws
+  let arr ← foldl #[] (fun acc => do
     let pos ← getSourcePos
 
     let tok ←
@@ -247,8 +248,11 @@ def tokens : C0Lexer (TokenArraySource Token) := do
       <|> (.special <$> special)
       <|> (.num     <$> num)
       <|> (.ident   <$> ident)
+    
+    ws 
 
-    return (pos,tok)
+    return acc.push (pos,tok)
   )
-  return {source := arr, index := 0, index_le := Nat.zero_le _}
+  return arr
+
 
