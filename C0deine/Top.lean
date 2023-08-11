@@ -99,8 +99,8 @@ def topCmd : Cmd := `[Cli|
     v, verbose;                 "Give verbose output"
     e, emit : String;           "Specify compilation target (either x86 or wasm)"
     l, library : String;        "Specify header file"
-    O0;                         "Compile with no optimizations"
-    O1;                         "Compile with optimizations"
+    O0, O0;                   "Compile with no optimizations"
+    O1, O1;                   "Compile with optimizations"
 
 
   ARGS:

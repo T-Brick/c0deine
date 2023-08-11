@@ -69,10 +69,10 @@ structure ThunkCache (a : Unit → α) where
 def ThunkCache.new : ThunkCache a := ⟨Thunk.mk a, by simp [Thunk.get]⟩
 instance : Inhabited (ThunkCache a) := ⟨.new⟩
 
-def List.pmap (L : List α) (f : (a : α) → a ∈ L → β) : List β :=
-  match L with
-  | [] => []
-  | x::xs => (f x (List.Mem.head _)) :: xs.pmap (fun a h => f a (List.Mem.tail _ h))
+-- def List.pmap (L : List α) (f : (a : α) → a ∈ L → β) : List β :=
+  -- match L with
+  -- | [] => []
+  -- | x::xs => (f x (List.Mem.head _)) :: xs.pmap (fun a h => f a (List.Mem.tail _ h))
 
 @[simp] theorem String.length_pushn (s : String) (c n)
   : (s.pushn c n).length = s.length + n := by

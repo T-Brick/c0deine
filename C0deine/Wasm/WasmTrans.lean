@@ -113,7 +113,20 @@ def stmt : IrTree.Stmt → List Instr
     let args' := args.map texpr
     args'.join |>.append [.call name, .wasm_local (.set (.temp dest.temp))]
 
-  | .alloc dest size        => sorry
+  | .alloc dest size        =>
+    let pointer : List Instr :=
+      [ .i32 (.const 0)
+      , .wasm_local (.tee (.temp Temp.general))
+      ]
+    let size' := texpr size
+    let alloc := size'.append
+      [ .wasm_local (.tee (.temp Temp.general))
+      , .loop none
+        [ sorry
+        ]
+      ]
+
+    sorry
   | .load dest addr         => sorry
   | .store addr source      => sorry
   | .check ch               => check ch

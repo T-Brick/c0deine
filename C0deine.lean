@@ -12,8 +12,8 @@ import C0deine.Context.Temp
 
 import C0deine.Parser.Cst
 import C0deine.Parser.Ast
-import C0deine.Parser.C0Lexer
-import C0deine.Parser.C0Parser
+-- import C0deine.Parser.C0Lexer
+-- import C0deine.Parser.C0Parser
 import C0deine.Parser.Abstractor
 
 import C0deine.Type.Typ

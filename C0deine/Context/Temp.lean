@@ -1,4 +1,4 @@
-
+import Std
 import C0deine.Utils.ValueSize
 
 namespace C0deine
@@ -19,6 +19,9 @@ def startId := 2
 
 def toNat (t : Temp) : Nat := t
 def toUInt64 : Temp → UInt64 := Nat.toUInt64
+
+def Map (α : Type) := Std.HashMap Temp α
+def Map.empty : Map α := Std.HashMap.empty
 
 end Temp
 
