@@ -83,36 +83,52 @@ inductive Instr.Integer (size : Nat)
 | shl
 | shr (signed : Bool)
 | load
+| load8 (signed : Bool)
+| load16 (signed : Bool)
+| load32 (signed : Bool)
 | store
+| store8
+| store16
+| store32
+
 
 instance : ToString (Instr.Integer size) where toString
-  | .const c   => s!"i{size}.const {c}"
-  | .eqz       => s!"i{size}.eqz"
-  | .eq        => s!"i{size}.eq"
-  | .ne        => s!"i{size}.ne"
-  | .lt true   => s!"i{size}.lt_s"
-  | .lt false  => s!"i{size}.lt_u"
-  | .le true   => s!"i{size}.le_s"
-  | .le false  => s!"i{size}.le_u"
-  | .gt true   => s!"i{size}.gt_s"
-  | .gt false  => s!"i{size}.gt_u"
-  | .ge true   => s!"i{size}.ge_s"
-  | .ge false  => s!"i{size}.ge_u"
-  | .add       => s!"i{size}.add"
-  | .sub       => s!"i{size}.sub"
-  | .mul       => s!"i{size}.mul"
-  | .div true  => s!"i{size}.div_s"
-  | .div false => s!"i{size}.div_u"
-  | .rem true  => s!"i{size}.rem_s"
-  | .rem false => s!"i{size}.rem_u"
-  | .and       => s!"i{size}.and"
-  | .or        => s!"i{size}.or"
-  | .xor       => s!"i{size}.xor"
-  | .shl       => s!"i{size}.shl"
-  | .shr true  => s!"i{size}.shr_s"
-  | .shr false => s!"i{size}.shr_u"
-  | .load      => s!"i{size}.load"
-  | .store     =>s!"i{size}.store"
+  | .const c      => s!"i{size}.const {c}"
+  | .eqz          => s!"i{size}.eqz"
+  | .eq           => s!"i{size}.eq"
+  | .ne           => s!"i{size}.ne"
+  | .lt true      => s!"i{size}.lt_s"
+  | .lt false     => s!"i{size}.lt_u"
+  | .le true      => s!"i{size}.le_s"
+  | .le false     => s!"i{size}.le_u"
+  | .gt true      => s!"i{size}.gt_s"
+  | .gt false     => s!"i{size}.gt_u"
+  | .ge true      => s!"i{size}.ge_s"
+  | .ge false     => s!"i{size}.ge_u"
+  | .add          => s!"i{size}.add"
+  | .sub          => s!"i{size}.sub"
+  | .mul          => s!"i{size}.mul"
+  | .div true     => s!"i{size}.div_s"
+  | .div false    => s!"i{size}.div_u"
+  | .rem true     => s!"i{size}.rem_s"
+  | .rem false    => s!"i{size}.rem_u"
+  | .and          => s!"i{size}.and"
+  | .or           => s!"i{size}.or"
+  | .xor          => s!"i{size}.xor"
+  | .shl          => s!"i{size}.shl"
+  | .shr true     => s!"i{size}.shr_s"
+  | .shr false    => s!"i{size}.shr_u"
+  | .load         => s!"i{size}.load"
+  | .load8 false  => s!"i{size}.load8_u"
+  | .load16 false => s!"i{size}.load16_u"
+  | .load32 false => s!"i{size}.load32_u"
+  | .load8  true  => s!"i{size}.load8_s"
+  | .load16 true  => s!"i{size}.load16_s"
+  | .load32 true  => s!"i{size}.load32_s"
+  | .store        => s!"i{size}.store"
+  | .store8       => s!"i{size}.store8"
+  | .store16      => s!"i{size}.store16"
+  | .store32      => s!"i{size}.store32"
 
 inductive Instr.Branch
 | label (lbl : Label)
@@ -135,10 +151,14 @@ inductive Instr
 | call (lbl : Label)
 | drop
 | select
+| mem_size
+| mem_grow
 | wasm_local (l : Instr.Local)
 | wasm_global (g : Instr.Global)
 | i32 (i : Instr.Integer 32)
+| i32_wrap_i64
 | i64 (i : Instr.Integer 64)
+| i64_extend_i32_u
 
 -- Outputs the WAT format for WASM, can be compiled to WASM (for now)
 mutual
@@ -167,12 +187,16 @@ def Instr.toListStrings (ins : Instr) : List String :=
   | br_if branch => [s!"br_if {branch}"]
   | «return» => [s!"return"]
   | call lbl => [s!"call ${lbl}"]
-  | drop => [s!"drop"]
-  | select => [s!"select"]
+  | drop => ["drop"]
+  | select => ["select"]
+  | mem_size => ["memory.size"]
+  | mem_grow => ["memory.grow"]
   | wasm_local l => [toString l]
   | wasm_global g => [toString g]
   | i32 i => [toString i]
+  | i32_wrap_i64 => ["i32.wrap_i64"]
   | i64 i => [toString i]
+  | i64_extend_i32_u => ["i64.extend_i32_u"]
 
 def Instr.listToListStrings (ins : List Instr) : List String :=
   match ins with

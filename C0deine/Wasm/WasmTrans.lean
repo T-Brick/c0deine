@@ -7,7 +7,6 @@ import C0deine.Context.Label
 import C0deine.Config.Config
 import C0deine.Utils.Comparison
 
-
 namespace C0deine.Target.Wasm.Trans
 
 def pure_binop (op : IrTree.PureBinop) : Instr :=
@@ -98,6 +97,17 @@ def check (check : IrTree.Check) : List Instr :=
       ], .call Label.abort, .unreachable] -- todo maybe we need to pass args?
     [comment, block]
 
+def addr (a : IrTree.Address) : List Instr :=
+  let base' := texpr a.base
+  let offset' := [.i64_extend_i32_u, .i64 (.const a.offset.toNat), .i64 .add]
+  base'.append offset' |>.append (
+    match a.index with
+    | .some index =>
+      let index' := texpr index
+      index'.append [.i64_extend_i32_u, .i64 (.const a.scale), .i64 .mul, .i64 .add]
+    | .none => []
+  )
+
 def stmt : IrTree.Stmt → List Instr
   | .move dest te =>
     let te' := texpr te
@@ -114,22 +124,55 @@ def stmt : IrTree.Stmt → List Instr
     args'.join |>.append [.call name, .wasm_local (.set (.temp dest.temp))]
 
   | .alloc dest size        =>
-    let pointer : List Instr :=
-      [ .i32 (.const 0)
-      , .wasm_local (.tee (.temp Temp.general))
-      ]
     let size' := texpr size
-    let alloc := size'.append
-      [ .wasm_local (.tee (.temp Temp.general))
-      , .loop none
-        [ sorry
-        ]
+    size'.append
+      [ .i64_extend_i32_u
+      , .i64 (.const 0)
+      , .i64 .load          -- 0 address has ptr to next free segment
+      , .i64 .add           -- get next free pointer after alloc
+      , .wasm_local (.tee (.temp Temp.general))
+      , .block .none [      -- loop to increase memory size
+        .loop .none
+        [ .mem_size         -- returns number of pages
+        , .i64 (.const 65536)
+        , .i64 .mul
+        , .i64 (.lt false)
+        , .br_if (.num 1)   -- next ptr within bounds, don't grow
+        , .i64 (.const 1)   -- grow by 1 page
+        , .mem_grow
+        , .wasm_local (.get (.temp Temp.general))
+        , .br (.num 0)
+        ]]
+      , .i64 (.const 0)
+      , .i64 .load          -- pointer we want to return
+      , .wasm_local (.set (.temp dest))
+      , .i64 (.const 0)
+      , .wasm_local (.get (.temp Temp.general))
+      , .i64 .store         -- update free pointer
       ]
 
-    sorry
-  | .load dest addr         => sorry
-  | .store addr source      => sorry
+  | .load dest a            =>
+    let addr' := addr a
+    let load' :=
+      match dest.size with
+      | .byte   => .i64 (.load8 false)
+      | .word   => .i64 (.load16 false)
+      | .double => .i64 (.load32 false)
+      | .quad   => .i64 .load
+    addr'.append
+      [ load'
+      , .wasm_local (.set (.temp dest.data))
+      ]
+
+  | .store a source         =>
+    let source' := texpr source
+    let addr' := addr a
+    let store' :=
+      match source.type with
+      | .any      => .i64 .store
+      | (.mem _)  => .i64 .store
+      | (.prim .bool) => .i64 .store8
+      | (.prim .int) => .i64 .store32
+    addr'.append [.i32_wrap_i64] |>.append source' |>.append [store']
+
   | .check ch               => check ch
-
-
-#eval s!"(local $%t0 i32)\n{check (.shift (.typed .any (.const 5)))}"
