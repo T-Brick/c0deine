@@ -31,21 +31,19 @@ def effect_binop (op : IrTree.EffectBinop) : Instr :=
   | .lsh => .i32 (.shl)
   | .rsh => .i32 (.shr true)
 
-def texpr : IrTree.TypedExpr → List Instr
-  | .typed _type e =>
-    match e with
-    | .byte b       => [.i32 (.const b.toNat)]
-    | .const i      => [.i32 (.const i)]
-    | .temp t       => [.wasm_local (.get (.temp t.temp))]
-    | .memory m     => [.i64 (.const m)]
-    | .binop op l r =>
-      let l' := texpr l
-      let r' := texpr r
-      let op' := pure_binop op
-      l'.append r' |>.append [op']
+partial def texpr (te : Typ.Typed IrTree.Expr) : List Instr :=
+  match te.data with
+  | .byte b       => [.i32 (.const b.toNat)]
+  | .const i      => [.i32 (.const i)]
+  | .temp t       => [.wasm_local (.get (.temp t.temp))]
+  | .memory m     => [.i64 (.const m)]
+  | .binop op l r =>
+    let l' := texpr l
+    let r' := texpr r
+    let op' := pure_binop op
+    l'.append r' |>.append [op']
 
-def expr (e : IrTree.Expr) : List Instr :=
-  texpr (.typed Typ.any e)
+def expr (e : IrTree.Expr) : List Instr := texpr ⟨Typ.any, e⟩
 
 def check (check : IrTree.Check) : List Instr :=
   match check with
@@ -130,17 +128,17 @@ def stmt : IrTree.Stmt → List Instr
       , .i64 (.const 0)
       , .i64 .load          -- 0 address has ptr to next free segment
       , .i64 .add           -- get next free pointer after alloc
-      , .wasm_local (.tee (.temp Temp.general))
+      , .wasm_local (.set (.temp Temp.general))
       , .block .none [      -- loop to increase memory size
         .loop .none
-        [ .mem_size         -- returns number of pages
+        [ .wasm_local (.get (.temp Temp.general))
+        , .mem_size         -- returns number of pages
         , .i64 (.const 65536)
         , .i64 .mul
         , .i64 (.lt false)
         , .br_if (.num 1)   -- next ptr within bounds, don't grow
         , .i64 (.const 1)   -- grow by 1 page
         , .mem_grow
-        , .wasm_local (.get (.temp Temp.general))
         , .br (.num 0)
         ]]
       , .i64 (.const 0)
@@ -159,10 +157,7 @@ def stmt : IrTree.Stmt → List Instr
       | .word   => .i64 (.load16 false)
       | .double => .i64 (.load32 false)
       | .quad   => .i64 .load
-    addr'.append
-      [ load'
-      , .wasm_local (.set (.temp dest.data))
-      ]
+    addr'.append [load', .wasm_local (.set (.temp dest.data))]
 
   | .store a source         =>
     let source' := texpr source
@@ -176,3 +171,15 @@ def stmt : IrTree.Stmt → List Instr
     addr'.append [.i32_wrap_i64] |>.append source' |>.append [store']
 
   | .check ch               => check ch
+
+structure TransBlockData where
+  instrs : List Instr
+  visited : List Label
+
+def block
+    (f : IrTree.Func)
+    (b : IrTree.Block)
+    (loop_exit : Label)
+    (visited : List Label)
+    : Context TransBlockData :=
+  sorry

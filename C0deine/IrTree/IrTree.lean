@@ -7,6 +7,8 @@ import C0deine.Utils.ValueSize
 
 namespace C0deine.IrTree
 
+open Typ
+
 inductive PureBinop
 | add | sub | mul | and | xor | or
 | comp : Comparator → PureBinop
@@ -14,57 +16,48 @@ inductive PureBinop
 inductive EffectBinop
 | div | mod | lsh | rsh
 
-mutual
 inductive Expr
 | byte : UInt8 → Expr
 | const : Int → Expr
 | temp : SizedTemp → Expr
 | memory : Nat → Expr
-| binop (op : PureBinop) (lhs rhs : TypedExpr)
+| binop (op : PureBinop) (lhs rhs : Typed Expr)
 deriving Inhabited
-
-inductive TypedExpr
-| typed (type : Typ) (expr : Expr)
-deriving Inhabited
-end
-
-def TypedExpr.type : TypedExpr → Typ
-  | .typed type _expr => type
-
-def TypedExpr.expr : TypedExpr → Expr
-  | .typed _type expr => expr
 
 structure Address where
-  base   : TypedExpr
+  base   : Typed Expr
   offset : UInt64
-  index  : Option (TypedExpr)
+  index  : Option (Typed Expr)
   scale  : Nat
 deriving Inhabited
 
 inductive Check
-| null : TypedExpr → Check
-| shift : TypedExpr → Check
-| bounds (source index : TypedExpr)
+| null : Typed Expr → Check
+| shift : Typed Expr → Check
+| bounds (source index : Typed Expr)
 
 inductive Stmt
-| move (dest : SizedTemp) (te : TypedExpr)
-| effect (dest : SizedTemp) (op : EffectBinop) (lhs rhs : TypedExpr)
-| call (dest : SizedTemp) (name : Label) (args : List (TypedExpr))
-| alloc (dest : Temp) (size : TypedExpr)
+| move (dest : SizedTemp) (te : Typed Expr)
+| effect (dest : SizedTemp) (op : EffectBinop) (lhs rhs : Typed Expr)
+| call (dest : SizedTemp) (name : Label) (args : List (Typed Expr))
+| alloc (dest : Temp) (size : Typed Expr)
 | load (dest : SizedTemp) (addr : Address)
-| store (addr : Address) (source : TypedExpr)
+| store (addr : Address) (source : Typed Expr)
 | check (c : Check)
 
 inductive BlockExit
 | jump (lbl : Label)
     -- hotpath = some true => tt will be most likely jump
-| cjump (e : TypedExpr) (hotpath : Option Bool) (tt : Label) (ff : Label)
-| «return» (e : Option (TypedExpr))
+| cjump (e : Typed Expr) (hotpath : Option Bool) (tt : Label) (ff : Label)
+| «return» (e : Option (Typed Expr))
+instance : Inhabited BlockExit := ⟨.return .none⟩
 
+-- we track what the block came from, this is potentially useful for optimising
+-- as well as generating WASM output.
 inductive BlockType
 | unknown
 | loop
-| loopguard
+-- | loopguard
 | funcEntry
 | funcExit
 | thenClause
@@ -75,18 +68,56 @@ inductive BlockType
 | afterITE
 | afterTernary
 | afterRet
+instance : Inhabited BlockType := ⟨.unknown⟩
 
 structure Block where
   label : Label
-  type : BlockType
-  body : List Stmt
-  exit : BlockExit
+  type  : BlockType
+  body  : List Stmt
+  exit  : BlockExit
+deriving Inhabited
+
+instance : BEq Block      where beq x y := x.label == y.label
+instance : Hashable Block where hash b := hash b.label
 
 structure Func where
   name : Label
   enter : Label
   args : List SizedTemp
   blocks : Label.Map Block
+
+def Block.succ_labels (f : Func) (b : Block) : Option (List Label) :=
+  f.blocks.find? b.label |>.map (fun b => (
+      match b.exit with
+      | .jump lbl => [lbl]
+      | .cjump _ (.some false) tt ff => [ff, tt]
+      | .cjump _ _ tt ff => [tt, ff]
+      | .«return» _      => []
+    )
+  )
+
+def Block.succ (f : Func) (b : Block) : Option (List Block) :=
+  b.succ_labels f |>.map (List.filterMap f.blocks.find?)
+
+@[inline] def Block.loop (b : Block) : Bool :=
+  match b.type with
+  | .loop => true
+  | _     => false
+
+@[inline] def Block.after_loop (b : Block) : Bool :=
+  match b.type with
+  | .afterLoop => true
+  | _          => false
+
+@[inline] def _root_.C0deine.Label.loop (f : Func) (l : Label) : Bool :=
+  match f.blocks.find? l with
+  | .some b => b.loop
+  | _       => false
+
+@[inline] def _root_.C0deine.Label.after_loop (f : Func) (l : Label) : Bool :=
+  match f.blocks.find? l with
+  | .some b => b.after_loop
+  | _       => false
 
 def Prog := List Func
 
@@ -107,20 +138,15 @@ def EffectBinop.toString : EffectBinop → String
   | rsh => ">>"
 instance : ToString EffectBinop where toString := EffectBinop.toString
 
-mutual
-def Expr.toString : Expr → String
+partial def Expr.toString : Expr → String
   | .byte b => s!"{b}"
   | .const c => s!"{c}"
   | .temp t => s!"{t}"
   | .memory m => s!"&{m}"
-  | .binop op lhs rhs => s!"{lhs.toString} {op} {rhs.toString}"
-
-def TypedExpr.toString : TypedExpr → String
-  | .typed _type expr => expr.toString
-end
+  | .binop op lhs rhs => s!"{lhs.data.toString} {op} {rhs.data.toString}"
 
 instance : ToString Expr where toString := Expr.toString
-instance : ToString TypedExpr where toString := TypedExpr.toString
+instance : ToString (Typed Expr) where toString texpr := texpr.data.toString
 
 def Address.toString (addr : Address) : String :=
   match addr.index with
@@ -157,19 +183,19 @@ def BlockExit.toString : BlockExit → String
 instance : ToString BlockExit where toString := BlockExit.toString
 
 def BlockType.toString : BlockType → String
-  | unknown => "unknown"
-  | loop => "loop"
-  | loopguard => "loop-guard"
-  | funcEntry => "func-entry"
-  | funcExit => "func-exit"
-  | thenClause => "then-clause"
-  | elseClause => "else-clause"
-  | ternaryTrue => "ternary-true"
-  | ternaryFalse => "ternary-false"
-  | afterLoop => "after-loop"
-  | afterITE => "after-ifelse"
-  | afterTernary => "after-ternary"
-  | afterRet => "after-return"
+  | .unknown => "unknown"
+  | .loop => "loop"
+  -- | .loopguard => "loop-guard"
+  | .funcEntry => "func-entry"
+  | .funcExit => "func-exit"
+  | .thenClause => "then-clause"
+  | .elseClause => "else-clause"
+  | .ternaryTrue => "ternary-true"
+  | .ternaryFalse => "ternary-false"
+  | .afterLoop => "after-loop"
+  | .afterITE => "after-ifelse"
+  | .afterTernary => "after-ternary"
+  | .afterRet => "after-return"
 instance : ToString BlockType where toString := BlockType.toString
 
 def Block.toString (b : Block) :=

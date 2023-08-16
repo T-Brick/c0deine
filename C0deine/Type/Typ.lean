@@ -120,4 +120,13 @@ def sizeof : Typ → Option Nat
   | .mem (.array _) => some 8
   | .mem (.struct _) => none
 
+structure Typed (α : Type) where
+  type : Typ
+  data : α
+deriving Inhabited
+
+def Typed.toString [ToString α] (a : Typed α) : String :=
+  s!"({a.data} : {a.type})"
+instance [ToString α] : ToString (Typed α) := ⟨Typed.toString⟩
+
 end Typ

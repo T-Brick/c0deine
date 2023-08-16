@@ -152,15 +152,15 @@ end Env
 
 namespace MkTyped
 
-def int (e : IrTree.Expr) : IrTree.TypedExpr := .typed (.prim .int) e
-def bool (e : IrTree.Expr) : IrTree.TypedExpr := .typed (.prim .bool) e
-def null (e : IrTree.Expr) : IrTree.TypedExpr := .typed .any e
+def int (e : IrTree.Expr)  : Typ.Typed IrTree.Expr := ⟨.prim .int, e⟩
+def bool (e : IrTree.Expr) : Typ.Typed IrTree.Expr := ⟨.prim .bool, e⟩
+def null (e : IrTree.Expr) : Typ.Typed IrTree.Expr := ⟨.any, e⟩
 
 def expr (env : Env.Func ((List IrTree.Stmt) × IrTree.Expr))
          (typ : Typ)
-         : Env.Func ((List IrTree.Stmt) × IrTree.TypedExpr) := do
+         : Env.Func ((List IrTree.Stmt) × Typ.Typed Expr) := do
   let (stmts, e') ← env
-  return (stmts, .typed typ e')
+  return (stmts, ⟨typ, e'⟩)
 
 end MkTyped
 
@@ -183,17 +183,16 @@ def Typ.tempSize (tau : Typ) : Env.Prog ValueSize := do
   | some 1 => return .byte
   | _      => return .double
 
-def Elab.lvalue (tlv : Tst.Typed Tst.LValue) : Tst.Typed Tst.Expr :=
-  .typed tlv.typ (
-    match tlv with
-    | .typed _ lv =>
-      match lv with
-      | .var name      => .var name
-      | .dot lv field  => .dot (Elab.lvalue lv) field
-      | .deref lv      => .deref (Elab.lvalue lv)
-      | .index lv indx => .index (Elab.lvalue lv) indx
-  )
-termination_by Elab.lvalue tlv => sizeOf tlv
+def Elab.lvalue (tlv : Typ.Typed Tst.LValue) : Typ.Typed Tst.Expr :=
+  ⟨ tlv.type
+  , match tlv.data with
+    | .var name      => .var name
+    | .dot lv field  => .dot (Elab.lvalue lv) field
+    | .deref lv      => .deref (Elab.lvalue lv)
+    | .index lv indx => .index (Elab.lvalue lv) indx
+  ⟩
+termination_by Elab.lvalue tlv => sizeOf tlv.data
+decreasing_by sorry
 
 def binop_op_int (op : Tst.BinOp.Int)
                   : IrTree.PureBinop ⊕ IrTree.EffectBinop :=
@@ -308,27 +307,27 @@ partial def expr (tau : Typ)
       if ← Env.Func.unsafe
       then
         let size' := -- don't need to store length if unsafe
-          match e' with -- optimise if size is constant
-          | .typed _tau (.const c) =>
+          match e'.data with -- optimise if size is constant
+          | .const c =>
             match c.toNat' with
             | some n => .memory (n * size.toNat)
             | none   => .binop .mul e' (MkTyped.int (.const size.toNat))
-          | .typed _tau _len => .binop .mul e' (MkTyped.int (.const size.toNat))
+          | _ => .binop .mul e' (MkTyped.int (.const size.toNat))
         let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
         return (stmts.append [.alloc dest (MkTyped.int size')], .temp sdest)
       else
         let lengthSize := MkTyped.int (.memory 8)
         -- todo maybe add bounds checks here?
         let size' : Expr :=
-          match e' with -- optimise if size is constant
-          | .typed _tau (.const c) =>
+          match e'.data with -- optimise if size is constant
+          | .const c =>
             match c.toNat' with
             | some n => .memory (n * size.toNat + 8)
             | none   =>
               .binop .mul e' (MkTyped.int (.const size.toNat))
               |> MkTyped.int
               |> .binop .add lengthSize
-          | .typed _tau _len =>
+          | _ =>
             .binop .mul e' (MkTyped.int (.const size.toNat))
             |> MkTyped.int
             |> .binop .add lengthSize
@@ -347,12 +346,12 @@ partial def expr (tau : Typ)
     let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
     return (stmts.append checks |>.append [.load sdest address], .temp sdest)
 
-partial def texpr (texp : Tst.Typed Tst.Expr)
-          : Env.Func ((List IrTree.Stmt) × IrTree.TypedExpr) :=
-  MkTyped.expr (expr texp.typ texp.data) texp.typ
+partial def texpr (texp : Typ.Typed Tst.Expr)
+          : Env.Func ((List IrTree.Stmt) × Typ.Typed Expr) :=
+  MkTyped.expr (expr texp.type texp.data) texp.type
 
-partial def args (as : List (Tst.Typed Tst.Expr))
-         : Env.Func ((List IrTree.Stmt) × (List IrTree.TypedExpr)) := do
+partial def args (as : List (Typ.Typed Tst.Expr))
+         : Env.Func ((List IrTree.Stmt) × (List (Typ.Typed Expr))) := do
   match as with
   | [] => return ([], [])
   | arg :: as =>
@@ -364,7 +363,7 @@ partial def args (as : List (Tst.Typed Tst.Expr))
 /- returns the elaborated statements, address, and pending memory checks
  - This allows us to maintain the weird semantics for checks
  -/
-partial def Addr.addr (texp : Tst.Typed Tst.Expr)
+partial def Addr.addr (texp : Typ.Typed Tst.Expr)
          (offset : UInt64)
          (check : Bool)
          : Env.Func (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
@@ -374,14 +373,14 @@ partial def Addr.addr (texp : Tst.Typed Tst.Expr)
   | .index e indx => Addr.index e indx offset
   | _ => panic! "IR Trans: Attempted to address a non-pointer"
 
-partial def Addr.dot (texp : Tst.Typed Tst.Expr)
+partial def Addr.dot (texp : Typ.Typed Tst.Expr)
                (field : Symbol)
                (offset : UInt64)
                : Env.Func
                   (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
   let structs ← Env.Func.structs
   let struct :=
-    match texp.typ with
+    match texp.type with
     | .mem (.struct name) =>
       match structs.find? name with
       | some info => info
@@ -393,7 +392,7 @@ partial def Addr.dot (texp : Tst.Typed Tst.Expr)
     | none => panic! s!"IR Trans: Could not find field offset {field}"
   Addr.addr texp (offset + foffset) true
 
-partial def Addr.deref (texp : Tst.Typed Tst.Expr)
+partial def Addr.deref (texp : Typ.Typed Tst.Expr)
          (offset : UInt64)
          (check : Bool)
          : Env.Func (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
@@ -403,14 +402,14 @@ partial def Addr.deref (texp : Tst.Typed Tst.Expr)
   then return (stmts.append [.check (.null texp')], address, [])
   else return (stmts, address, [.check (.null texp')])
 
-partial def Addr.index (arr indx : Tst.Typed Tst.Expr)
+partial def Addr.index (arr indx : Typ.Typed Tst.Expr)
                (offset : UInt64)
                : Env.Func
                 (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
   let (stmts1, arr') ← texpr arr
   let (stmts2, indx') ← texpr indx
   let scale ←
-    match arr.typ with
+    match arr.type with
     | .mem (.array tau) => do
       match ← Env.Prog.toFunc (Typ.size tau) with
       | some s => pure s
@@ -426,7 +425,7 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
   match stm with
   | .decl name init body =>
     let t ←
-      Env.Func.new_var (← Env.Prog.toFunc (Typ.tempSize name.typ)) name.data
+      Env.Func.new_var (← Env.Prog.toFunc (Typ.tempSize name.type)) name.data
     let init_stmts ← do
       match init with
       | some i =>
@@ -446,7 +445,7 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
       let lhs' := Elab.lvalue tlv
       let (stms1, dest, checks) ← Addr.addr lhs' 0 false
       let (stms2, src) ← texpr rhs
-      let size ← Env.Prog.toFunc (Typ.tempSize tlv.typ)
+      let size ← Env.Prog.toFunc (Typ.tempSize tlv.type)
       match oop.map binop_op_int with
       | none =>
         return stms1.append stms2
@@ -454,9 +453,9 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
           |>.append [.store dest src]
       | some (.inl pure) =>
         let temp := ⟨size, ← Env.Func.freshTemp⟩
-        let ttemp := ⟨rhs.typ, .temp temp⟩
+        let ttemp := ⟨rhs.type, .temp temp⟩
         let load := .load temp dest
-        let src' := ⟨lhs'.typ, .binop pure ttemp src⟩
+        let src' := ⟨lhs'.type, .binop pure ttemp src⟩
         let store := .store dest src'
         return stms1.append stms2
           |>.append checks
@@ -464,8 +463,8 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
       | some (.inr impure) =>
         let t1 := ⟨size, ← Env.Func.freshTemp⟩
         let t2 := ⟨size, ← Env.Func.freshTemp⟩
-        let tt1 := ⟨rhs.typ, .temp t1⟩
-        let tt2 := ⟨rhs.typ, .temp t2⟩
+        let tt1 := ⟨rhs.type, .temp t1⟩
+        let tt2 := ⟨rhs.type, .temp t2⟩
         let load : IrTree.Stmt := .load t1 dest
         let effect := .effect t2 impure tt1 src
         let store := .store dest tt2
@@ -567,11 +566,11 @@ def stmts (past : List IrTree.Stmt)
     stmts past' ss
 end
 
-def dec_args (args : List (Tst.Typed Symbol)) : Env.Prog (List SizedTemp) := do
+def dec_args (args : List (Typ.Typed Symbol)) : Env.Prog (List SizedTemp) := do
   match args with
   | [] => return []
   | arg :: args =>
-    let size ← Typ.tempSize arg.typ
+    let size ← Typ.tempSize arg.type
     let t ← Env.Prog.new_var size arg.data
     let ts ← dec_args args
     return t :: ts
@@ -595,13 +594,13 @@ def gdecl (header : Bool) (glbl : Tst.GDecl) : Env.Prog (Option Func) := do
     return some ⟨label, entry, args, blocks⟩
   | .sdef sd =>
     let alignList ← sd.fields |>.mapM (fun ts =>
-        match ts.typ with
+        match ts.type with
         | .mem (.struct str) => do
           match (← Env.Prog.structs).find? str with
           | some s' => pure s'.alignment
           | none    => panic! s!"IR Trans: {sd.name} field has undefined struct"
         | _ =>
-          match ts.typ.sizeof with
+          match ts.type.sizeof with
           | some n => pure (UInt64.ofNat n)
           | _ => panic! s!"IR Trans: {sd.name} has malformed field types"
       )
@@ -612,7 +611,7 @@ def gdecl (header : Bool) (glbl : Tst.GDecl) : Env.Prog (Option Func) := do
     let (size, offsetsR) := alignList.zip sd.fields
       |>.foldl (fun (offset, acc) (a, f) =>
         let size :=
-          match f.typ.sizeof with
+          match f.type.sizeof with
           | some n => UInt64.ofNat n
           | _ => panic! s!"IR Trans: {sd.name} has malformed field types"
         let offset' := align offset a

@@ -9,17 +9,7 @@ import C0deine.Utils.Comparison
 
 namespace C0deine.Tst
 
--- todo: maybe we can restrict this to just be the types we want?
-inductive Typed (α : Type) where
-  | typed (typ : Typ) (data : α)
-
-@[inline]
-def Typed.data : Typed α → α
-  | typed _typ data => data
-
-@[inline]
-def Typed.typ : Typed α → Typ
-  | typed typ _data => typ
+open Typ
 
 inductive UnOp.Int | neg | not
 inductive UnOp.Bool | neg
@@ -133,7 +123,7 @@ def BinOp.toString : BinOp → String
 instance : ToString BinOp where toString := BinOp.toString
 
 mutual
-def Expr.toString : Expr → String
+partial def Expr.toString : Expr → String
   | .num v => s!"{v}"
   | .«true» => "true"
   | .«false» => "false"
@@ -150,37 +140,33 @@ def Expr.toString : Expr → String
   | .deref e => s!"*{Expr.typedToString e}"
   | .index e i => s!"{Expr.typedToString e}[{Expr.typedToString i}]"
 
-def Expr.argsToString : List (Typed Expr) → String
+partial def Expr.argsToString : List (Typed Expr) → String
   | [] => ""
   | arg :: [] => s!"{Expr.typedToString arg}"
   | arg :: args => s!"{Expr.typedToString arg}, {Expr.argsToString args}"
 
-def Expr.typedToString : Typed Expr → String
-  | .typed typ data => s!"({Expr.toString data} : {typ})"
+partial def Expr.typedToString (texpr : Typed Expr) : String :=
+  @Typed'.toString Expr ⟨Expr.toString⟩ texpr
 end
 
-instance : ToString Expr where toString := Expr.toString
-instance : ToString (Typed Expr) where toString := Expr.typedToString
+instance : ToString Expr := ⟨Expr.toString⟩
 instance : ToString (List (Typed Expr)) where
   toString texps := texps.map Expr.typedToString |> String.intercalate ", "
 
 mutual
-def LValue.toString : LValue → String
+partial def LValue.toString : LValue → String
   | var name => s!"{name}"
-  | dot e field => s!"({LValue.typedToString e}).{field}"
+  | dot e field =>
+    s!"({LValue.typedToString e}).{field}"
   | deref e => s!"*({LValue.typedToString e})"
   | index e i => s!"({LValue.typedToString e})[{i}]"
-
-def LValue.typedToString : Typed LValue → String
-  | .typed typ data => s!"({LValue.toString data} : {typ})"
+where LValue.typedToString (tlv : Typed LValue) : String :=
+  @Typed.toString LValue ⟨LValue.toString⟩ tlv
 end
-instance : ToString LValue where toString := LValue.toString
-instance : ToString (Typed LValue) where toString := LValue.typedToString
 
-instance : ToString (Typed Symbol) where
-  toString ts := s!"({ts.data} : {ts.typ})"
+instance : ToString LValue where toString := LValue.toString
 instance : ToString (List (Typed Symbol)) where
-  toString tss := tss.map toString |> String.intercalate ", "
+  toString tss := tss.map Typed.toString |> String.intercalate ", "
 
 mutual
 def Stmt.toString (s : Stmt) : String :=

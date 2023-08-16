@@ -22,6 +22,9 @@ inductive DynResult : Prop
 | exception : Exception → DynResult
 
 
+notation:50 lhs:51 " ▷ " rhs:51 => DynResult.eval lhs rhs
+notation:50 lhs:51 " ▸ " rhs:51 => DynResult.exec lhs rhs
+
 def Environment := Temp.Map ExprValues
 def Environment.empty : Environment := Temp.Map.empty
 
