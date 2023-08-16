@@ -146,7 +146,7 @@ partial def Expr.argsToString : List (Typed Expr) → String
   | arg :: args => s!"{Expr.typedToString arg}, {Expr.argsToString args}"
 
 partial def Expr.typedToString (texpr : Typed Expr) : String :=
-  @Typed'.toString Expr ⟨Expr.toString⟩ texpr
+  @Typed.toString Expr ⟨Expr.toString⟩ texpr
 end
 
 instance : ToString Expr := ⟨Expr.toString⟩
