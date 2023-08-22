@@ -158,6 +158,7 @@ def test1_cfg : CFG Nat Nat :=
   , blocks := Std.HashMap.empty
   }
 
+-- this example is guarenteed to work because we assume binary branches
 def test2_cfg : CFG Nat Nat :=
   { graph :=
       Digraph.empty
@@ -188,7 +189,20 @@ def test3_cfg : CFG Nat Nat :=
   , blocks := Std.HashMap.empty
   }
 
+def test4_cfg : CFG Nat Nat :=
+  { graph :=
+      Digraph.empty
+      |>.add_edge ⟨l 0, l 1⟩
+      |>.add_edge ⟨l 0, l 2⟩
+      |>.add_edge ⟨l 1, l 3⟩
+      |>.add_edge ⟨l 2, l 4⟩
+      |>.add_edge ⟨l 3, l 4⟩
+      |>.add_edge (l 3, l 1)
+  , entry := (l 0)
+  , blocks := Std.HashMap.empty
+  }
+
 def run : CFG α β → Option Shape :=
   (fun cfg => reloop 50 cfg [l 0] (cfg.graph.toVertices))
 
-#eval Id.run IO.println (run test2_cfg)
+#eval Id.run IO.println (run test4_cfg)
