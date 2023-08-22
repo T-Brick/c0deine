@@ -4,6 +4,7 @@ import C0deine.Context.Temp
 import C0deine.Context.Label
 import C0deine.Utils.Comparison
 import C0deine.Utils.ValueSize
+import C0deine.ControlFlow.CFG
 
 namespace C0deine.IrTree
 
@@ -52,33 +53,7 @@ inductive BlockExit
 | «return» (e : Option (Typed Expr))
 instance : Inhabited BlockExit := ⟨.return .none⟩
 
--- we track what the block came from, this is potentially useful for optimising
--- as well as generating WASM output.
-inductive BlockType
-| unknown
-| loop
--- | loopguard
-| funcEntry
-| funcExit
-| thenClause
-| elseClause
-| ternaryTrue
-| ternaryFalse
-| afterLoop
-| afterITE
-| afterTernary
-| afterRet
-instance : Inhabited BlockType := ⟨.unknown⟩
-
-structure Block where
-  label : Label
-  type  : BlockType
-  body  : List Stmt
-  exit  : BlockExit
-deriving Inhabited
-
-instance : BEq Block      where beq x y := x.label == y.label
-instance : Hashable Block where hash b := hash b.label
+def Block := ControlFlow.Block Stmt BlockExit
 
 structure Func where
   name : Label
@@ -98,16 +73,6 @@ def Block.succ_labels (f : Func) (b : Block) : Option (List Label) :=
 
 def Block.succ (f : Func) (b : Block) : Option (List Block) :=
   b.succ_labels f |>.map (List.filterMap f.blocks.find?)
-
-@[inline] def Block.loop (b : Block) : Bool :=
-  match b.type with
-  | .loop => true
-  | _     => false
-
-@[inline] def Block.after_loop (b : Block) : Bool :=
-  match b.type with
-  | .afterLoop => true
-  | _          => false
 
 @[inline] def _root_.C0deine.Label.loop (f : Func) (l : Label) : Bool :=
   match f.blocks.find? l with
@@ -181,22 +146,6 @@ def BlockExit.toString : BlockExit → String
   | «return» (.none) => "return"
   | «return» (.some e) => s!"return {e}"
 instance : ToString BlockExit where toString := BlockExit.toString
-
-def BlockType.toString : BlockType → String
-  | .unknown => "unknown"
-  | .loop => "loop"
-  -- | .loopguard => "loop-guard"
-  | .funcEntry => "func-entry"
-  | .funcExit => "func-exit"
-  | .thenClause => "then-clause"
-  | .elseClause => "else-clause"
-  | .ternaryTrue => "ternary-true"
-  | .ternaryFalse => "ternary-false"
-  | .afterLoop => "after-loop"
-  | .afterITE => "after-ifelse"
-  | .afterTernary => "after-ternary"
-  | .afterRet => "after-return"
-instance : ToString BlockType where toString := BlockType.toString
 
 def Block.toString (b : Block) :=
   let body := b.body.map (fun stmt => s!"\t{stmt}\n") |> String.join

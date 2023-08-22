@@ -9,10 +9,12 @@ import C0deine.Context.Temp
 import C0deine.Context.Label
 import C0deine.Config.Config
 import C0deine.Utils.Comparison
+import C0deine.ControlFlow.CFG
 
 
 namespace C0deine.IrTree.Trans
 
+open ControlFlow.Block
 
 structure StructInfo where
   size : UInt64

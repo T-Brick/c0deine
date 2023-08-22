@@ -26,6 +26,6 @@ def memerr : Label := ⟨4, "sigusr2"⟩
 
 def startId := 5
 
-def Map (α : Type) := Std.HashMap Label α
+@[inline] def Map (α : Type) := Std.HashMap Label α
 
 end Label
