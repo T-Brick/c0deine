@@ -42,6 +42,21 @@ partial def texpr (te : Typ.Typed IrTree.Expr) : List Instr :=
     let r' := texpr r
     let op' := pure_binop op
     l'.append r' |>.append [op']
+  | .and l r =>
+    let l' := texpr l
+    let r' := texpr r
+    l'.append [.block .none (
+      [ .i32 .eqz
+      , .br_if (.num 0) -- short-circuit if false
+      ] |>.append r'
+    )]
+  | .or l r =>
+    let l' := texpr l
+    let r' := texpr r
+    l'.append [.block .none (
+      [ .br_if (.num 0) -- short-circuit if true
+      ] |>.append r'
+    )]
 
 def expr (e : IrTree.Expr) : List Instr := texpr ⟨Typ.any, e⟩
 

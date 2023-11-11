@@ -23,6 +23,8 @@ inductive Expr
 | temp : SizedTemp → Expr
 | memory : Nat → Expr
 | binop (op : PureBinop) (lhs rhs : Typed Expr)
+| and (lhs rhs : Typed Expr)
+| or (lhs rhs : Typed Expr)
 deriving Inhabited
 
 structure Address where
@@ -109,6 +111,8 @@ partial def Expr.toString : Expr → String
   | .temp t => s!"{t}"
   | .memory m => s!"&{m}"
   | .binop op lhs rhs => s!"{lhs.data.toString} {op} {rhs.data.toString}"
+  | .and lhs rhs => s!"{lhs.data.toString} && {rhs.data.toString}"
+  | .or lhs rhs => s!"{lhs.data.toString} || {rhs.data.toString}"
 
 instance : ToString Expr where toString := Expr.toString
 instance : ToString (Typed Expr) where toString texpr := texpr.data.toString

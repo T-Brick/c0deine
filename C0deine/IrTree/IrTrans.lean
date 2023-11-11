@@ -211,12 +211,15 @@ def binop_op_int (op : Tst.BinOp.Int)
   | .rsh   => .inr (.rsh)
 
 def binop_op (op : Tst.BinOp)
-             : IrTree.PureBinop ⊕ IrTree.EffectBinop :=
+    : (Typ.Typed Expr → Typ.Typed Expr → IrTree.Expr) ⊕ IrTree.EffectBinop :=
   match op with
-  | .int iop   => binop_op_int iop
-  | .bool .and => .inl .and
-  | .bool .or  => .inl .or
-  | .cmp c     => .inl (.comp c)
+  | .int iop   =>
+    match binop_op_int iop with
+    | .inl op => .inl (.binop op)
+    | .inr op => .inr op
+  | .bool .and => .inl IrTree.Expr.and
+  | .bool .or  => .inl IrTree.Expr.or
+  | .cmp c     => .inl (.binop (.comp c))
 
 mutual
 partial def expr (tau : Typ)
@@ -245,7 +248,7 @@ partial def expr (tau : Typ)
     let (stmts1, l') ← texpr l
     let (stmts2, r') ← texpr r
     match binop_op op with
-    | .inl op' => return (stmts1.append stmts2, .binop op' l' r') -- pure
+    | .inl expr' => return (stmts1.append stmts2, expr' l' r') -- pure/boolean
     | .inr op' =>
       let size ← Env.Prog.toFunc (Typ.tempSize tau)
       let dest := ⟨size, ← Env.Func.freshTemp⟩
