@@ -106,6 +106,14 @@ structure Prog where
   program : List GDecl
 
 
+def LValue.toExpr : LValue → Expr
+  | .var x        => .var x
+  | .dot lv f     => .dot lv.toExpr f
+  | .arrow lv f   => .arrow lv.toExpr f
+  | .deref lv     => .deref lv.toExpr
+  | .index lv ind => .index lv.toExpr ind
+
+
 def Typ.toString : Typ → String
   | .int => "int"
   | .bool => "bool"
