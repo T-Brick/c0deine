@@ -15,7 +15,7 @@ lean_exe c0deine {
 }
 
 require std from git
-  "https://github.com/leanprover/std4" @ "d5471b83378e8ace4845f9a029af92f8b0cf10cb"
+  "https://github.com/leanprover/std4" @ "v4.3.0-rc1"
 require Cli from git "https://github.com/mhuisi/lean4-cli" @ "nightly"
 -- Megaparsec is not updated with recent lean4 version + apparently unmaintained
 -- require Megaparsec from git
