@@ -51,7 +51,7 @@ inductive TypResolves (Δ : GCtx) : Ast.Typ → Typ → Prop
 
 inductive TypOptResolves (Δ : GCtx) : Option Ast.Typ → Option Typ → Prop
 | none : TypOptResolves Δ none none
-| some : TypResolves Δ t τ → TypOptResolves Δ (some t) (some τ)  
+| some : TypResolves Δ t τ → TypOptResolves Δ (some t) (some τ)
 
 inductive UnopTc : Typ → UnOp → Prop
 | int : UnopTc .int (.int op)
@@ -60,7 +60,7 @@ inductive UnopTc : Typ → UnOp → Prop
 inductive BinopTc : Typ → Typ → BinOp → Prop
 | int : BinopTc .int .int (.int op)
 | bool : BinopTc .bool .bool (.bool op)
-| cmp : BinopTc .int .bool (.cmp cmp)
+| cmp : BinopTc .int .bool (.cmp op)
 
 inductive ExprTc (Δ : GCtx) (Γ : Ident → Option Typ) : Expr → Typ → Prop
 | num     : ExprTc Δ Γ (.num v) .int
@@ -133,12 +133,12 @@ inductive StmtTc (Δ : GCtx) : (Γ : Ident → Option Typ) → Stmt → Option T
 | decl_noninit
   : Γ name = none →
     TypResolves Δ ty τ →
-    StmtsTc Δ (Γ.update name (some τ)) body ρ →
+    StmtsTc Δ (Function.update Γ name (some τ)) body ρ →
     StmtTc Δ Γ (.decl ty name none body) ρ
 | decl_init
   : Γ name = none → ExprTc Δ Γ init τ →
     TypResolves Δ ty τ →
-    StmtsTc Δ (Γ.update name (some τ)) body ρ →
+    StmtsTc Δ (Function.update Γ name (some τ)) body ρ →
     StmtTc Δ Γ (.decl ty name (some init) body) ρ
 | assn_eq
   : LValueTc Δ Γ lv τ → ExprTc Δ Γ v τ →
@@ -180,14 +180,14 @@ inductive FuncSigCompat (Δ : GCtx) (name : Ident) (fs : FuncSig) : Prop
 
 def mapOfList [DecidableEq α] : List (α × β) → (α → Option β)
 | [] => fun _ => none
-| (a,b)::L => (mapOfList L).update a (some b)
+| (a,b)::L => Function.update (mapOfList L) a (some b)
 
 inductive GDeclTc : GCtx → GDecl → GCtx → Prop
 | tydef
   : Δ.func td.name = none →
     Δ.tydef td.name = none →
     TypResolves Δ td.type τ →
-    GDeclTc Δ (.tydef td) {Δ with tydef := Δ.tydef.update td.name τ}
+    GDeclTc Δ (.tydef td) {Δ with tydef := Function.update Δ.tydef td.name τ}
 | fdecl {τ : Fin f.params.length → Typ} {fs : FuncSig}
   : TypOptResolves Δ f.type ρ →
     (∀ i, TypResolves Δ (f.params.get i).type (τ i)) →
@@ -199,7 +199,7 @@ inductive GDeclTc : GCtx → GDecl → GCtx → Prop
     , defined := false
     } →
     FuncSigCompat Δ f.name fs →
-    GDeclTc Δ (.fdecl f) {Δ with func := Δ.func.update f.name fs}
+    GDeclTc Δ (.fdecl f) {Δ with func := Function.update Δ.func f.name fs}
 | fdef {τ : Fin f.params.length → Typ} {fs : FuncSig}
   : TypOptResolves Δ f.type ρ →
     (∀ i, TypResolves Δ f.params[i].type (τ i)) →
@@ -212,7 +212,7 @@ inductive GDeclTc : GCtx → GDecl → GCtx → Prop
     } →
     FuncSigCompat Δ f.name fs →
     StmtsTc Δ (mapOfList (List.ofFn (fun i => (f.params[i].name, τ i)))) f.body ρ →
-    GDeclTc Δ (.fdef f) {Δ with func := Δ.func.update f.name (some {
+    GDeclTc Δ (.fdef f) {Δ with func := Function.update Δ.func f.name (some {
       arity := f.params.length
     , retTy := ρ
     , argTys := τ
@@ -224,8 +224,8 @@ inductive GDeclTc : GCtx → GDecl → GCtx → Prop
   : Δ.struct s.name = none →
     (∀ (i j : Fin s.fields.length), i ≠ j → s.fields[i].name ≠ s.fields[j].name) →
     (∀ i, TypResolves Δ s.fields[i].type (τ i)) →
-    GDeclTc Δ (.sdef s) {Δ with struct := Δ.struct.update s.name (some ⟨
-      mapOfList (List.ofFn (fun i => (s.fields[i].name, τ i)))⟩)}
+    GDeclTc Δ (.sdef s) {Δ with struct := Function.update Δ.struct s.name (
+      some ⟨ mapOfList (List.ofFn (fun i => (s.fields[i].name, τ i))) ⟩)}
 
 inductive GDeclsTc : GCtx → List GDecl → GCtx → Prop
 | nil : GDeclsTc Δ [] Δ
