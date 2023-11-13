@@ -130,9 +130,6 @@ theorem List.length_join_replicate : (replicate n L).join.length = n * L.length 
   . simp [Nat.succ_mul, Nat.add_comm]
     congr
 
-def Function.update (f : α → β) [DecidableEq α] (x v) :=
-  fun i => if i = x then v else f i
-
 def Std.HashMap.insert_multi [BEq α] [Hashable α]
     (self : Std.HashMap α (List β))
     (a : α)

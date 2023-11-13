@@ -1,5 +1,4 @@
-
-import C0deine.AuxDefs
+import Numbers
 import C0deine.IrTree.IrTree
 import C0deine.Type.Tst
 import C0deine.Type.Typ
@@ -426,7 +425,7 @@ partial def Addr.index (arr indx : Typ.Typed Tst.Expr)
 end
 
 mutual
-def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt) := do
+partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt) := do
   match stm with
   | .decl name init body =>
     let t ←
@@ -561,7 +560,7 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
     let (stms, _) ← texpr e -- drop pure expression
     return past.append stms
 
-def stmts (past : List IrTree.Stmt)
+partial def stmts (past : List IrTree.Stmt)
           (stms : List Tst.Stmt)
           : Env.Func (List IrTree.Stmt) := do
   match stms with

@@ -1,8 +1,8 @@
+import Numbers
 import C0deine.AuxDefs
 import C0deine.Parser.Cst
 import C0deine.Parser.C0Lexer
 import C0deine.Context.Context
-import C0deine.Utils.Int32
 
 namespace C0deine.Parser
 
@@ -314,7 +314,7 @@ partial def lvalue.prec_12 : C0Parser LValue :=
 
 partial def lvalue : C0Parser LValue :=
   label "<lvalue>" (lvalue.prec_12)
-    
+
 end
 
 
@@ -438,7 +438,7 @@ def gdecl : C0Parser GDecl :=
   , do return .sdef  (← sdef  tydefs)
   , do
     let sig ← signature tydefs
-    (return .fdecl (← fdecl sig)) 
+    (return .fdecl (← fdecl sig))
     <|> (return .fdef (← fdef tydefs sig))
   ]
 

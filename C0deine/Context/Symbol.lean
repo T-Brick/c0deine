@@ -14,3 +14,4 @@ instance : Ord Symbol where compare s1 s2 := Ord.compare s1.id s2.id
 def Symbol.main : Symbol := ⟨"main", 0⟩
 
 def Symbol.Map (α : Type) := Std.HashMap Symbol α
+def Symbol.Map.empty : Symbol.Map α  := Std.HashMap.empty

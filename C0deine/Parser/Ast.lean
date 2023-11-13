@@ -1,6 +1,6 @@
+import Numbers
 import C0deine.Context.Symbol
 import C0deine.Utils.Comparison
-import C0deine.Utils.Int32
 
 namespace C0deine.Ast
 
@@ -164,7 +164,7 @@ def AsnOp.toString : AsnOp → String
 instance : ToString AsnOp where toString := AsnOp.toString
 
 mutual
-def Expr.toString : Expr → String
+partial def Expr.toString : Expr → String
   | num v => s!"{v}"
   | «true» => "true"
   | «false» => "false"
@@ -181,7 +181,7 @@ def Expr.toString : Expr → String
   | deref e => s!"*({e.toString})"
   | index e i => s!"({e.toString})[{i.toString}]"
 
-def Expr.argsToString : List Expr → String
+partial def Expr.argsToString : List Expr → String
   | [] => ""
   | arg :: [] => s!"{arg.toString}"
   | arg :: args => s!"{arg.toString}, {Expr.argsToString args}"
@@ -198,7 +198,7 @@ def LValue.toString : LValue → String
 instance : ToString LValue where toString := LValue.toString
 
 mutual
-def Stmt.toString (s : Stmt) : String :=
+partial def Stmt.toString (s : Stmt) : String :=
   match s with
   | .decl type name init body =>
     let initStr :=
@@ -215,7 +215,7 @@ def Stmt.toString (s : Stmt) : String :=
   | .assert e => s!"assert({e})"
   | .exp e => s!"{e}"
 
-def Stmt.listToString (stmts : List Stmt) : String :=
+partial def Stmt.listToString (stmts : List Stmt) : String :=
   match stmts with
   | [] => ""
   | stmt :: stmts =>

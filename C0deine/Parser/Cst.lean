@@ -1,5 +1,5 @@
+import Numbers
 import C0deine.Context.Symbol
-import C0deine.Utils.Int32
 
 namespace C0deine.Cst
 
@@ -213,7 +213,7 @@ instance : ToString PostOp where toString := PostOp.toString
 
 
 mutual
-def Expr.toString : Expr → String
+partial def Expr.toString : Expr → String
   | num v => s!"{v}"
   | «true» => "true"
   | «false» => "false"
@@ -230,7 +230,7 @@ def Expr.toString : Expr → String
   | deref e => s!"*({e.toString})"
   | index e i => s!"({e.toString})[{i.toString}]"
 
-def Expr.argsToString : List Expr → String
+partial def Expr.argsToString : List Expr → String
   | [] => ""
   | arg :: [] => s!"{arg.toString}"
   | arg :: args => s!"{arg.toString}, {Expr.argsToString args}"
@@ -247,20 +247,20 @@ def LValue.toString : LValue → String
 instance : ToString LValue where toString := LValue.toString
 
 mutual
-def Stmt.toString (s : Stmt) : String :=
+partial def Stmt.toString (s : Stmt) : String :=
   match s with
   | .simp s => Simp.toString s
   | .ctrl c => Control.toString c
   | .block b =>
     "{\n\t".append (Stmt.listToString b)
 
-def Stmt.listToString (stmts : List Stmt) : String :=
+partial def Stmt.listToString (stmts : List Stmt) : String :=
   match stmts with
   | [] => "\n}"
   | stmt :: stmts =>
     s!"\n\t{Stmt.toString stmt}" |>.append (Stmt.listToString stmts)
 
-def Control.toString (c : Control) : String :=
+partial def Control.toString (c : Control) : String :=
   match c with
   | .ite cond tt ff => s!"if({cond})\n{Stmt.toString tt}\n{Stmt.toString ff}"
   | .while cond body => s!"while({cond})\n{Stmt.toString body}"
@@ -278,7 +278,7 @@ def Control.toString (c : Control) : String :=
   | .«return» (.some e) => s!"return {e};"
   | .assert e => s!"assert({e});"
 
-def Simp.toString (s : Simp) : String :=
+partial def Simp.toString (s : Simp) : String :=
   match s with
   | .assn lv op v => s!"{lv} {op} {v}"
   | .post lv op => s!"({lv}){op}"

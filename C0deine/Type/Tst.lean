@@ -2,9 +2,9 @@
   A Typed Syntax Tree, which is similar to the AST, but with expressions
   having typed annotations. Types are dealiased in this representation.
  -/
+import Numbers
 import C0deine.Type.Typ
 import C0deine.Context.Symbol
-import C0deine.Utils.Int32
 import C0deine.Utils.Comparison
 
 namespace C0deine.Tst
@@ -169,7 +169,7 @@ instance : ToString (List (Typed Symbol)) where
   toString tss := tss.map Typed.toString |> String.intercalate ", "
 
 mutual
-def Stmt.toString (s : Stmt) : String :=
+partial def Stmt.toString (s : Stmt) : String :=
   match s with
   | .decl name init body =>
     let initStr :=
@@ -187,7 +187,7 @@ def Stmt.toString (s : Stmt) : String :=
   | .assert e => s!"assert{e}"
   | .expr e => s!"{e}"
 
-def Stmt.listToString (stmts : List Stmt) : String :=
+partial def Stmt.listToString (stmts : List Stmt) : String :=
   match stmts with
   | [] => ""
   | stmt :: stmts =>

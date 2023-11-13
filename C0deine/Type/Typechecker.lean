@@ -631,7 +631,7 @@ def wrapError (stmt : Ast.Stmt)
   res.tryCatch (fun err => throw {err with statement := some stmt})
 
 mutual
-def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
+partial def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
   let handle := wrapError stm
   let handleLV := wrapError stm
   let throwS := throw ∘ Error.stmt stm
@@ -784,7 +784,7 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
     let (calls, e') ← handle <| Synth.Expr.small <| Synth.Expr.expr ctx e
     return ({ctx with calls}, .expr e')
 
-def stmts (ctx : FuncCtx)
+partial def stmts (ctx : FuncCtx)
           (body : List Ast.Stmt)
           : Except Error (FuncCtx × List Tst.Stmt) := do
   match body with
