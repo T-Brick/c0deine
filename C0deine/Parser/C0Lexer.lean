@@ -12,7 +12,7 @@ deriving DecidableEq, Ord
 
 def Num.str : Num → String
 | dec s => s
-| hex s => s
+| hex s => s!"0x{s}"
 
 def specialCharactersRaw := #[
     ("bang"      , "!")
@@ -248,11 +248,9 @@ def tokens : C0Lexer (Array (ParserState.SourcePos × Token)) := do
       <|> (.special <$> special)
       <|> (.num     <$> num)
       <|> (.ident   <$> ident)
-    
-    ws 
+
+    ws
 
     return acc.push (pos,tok)
   )
   return arr
-
-

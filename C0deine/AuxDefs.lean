@@ -1,4 +1,5 @@
 import Std
+import Numbers
 
 def Nat.digitCharInv! : Char → Nat
 | '0' => 0
@@ -25,7 +26,7 @@ def Char.isHexDigit : Char → Bool
 | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' => true
 | _ => false
 
-def Nat.ofDigits? (base : Nat) (s : String) : Option Nat :=
+def Nat.ofDigits? (base : Nat) (s : Substring) : Option Nat :=
   s.foldl (fun acc c =>
     acc.bind fun acc =>
       if c.isHexDigit then
@@ -37,6 +38,27 @@ def Nat.ofDigits? (base : Nat) (s : String) : Option Nat :=
       else
         none)
     (some 0)
+
+def Substring.toNat?' (s : Substring) : Option Nat :=
+  if s.get 0 = '0' && ((s.drop 1 |>.get 0) = 'x' || (s.drop 1 |>.get 0) = 'X')
+  then Nat.ofDigits? 16 (s.drop 2)
+  else Nat.ofDigits? 10 s
+
+def String.toInt32? (s : String) : Option Int32 := do
+  if s.get 0 = '-' then
+    let v ← (s.toSubstring.drop 1).toNat?';
+    pure <| Numbers.Signed.ofInt (-v)
+  else
+    Numbers.Signed.ofInt <$> s.toSubstring.toNat?'
+
+def String.toInt32! (s : String) : Int32 :=
+  match s.toInt32? with
+  | some v => v
+  | none   => panic "Int32 expected"
+
+#eval "-0x80000000".toInt32?
+#eval "-0x7FFFFFFF".toInt32?
+#eval 0x80000000
 
 def UInt64.max (n m : UInt64) : UInt64 :=
   if n > m then n else m

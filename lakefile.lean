@@ -20,5 +20,5 @@ require Cli from git "https://github.com/mhuisi/lean4-cli" @ "nightly"
 require numbers from git
   "https://github.com/T-Brick/Numbers" @ "main"
 -- Megaparsec is not updated with recent lean4 version + apparently unmaintained
--- require Megaparsec from git
-  -- "https://github.com/lurk-lab/Megaparsec.lean" @ "93b28d0ee4be435b6b395d8b6f816fabfc085166"
+require Megaparsec from git
+  "https://github.com/lurk-lab/Megaparsec.lean" @ "main"

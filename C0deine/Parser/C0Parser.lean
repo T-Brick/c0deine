@@ -39,14 +39,19 @@ def ident : C0Parser Ident :=
   else
     return id
 
-def num : C0Parser Int32 :=
+def num (sign : Int := 1) : C0Parser Int32 :=
   label "<number>" <| do
   let n : String ← attempt (do
     match ← anySingle with
-    | Token.num n =>
-      return n.str
+    | Token.num n => return n.str
     | _ => failure)
-  match Int32.ofInt? n.toInt! with
+  match Substring.toNat?' n.toSubstring
+     |>.bind (fun n =>
+                let res := n * sign
+                if res = 2147483648
+                then Numbers.Signed.ofInt? (-2147483648)
+                else Numbers.Signed.ofInt? res
+             ) with
   | .none => failure
   | .some i => return i
 
@@ -205,7 +210,10 @@ where
 partial def expr.prec_12 : C0Parser Expr :=
   label "<expr-12>" <|
   choice [
-    (do let op ← unop; let e ← expr.prec_12; return .unop op e)
+    (do let op ← unop;
+        (do return .num (←num (sign := -1)))
+        <|> (do let e ← expr.prec_12;
+                return .unop op e))
   , (do sc .star; let e ← expr.prec_12; return .deref e)
   , expr.prec_13
   ]
