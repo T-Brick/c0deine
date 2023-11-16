@@ -26,6 +26,14 @@
     "inputRev?": "main",
     "inherited": false}},
   {"git":
+   {"url": "https://github.com/T-Brick/ControlFlow",
+    "subDir?": null,
+    "rev": "59e8dd15b7a9139400ca1a26d09fdbca438b211d",
+    "opts": {},
+    "name": "controlflow",
+    "inputRev?": "main",
+    "inherited": false}},
+  {"git":
    {"url": "https://github.com/lurk-lab/Megaparsec.lean",
     "subDir?": null,
     "rev": "8fe9efef4d0ab1f18838aa71f1d2df9906f5212a",
