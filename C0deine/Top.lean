@@ -17,6 +17,9 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   let tcOnly : Bool := p.hasFlag "typecheck"
   let verbose : Bool := p.hasFlag "verbose"
 
+  let vprintln : {α : Type} → [ToString α] → α → IO Unit :=
+    fun s => do if verbose then IO.println s
+
   if !(← input.pathExists) then
     panic! "Input file does not exist: {input}"
   if ← input.isDir then
@@ -41,7 +44,7 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   let contents ← IO.FS.readFile input
   let header ← libInput.mapM (IO.FS.readFile)
 
-  if verbose then IO.println "parsing header"
+  vprintln "parsing header"
 
   let (header, headerTydefs, ctx) ← do
     match header with
@@ -55,7 +58,7 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     | (.ok (cst, tydefs), ctx) =>
       pure (some cst, tydefs, ctx)
 
-  if verbose then IO.println "parsing input"
+  vprintln "parsing input"
 
   match Parser.C0Parser.parse headerTydefs contents ctx with
   | (.error e, _) =>
@@ -63,13 +66,13 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     return 1
   | (.ok (cst,_), ctx) =>
 
-  -- if verbose then IO.println cst
-  if verbose then IO.println "abstracting"
+  -- vprintln cst
+  vprintln "abstracting"
 
   let ast ← IO.ofExcept <| Abstractor.abstract lang header cst
 
-  if verbose then IO.println ast
-  if verbose then IO.println "typechecking"
+  vprintln ast
+  vprintln "typechecking"
 
   match Typechecker.typecheck ast with
   | .error e =>
@@ -79,13 +82,15 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
 
   if tcOnly then return 0
 
-  if verbose then IO.println "typechecked!"
-  if verbose then IO.println tst
+  vprintln "typechecked!"
+  vprintln tst
 
-  if verbose then IO.println "ir translation..."
+  vprintln "ir translation..."
   let (irtree, ctx) := IrTree.Trans.prog config tst ctx
-  if verbose then IO.println "ir tree!"
-  if verbose then IO.println irtree
+  vprintln "ir tree!"
+  vprintln irtree
+
+  vprintln "building cfg's..."
 
 
   return 0

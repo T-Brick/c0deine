@@ -25,7 +25,7 @@ inductive Shape where
 | multi  : (left right : Option Shape) → (next : Option Shape) → Shape
 | illegal : List Label → Shape
 
-def Shape.toString : Shape → String
+partial def Shape.toString : Shape → String
   | .simple l s =>
     let r := opt_toString s
     s!"Simple\n  <{l}>\n  {r}"
