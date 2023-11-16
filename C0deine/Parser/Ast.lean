@@ -4,8 +4,8 @@ import C0deine.Utils.Comparison
 
 namespace C0deine.Ast
 
-def Ident := Symbol
-deriving ToString, DecidableEq
+@[reducible] def Ident := Symbol
+deriving ToString, DecidableEq, Repr
 
 inductive Typ
 | int

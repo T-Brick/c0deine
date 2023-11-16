@@ -169,7 +169,7 @@ def Typ.size (tau : Typ) : Env.Prog (Option UInt64) := do
   match tau with
   | .any              => return none
   | .prim .int        => return some 4
-  | .prim .bool       => return some 4
+  | .prim .bool       => return some 4 -- todo reduce to 1
   | .mem (.pointer _) => return some 8
   | .mem (.array _)   => return some 8
   | .mem (.struct n)  =>
@@ -184,7 +184,7 @@ def Typ.tempSize (tau : Typ) : Env.Prog ValueSize := do
   | some 1 => return .byte
   | _      => return .double
 
-def Elab.lvalue (tlv : Typ.Typed Tst.LValue) : Typ.Typed Tst.Expr :=
+partial def Elab.lvalue (tlv : Typ.Typed Tst.LValue) : Typ.Typed Tst.Expr :=
   ⟨ tlv.type
   , match tlv.data with
     | .var name      => .var name
@@ -192,8 +192,6 @@ def Elab.lvalue (tlv : Typ.Typed Tst.LValue) : Typ.Typed Tst.Expr :=
     | .deref lv      => .deref (Elab.lvalue lv)
     | .index lv indx => .index (Elab.lvalue lv) indx
   ⟩
-termination_by Elab.lvalue tlv => sizeOf tlv.data
-decreasing_by sorry
 
 def binop_op_int (op : Tst.BinOp.Int)
                   : IrTree.PureBinop ⊕ IrTree.EffectBinop :=

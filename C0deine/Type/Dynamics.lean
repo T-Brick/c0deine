@@ -1,9 +1,11 @@
 import C0deine.AuxDefs
 import C0deine.Parser.Ast
+import C0deine.Type.Statics
 
-namespace C0deine.Dynamics
+namespace C0deine.Ast.Dynamics
 
 open Ast
+open Statics
 
 inductive Exception
 | memory
@@ -11,19 +13,58 @@ inductive Exception
 | abort
 
 inductive Address
-| var : Ident → Address
 | ref : Nat → Address
+| null : Address
+deriving Inhabited, Repr
 
 inductive Value
 | num : Int32 → Value
 | «true» | «false»
 | nothing
-| ptr : Option Nat → Value
-deriving Inhabited, Repr
+| addr : Address → Value
+| struct : (Ident → Value) → Value
+| arr : List Value → Value
+deriving Inhabited
 
 inductive BinOp
 | int (op : BinOp.Int)
 | cmp (op : Comparator)
+
+inductive TypeValue : Value → Statics.Typ → Prop
+| num     : TypeValue (.num i) .int
+| «true»  : TypeValue .true .bool
+| «false» : TypeValue .false .bool
+| ptr     : TypeValue (.addr a) (.ptr ty) -- todo is this right?
+| arr     : TypeValue (.addr a) (.arr τ)  --      should check heap?
+-- todo finish
+
+inductive Default : Statics.Typ → Value → Prop
+| int    : Default .int (.num 0)
+| bool   : Default .bool .false
+| ptr    : Default (.ptr t) (.addr .null)
+| struct : Default (.struct t) (.addr .null)
+| arr    : Default (.arr t) (.addr .null)
+
+inductive IsExtern
+  : (Δ : ProgTc (p : Prog))
+  → (type : Option Typ)
+  → (f : Ident)
+  → (params : List Param)
+  → Prop
+where
+| extern : (GDecl.fdecl ⟨type, f, params⟩) ∈ Prog.program p
+         → IsExtern Δ type f params
+
+inductive FindFDef
+  : (Δ : ProgTc (p : Prog))
+  → (type : Option Typ)
+  → (f : Ident)
+  → (params : List Param)
+  → (body : List Stmt)
+  → Prop
+where
+| body : (GDecl.fdef ⟨⟨type, f, params⟩, body⟩) ∈ Prog.program p
+       → FindFDef Δ type f params body
 
 -- continuation frames can result in a value or an address
 --  importantly, addresses are just the intermediate results, they aren't
@@ -39,9 +80,9 @@ inductive Cont : Cont.Res → Type
 | and       : Expr → Cont .val → Cont .val                   -- _ && e
 | or        : Expr → Cont .val → Cont .val                   -- _ || e
 | ternop    : Expr → Expr → Cont .val → Cont .val            -- _ ? e₁ : e₂
-| app       : Ident → Cont .val → Cont .val                  -- f(_)
-| arg       : List Value → List Expr → Cont .val → Cont .val -- (vs,_,es)
-| alloc_arr : Typ → Cont .val → Cont .val                    -- alloc_array(t,_)
+| app       : Ident → List Value → List Expr
+                    → Cont .val → Cont .val                  -- f(vs,_,es)
+| alloc_arr : Statics.Typ → Cont .val → Cont .val            -- alloc_array(τ,_)
 | dot       : Ident → Cont .addr → Cont .addr                -- &(_.f)
 | deref     : Cont .val → Cont .addr                         -- *_
 | index₁    : Expr → Cont .addr → Cont .val                  -- &(_[e])
@@ -69,24 +110,51 @@ inductive DynResult : Prop
 | nop      : Cont r → DynResult -- maybe move into AST
 | res      : Int32 → DynResult
 
-notation:50 lhs:51 " ▷ " rhs:51 => DynResult.eval lhs rhs
-notation:50 lhs:51 " ▸ " rhs:51 => DynResult.exec lhs rhs
 
-def Environment := Symbol.Map Value
-def Environment.empty : Environment := Symbol.Map.empty
+def Environment := Symbol → Option Value
+
+namespace Environment
+
+def empty : Environment := fun _ => .none
+def update (η : Environment) (x : Symbol) (v : Value) : Environment :=
+  Function.update η x v
+
+def find! (η : Environment) (x : Symbol) : Value :=
+  match η x with
+  | .none   => panic! s!"var not found"
+  | .some v => v
+
+def ofLists (params : List Param) (vargs : List Value) : Environment :=
+  List.zip params vargs
+  |>.foldl (fun η (p, v) => η.update p.name v) Environment.empty
+
+end Environment
 
 structure StackFrame where
   environment : Environment
-  continuation : Cont r
+  continuation : Cont .val
 
 structure Heap where
-  data : Std.HashMap Nat Value
+  data : Nat → Option Value
   next : Nat
 
-def Heap.empty : Heap :=
-  { data := Std.HashMap.empty
-  , next := 0
-  }
+namespace Heap
+
+def empty : Heap := { data := fun _ => .none, next := 0 }
+def update (H : Heap) (a : Nat) (v : Value) : Heap :=
+  { data := Function.update H.data a v, next := H.next }
+
+def find (H : Heap) : Address → Value ⊕ Exception
+  | .null => .inr .memory
+  | .ref a =>
+    match H.data a with
+    | .none => .inr .memory
+    | .some v => .inl v
+
+def add (H : Heap) (v : Value) : Address × Heap :=
+  (.ref H.next, ⟨fun a => if a = H.next then v else H.data a, H.next + 1⟩)
+
+end Heap
 
 inductive Step.UnOp : UnOp → Value → Value → Prop
 | int_neg : UnOp (.int .neg)  (.num c) (.num (-c))
@@ -122,145 +190,256 @@ inductive Step.BinOp : Value → BinOp → Value → Value ⊕ Exception → Pro
 | le  : BinOp (.num c₁) (.cmp .less_equal)    (.num c₂) (bool (c₁ ≤ c₂))
 | ge  : BinOp (.num c₁) (.cmp .greater_equal) (.num c₂) (bool (c₁ ≥ c₂))
 
-
-inductive Step : (H : Heap) → (S : List StackFrame) → (η : Environment) → DynResult → Prop
+inductive Step (Δ : ProgTc p) : (H : Heap) → (S : List StackFrame) → (η : Environment) → DynResult → Prop
 | num
-  : Step H S η (.eval (.num c) K)
-  → Step H S η (.val (.num c) K)
+  : Step Δ H S η (.eval (.num c) K)
+  → Step Δ H S η (.val (.num c) K)
 | «true»
-  : Step H S η (.eval .true K)
-  → Step H S η (.val .true K)
+  : Step Δ H S η (.eval .true K)
+  → Step Δ H S η (.val .true K)
 | «false»
-  : Step H S η (.eval .false K)
-  → Step H S η (.val .false K)
+  : Step Δ H S η (.eval .false K)
+  → Step Δ H S η (.val .false K)
 | null
-  : Step H S η (.eval .null K)
-  → Step H S η (.val (.ptr .none) K)
+  : Step Δ H S η (.eval .null K)
+  → Step Δ H S η (.val (.addr .null) K)
 | unop
-  : Step H S η (.eval (.unop op e) K)
-  → Step H S η (.eval e (.unop op K))
+  : Step Δ H S η (.eval (.unop op e) K)
+  → Step Δ H S η (.eval e (.unop op K))
 | unop_res
-  : Step H S η (.val c (.unop op K))
+  : Step Δ H S η (.val c (.unop op K))
   → Step.UnOp op c v
-  → Step H S η (.val v K)
+  → Step Δ H S η (.val v K)
 | binop_int₁
-  : Step H S η (.eval (.binop (.int op) e₁ e₂) K)
-  → Step H S η (.eval e₁ (.binop₁ (.int op) e₂ K))
+  : Step Δ H S η (.eval (.binop (.int op) e₁ e₂) K)
+  → Step Δ H S η (.eval e₁ (.binop₁ (.int op) e₂ K))
 | binop_int₂
-  : Step H S η (.val c₁ (.binop₁ (.int op) e₂ K))
-  → Step H S η (.eval e₂ (.binop₂ c₁ (.int op) K))
+  : Step Δ H S η (.val c₁ (.binop₁ (.int op) e₂ K))
+  → Step Δ H S η (.eval e₂ (.binop₂ c₁ (.int op) K))
 | binop_cmp₁
-  : Step H S η (.eval (.binop (.cmp op) e₁ e₂) K)
-  → Step H S η (.eval e₁ (.binop₁ (.cmp op) e₂ K))
+  : Step Δ H S η (.eval (.binop (.cmp op) e₁ e₂) K)
+  → Step Δ H S η (.eval e₁ (.binop₁ (.cmp op) e₂ K))
 | binop_cmp₂
-  : Step H S η (.val c₁ (.binop₁ (.cmp op) e₂ K))
-  → Step H S η (.eval e₂ (.binop₂ c₁ (.cmp op) K))
+  : Step Δ H S η (.val c₁ (.binop₁ (.cmp op) e₂ K))
+  → Step Δ H S η (.eval e₂ (.binop₂ c₁ (.cmp op) K))
 | binop_res
-  : Step H S η (.val c₂ (.binop₂ c₁ op K))
+  : Step Δ H S η (.val c₂ (.binop₂ c₁ op K))
   → Step.BinOp c₁ op c₂ (.inl v)
-  → Step H S η (.val v K)
+  → Step Δ H S η (.val v K)
 | binop_exn
-  : Step H S η (.val c₂ (.binop₂ c₁ op K))
+  : Step Δ H S η (.val c₂ (.binop₂ c₁ op K))
   → Step.BinOp c₁ op c₂ (.inr exn)
-  → Step H S η (.exn exn)
+  → Step Δ H S η (.exn exn)
 | and₁
-  : Step H S η (.eval (.binop (.bool .and) e₁ e₂) K)
-  → Step H S η (.eval e₁ (.and e₂ K))
+  : Step Δ H S η (.eval (.binop (.bool .and) e₁ e₂) K)
+  → Step Δ H S η (.eval e₁ (.and e₂ K))
 | and₂
-  : Step H S η (.val .true (.and e₂ K))
-  → Step H S η (.eval e₂ K)
+  : Step Δ H S η (.val .true (.and e₂ K))
+  → Step Δ H S η (.eval e₂ K)
 | and_sc
-  : Step H S η (.val .false (.and e₂ K))
-  → Step H S η (.val .false K)
+  : Step Δ H S η (.val .false (.and e₂ K))
+  → Step Δ H S η (.val .false K)
 | or₁
-  : Step H S η (.eval (.binop (.bool .or) e₁ e₂) K)
-  → Step H S η (.eval e₁ (.or e₂ K))
+  : Step Δ H S η (.eval (.binop (.bool .or) e₁ e₂) K)
+  → Step Δ H S η (.eval e₁ (.or e₂ K))
 | or₂
-  : Step H S η (.val .false (.or e₂ K))
-  → Step H S η (.eval e₂ K)
+  : Step Δ H S η (.val .false (.or e₂ K))
+  → Step Δ H S η (.eval e₂ K)
 | or_sc
-  : Step H S η (.val .true (.or e₂ K))
-  → Step H S η (.val .true K)
+  : Step Δ H S η (.val .true (.or e₂ K))
+  → Step Δ H S η (.val .true K)
 | ternop
-  : Step H S η (.eval (.ternop cc tt ff) K)
-  → Step H S η (.eval cc (.ternop tt ff K))
+  : Step Δ H S η (.eval (.ternop cc tt ff) K)
+  → Step Δ H S η (.eval cc (.ternop tt ff K))
 | ternop_t
-  : Step H S η (.val .true (.ternop tt ff K))
-  → Step H S η (.eval tt K)
+  : Step Δ H S η (.val .true (.ternop tt ff K))
+  → Step Δ H S η (.eval tt K)
 | ternop_f
-  : Step H S η (.val .false (.ternop tt ff K))
-  → Step H S η (.eval ff K)
--- | app
-  -- : Step H S η (.eval (.app f []) K)
-  -- → Step H (⟨η, K⟩ :: S) (Environment.empty) (.exec sorry .nil)
+  : Step Δ H S η (.val .false (.ternop tt ff K))
+  → Step Δ H S η (.eval ff K)
+-- todo generalise this a bit : )
+| app_args
+  : Step Δ H S η (.eval (.app f (e::args)) K)
+  → Step Δ H S η (.eval e (.app f [] args K))
+| app_args_cont
+  : Step Δ H S η (.val v (.app f vargs (e::args) K))
+  → Step Δ H S η (.eval e (.app f (vargs ++ [v]) args K))
+| app_args_call
+  : Step Δ H S η (.val v (.app f vargs [] K))
+  → FindFDef Δ τ_opt f ps body
+  → Step Δ H (⟨η, K⟩::S) (Environment.ofLists ps vargs) (.exec_seq body .nil)
+| app_args_extern_nonvoid
+  : Step Δ H S η (.val v (.app f vargs [] K))
+  → IsExtern Δ (.some ty) f params
+  → TypResolves Δ.prog_ctx ty τ
+  → (H' : Heap)
+  → TypeValue res τ
+  → Step Δ H' S η (.val res K)
+| app_args_extern_void
+  : Step Δ H S η (.val v (.app f vargs [] K))
+  → IsExtern Δ .none f params
+  → (H' : Heap)
+  → Step Δ H' S η (.nop K)
+| app_unit_extern_nonvoid
+  : Step Δ H S η (.eval (.app f []) K)
+  → IsExtern Δ (.some ty) f params
+  → TypResolves Δ.prog_ctx ty τ
+  → (H' : Heap)
+  → TypeValue res τ
+  → Step Δ H' S η (.val res K)
+| app_unit_extern_void
+  : Step Δ H S η (.eval (.app f []) K)
+  → IsExtern Δ .none f params
+  → (H' : Heap)
+  → Step Δ H' S η (.nop K)
+| app_unit_call
+  : Step Δ H S η (.eval (.app f []) K)
+  → FindFDef Δ τ_opt f params body
+  → Step Δ H (⟨η, K⟩ :: S) (Environment.empty) (.exec_seq body .nil)
 -- todo app
--- todo alloc
--- todo alloc_array
+| alloc
+  : Step Δ H S η (.eval (.alloc ty) K)
+  → TypResolves Δ.prog_ctx ty τ
+  → Default τ v
+  → H.add v = (a, H')
+  → Step Δ H' S η (.val (.addr a) K)
+| alloc_array
+  : Step Δ H S η (.eval (.alloc_array ty e) K)
+  → TypResolves Δ.prog_ctx ty τ
+  → Step Δ H S η (.eval e (.alloc_arr τ K))
+| alloc_array_lt_zero
+  : Step Δ H S η (.val (.num n) (.alloc_arr τ K))
+  → n < 0
+  → Step Δ H S η (.exn .memory)
+| alloc_array_val
+  : Step Δ H S η (.val (.num n) (.alloc_arr τ K))
+  → n ≥ 0
+  → Default τ v
+  → H.add (.arr (List.ofFn (n := n.toNat) (fun _ => v))) = (a, H')
+  → Step Δ H' S η (.val (.addr a) K)
 | var
-  : Step H S η (.eval (.var x) K)
-  → Step H S η (.val (η.find! x) K)
--- todo dot
--- todo arrow
--- todo deref
--- todo index
+  : Step Δ H S η (.eval (.var x) K)
+  → Step Δ H S η (.val (η.find! x) K)
+| dot
+  : Step Δ H S η (.eval (.dot e f) K)
+  → Step Δ H S η (.eval e (.dot f K))
+| dot_val
+  : Step Δ H S η (.val (.struct fields) (.dot f K))
+  → Step Δ H S η (.val (fields f) K)
+| dot_null
+  : Step Δ H S η (.val (.addr .null) (.dot f K))
+  → Step Δ H S η (.exn .memory)
+| arrow
+  : Step Δ H S η (.eval (.arrow e f) K)
+  → Step Δ H S η (.eval (.dot (.deref e) f) K)
+| deref₁
+  : Step Δ H S η (.eval (.deref e) K)
+  → Step Δ H S η (.eval e (.deref K))
+| deref_val
+  : Step Δ H S η (.val (.addr a) (.deref K))
+  → H.find a = .inl v
+  → Step Δ H S η (.val v K)
+| deref_exn
+  : Step Δ H S η (.val (.addr a) (.deref K))
+  → H.find a = .inr exn
+  → Step Δ H S η (.exn exn)
+| index₁
+  : Step Δ H S η (.eval (.index e₁ e₂) K)
+  → Step Δ H S η (.eval e₁ (.index₁ e₂ K))
+| index₂
+  : Step Δ H S η (.val (.addr a) (.index₁ e₂ K))
+  → Step Δ H S η (.eval e₂ (.index₂ a K))
+| index_val
+  : Step Δ H S η (.val (.num i) (.index₂ a K))
+  → H.find a = .inl (.arr arr)
+  → (bounds : 0 ≤ i ∧ i.toNat < arr.length)
+  → Step Δ H S η (.val (arr.get ⟨i.toNat, bounds.right⟩) K)
+| index_lt_zero
+  : Step Δ H S η (.val (.num i) (.index₂ a K))
+  → H.find a = .inl (.arr arr)
+  → i < 0
+  → Step Δ H S η (.exn .memory)
+| index_gt_length
+  : Step Δ H S η (.val (.num i) (.index₂ a K))
+  → H.find a = .inl (.arr arr)
+  → i.toNat ≥ arr.length
+  → Step Δ H S η (.exn .memory)
+| index_null
+  : Step Δ H S η (.val i (.index₂ a K))
+  → H.find a = .inr exn
+  → Step Δ H S η (.exn exn)
 /- STATEMENTS -/
 | decl_none
-  : Step H S η (.exec (.decl τ x .none body) K)
-  → Step H S (η.insert x .nothing) (.exec_seq body K)
+  : Step Δ H S η (.exec (.decl τ x .none body) K)
+  → Step Δ H S (η.update x .nothing) (.exec_seq body K)
 | decl_assn
-  : Step H S η (.exec (.decl τ x (.some e) body) K)
-  → Step H S (η.insert x .nothing) (.eval e (K.consStmtList body))
+  : Step Δ H S η (.exec (.decl τ x (.some e) body) K)
+  → Step Δ H S (η.update x .nothing) (.eval e (K.consStmtList body))
 | assn_var_eq₁
-  : Step H S η (.exec (.assn (.var x) .eq e) K)
-  → Step H S η (.eval e (.assn_var x K))
+  : Step Δ H S η (.exec (.assn (.var x) .eq e) K)
+  → Step Δ H S η (.eval e (.assn_var x K))
 | assn_var_eq₂
-  : Step H S η (.val v (.assn_var x K))
-  → Step H S (η.insert x v) (.nop K)
+  : Step Δ H S η (.val v (.assn_var x K))
+  → Step Δ H S (η.update x v) (.nop K)
 | assn_var_op
-  : Step H S η (.exec (.assn (.var x) (.aseq op) e) K)
-  → Step H S η (.exec (.assn (.var x) .eq (.binop (.int op) (.var x) e)) K)
+  : Step Δ H S η (.exec (.assn (.var x) (.aseq op) e) K)
+  → Step Δ H S η (.exec (.assn (.var x) .eq (.binop (.int op) (.var x) e)) K)
 | assn_addr₁
-  : Step H S η (.exec (.assn lv op e) K)
-  → Step H S η (.eval lv.toExpr (.assn₁ e op K))
+  : Step Δ H S η (.exec (.assn lv op e) K)
+  → Step Δ H S η (.eval lv.toExpr (.assn₁ e op K))
 | assn_addr₂
-  : Step H S η (.val v (.assn₁ e op K))
--- todo assn
+  : Step Δ H S η (.val (.addr a) (.assn₁ e op K))
+  → Step Δ H S η (.eval e (.assn₂ a op K))
+| assn_addr_eq_val
+  : Step Δ H S η (.val v (.assn₂ (.ref a) .eq K))
+  → Step Δ (H.update a v) S η (.nop K)
+| assn_addr_null
+  : Step Δ H S η (.val v (.assn₂ .null op K))
+  → Step Δ H S η (.exn .memory)
+| assn_addr_op_val                    -- todo: double check this probs
+  : Step Δ H S η (.val (.num c) (.assn₂ a (.aseq op) K))
+  → H.find a = .inl (.num da)
+  → Step Δ H S η (.eval (.binop (.int op) (.num da) (.num c)) K)
+| assn_addr_op_exn                    -- todo: likewise
+  : Step Δ H S η (.val (.num c) (.assn₂ a (.aseq op) K))
+  → H.find a = .inr exn
+  → Step Δ H S η (.exn exn)
 | ite
-  : Step H S η (.exec (.ite e tt ff) K)
-  → Step H S η (.eval e (.ite tt ff K))
+  : Step Δ H S η (.exec (.ite e tt ff) K)
+  → Step Δ H S η (.eval e (.ite tt ff K))
 | ite_t
-  : Step H S η (.val .true (.ite tt ff K))
-  → Step H S η (.exec_seq tt K)
+  : Step Δ H S η (.val .true (.ite tt ff K))
+  → Step Δ H S η (.exec_seq tt K)
 | ite_f
-  : Step H S η (.val .false (.ite tt ff K))
-  → Step H S η (.exec_seq ff K)
+  : Step Δ H S η (.val .false (.ite tt ff K))
+  → Step Δ H S η (.exec_seq ff K)
 | while
-  : Step H S η (.exec (.while e body) K)
-  → Step H S η (.exec (.ite e (body.append [.while e body]) []) K)
+  : Step Δ H S η (.exec (.while e body) K)
+  → Step Δ H S η (.exec (.ite e (body.append [.while e body]) []) K)
 | return_val₁
-  : Step H S η (.exec (.return (.some e)) K)
-  → Step H S η (.eval e .return)
+  : Step Δ H S η (.exec (.return (.some e)) K)
+  → Step Δ H S η (.eval e .return)
 | return_main
-  : Step H [] η (.val (.num c) .return)
-  → Step H [] η (.res c)
+  : Step Δ H [] η (.val (.num c) .return)
+  → Step Δ H [] η (.res c)
 | return_val₂
-  : Step H (frame :: S) η (.val v .return)
-  → Step H S frame.environment (.val v frame.continuation)
+  : Step Δ H (frame :: S) η (.val v .return)
+  → Step Δ H S frame.environment (.val v frame.continuation)
 | return_none
-  : Step H (frame :: S) η (.exec (.return .none) K)
-  → Step H S frame.environment (.nop frame.continuation)
+  : Step Δ H (frame :: S) η (.exec (.return .none) K)
+  → Step Δ H S frame.environment (.nop frame.continuation)
 | assert
-  : Step H S η (.exec (.assert e) K)
-  → Step H S η (.eval e (.assert K))
+  : Step Δ H S η (.exec (.assert e) K)
+  → Step Δ H S η (.eval e (.assert K))
 | assert_t
-  : Step H S η (.val .true (.assert K))
-  → Step H S η (.nop K)
+  : Step Δ H S η (.val .true (.assert K))
+  → Step Δ H S η (.nop K)
 | assert_f
-  : Step H S η (.val .false (.assert K))
-  → Step H S η (.exn .abort)
+  : Step Δ H S η (.val .false (.assert K))
+  → Step Δ H S η (.exn .abort)
 | exp₁
-  : Step H S η (.exec (.exp e) K)
-  → Step H S η (.eval e (.discard K))
+  : Step Δ H S η (.exec (.exp e) K)
+  → Step Δ H S η (.eval e (.discard K))
 | exp₂
-  : Step H S η (.val v (.discard K))
-  → Step H S η (.nop K)
+  : Step Δ H S η (.val v (.discard K))
+  → Step Δ H S η (.nop K)

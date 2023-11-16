@@ -11,22 +11,26 @@ namespace C0deine.Tst
 
 open Typ
 
-inductive UnOp.Int | neg | not
-inductive UnOp.Bool | neg
+inductive UnOp.Int  | neg | not deriving Inhabited
+inductive UnOp.Bool | neg       deriving Inhabited
 inductive UnOp
 | int (op : UnOp.Int)
 | bool (op : UnOp.Bool)
+deriving Inhabited
 
 inductive BinOp.Int
 | plus | minus | times | div | mod | and | xor | or | lsh | rsh
+deriving Inhabited
 
 inductive BinOp.Bool
 | and | or
+deriving Inhabited
 
 inductive BinOp
 | int (op : BinOp.Int)
 | cmp (op : Comparator)
 | bool (op : BinOp.Bool)
+deriving Inhabited
 
 inductive Expr
 | num (v : Int32)
@@ -42,12 +46,14 @@ inductive Expr
 | dot (e : Typed Expr) (field : Symbol)
 | deref (e : Typed Expr)
 | index (e : Typed Expr) (index : Typed Expr)
+deriving Inhabited
 
 inductive LValue
 | var (name : Symbol)
 | dot (lv : Typed LValue) (field : Symbol)
 | deref (lv : Typed LValue)
 | index (lv : Typed LValue) (index : Typed Expr)
+deriving Inhabited
 
 inductive Stmt
 | decl (name : Typed Symbol) (init : Option (Typed Expr)) (body : List Stmt)
@@ -57,6 +63,7 @@ inductive Stmt
 | while (cond : Typed Expr) (body : List Stmt)
 | «return» (e : Option (Typed Expr))
 | assert (e : Typed Expr)
+deriving Inhabited
 
 structure SDef where
   name : Symbol
