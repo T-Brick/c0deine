@@ -11,10 +11,13 @@
 -/
 
 import C0deine.Context.Label
-import C0deine.ControlFlow.Digraph
 import C0deine.ControlFlow.CFG
+import ControlFlow.FindPath
 
 namespace C0deine.ControlFlow.Relooper
+
+open ControlFlow.Digraph
+open ControlFlow.Path.Find
 
 /- `simple` represents block with only one exit
  - `loop` represents a block body and the block after the loop
@@ -57,14 +60,23 @@ private def min_two [BEq α] (rel : α → α → Bool) : List α →  List α
     min₁ :: min₂ :: (lst.erase min₂)
 
 mutual
-partial def reloop (fuel : Nat) (cfg : CFG α β) (entries : List Label) (labels : List Label)
+partial def reloop
+    (fuel : Nat)
+    (cfg : C0_CFG α β)
+    (entries : List Label)
+    (labels : List Label)
     : Option Shape :=
-  let reach := labels.map (fun l => (l, cfg.graph.reachable_mask l labels))
+  let reach :=
+    labels.map (fun l => (l,
+        find_reachable_skipping cfg.digraph l (· ∉ labels)
+        |>.fst |>.map (·.node)
+      )
+    )
   simple fuel cfg entries reach
 
 private partial def simple
     (fuel : Nat)
-    (cfg : CFG α β)
+    (cfg : C0_CFG α β)
     (entries : List Label)
     (reach : List (Label × List Label))
     : Option Shape :=
@@ -74,7 +86,7 @@ private partial def simple
   | l :: [] =>
     if reach.find? (l = ·.fst) |>.bind (·.snd.find? (· = l)) |>.isNone
     then
-      let entries' := cfg.graph.succ l |>.inter (reach.map (·.fst))
+      let entries' := succ cfg.digraph l |>.inter (reach.map (·.fst))
       let reach' := reach.filterMap (fun (l', _) => if l' ≠ l then some l' else none)
       .some (.simple l (reloop (fuel - 1) cfg entries' reach'))
     else complex (fuel - 1) cfg entries reach
@@ -83,7 +95,7 @@ private partial def simple
 
 private partial def complex
     (fuel : Nat)
-    (cfg : CFG α β)
+    (cfg : C0_CFG α β)
     (entries : List Label)
     (reach : List (Label × List Label))
     : Option Shape :=
@@ -94,7 +106,7 @@ private partial def complex
     | [] => .none
     | l :: _ => mk_loop entries reach l
   else
-    match min_two (fun l₁ l₂ => cfg.graph.elem_edge (l₁, l₂)) entries with
+    match min_two (fun l₁ l₂ => has_edge cfg.digraph ⟨l₁, l₂⟩) entries with
     | [] => .none
     | l :: [] => mk_loop entries reach l
     | l₁ :: l₂ :: ls =>
@@ -116,7 +128,7 @@ private partial def complex
         let valid_succs := reach.map (·.fst) |>.diff handled_labels
         let next_e :=
           handled_labels
-          |>.bind (cfg.graph.succ · |>.inter valid_succs)
+          |>.bind (succ cfg.digraph · |>.inter valid_succs)
           |>.eraseDups
           |>.union ls
         let next_r := reach.filterMap (fun (l, _) =>
@@ -144,9 +156,10 @@ where mk_loop (entries : List Label)
 
 end
 
+/-
 def l : Nat → Label := fun n => ⟨n, .none⟩
 
-def test1_cfg : CFG Nat Nat :=
+def test1_cfg : C0_CFG Nat Nat :=
   { graph :=
       Digraph.empty
       |>.add_edge ⟨l 0, l 2⟩
@@ -206,3 +219,4 @@ def run : CFG α β → Option Shape :=
   (fun cfg => reloop 50 cfg [l 0] (cfg.graph.toVertices))
 
 #eval Id.run IO.println (run test4_cfg)
+-/

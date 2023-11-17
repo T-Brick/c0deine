@@ -1,5 +1,7 @@
 import C0deine.AuxDefs
 
+/- unused needs to be incorporated into the ControlFlow library -/
+
 namespace C0deine.ControlFlow
 
 structure Digraph (α : Type) [BEq α] [Hashable α] where

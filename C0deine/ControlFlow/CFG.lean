@@ -1,9 +1,11 @@
-
 import C0deine.Context.Label
-import C0deine.ControlFlow.Digraph
+import ControlFlow.Graphs.FuncGraph
+import ControlFlow.Graphs.CFG
+
+open ControlFlow
+open ControlFlow.Digraph
 
 namespace C0deine.ControlFlow
-
 
 namespace Block
 -- we track what the block came from, this is potentially useful for optimising
@@ -60,12 +62,6 @@ instance : Hashable (Block α β) where hash b := hash b.label
   | .afterLoop => true
   | _          => false
 
-structure CFG (α β : Type) where
-  graph : Digraph Label
-  entry : Label
+instance : Digraph Label FuncGraphType := FuncGraph
+structure C0_CFG (α β : Type) extends CFG Label FuncGraphType where
   blocks : Label.Map (Block α β)
-  -- todo add more things!
-
-namespace CFG
-
-end CFG
