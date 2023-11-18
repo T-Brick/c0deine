@@ -90,8 +90,15 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   vprintln "ir tree!"
   vprintln irtree
 
-  vprintln "building cfg's..."
+  vprintln "building cfgs..."
+  let cfgs := IrTree.Prog.to_cfgs irtree
+  vprintln "cfgs!"
+  vprintln cfgs
 
+  vprintln "relooping cfgs..."
+  let relooped := cfgs.map ControlFlow.Relooper.reloop
+  vprintln "relooped!"
+  vprintln relooped
 
   return 0
 

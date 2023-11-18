@@ -16,6 +16,7 @@ import ControlFlow.FindPath
 
 namespace C0deine.ControlFlow.Relooper
 
+open ControlFlow
 open ControlFlow.Digraph
 open ControlFlow.Path.Find
 
@@ -60,7 +61,7 @@ private def min_two [BEq α] (rel : α → α → Bool) : List α →  List α
     min₁ :: min₂ :: (lst.erase min₂)
 
 mutual
-partial def reloop
+partial def reloop'
     (fuel : Nat)
     (cfg : C0_CFG α β)
     (entries : List Label)
@@ -88,7 +89,7 @@ private partial def simple
     then
       let entries' := succ cfg.digraph l |>.inter (reach.map (·.fst))
       let reach' := reach.filterMap (fun (l', _) => if l' ≠ l then some l' else none)
-      .some (.simple l (reloop (fuel - 1) cfg entries' reach'))
+      .some (.simple l (reloop' (fuel - 1) cfg entries' reach'))
     else complex (fuel - 1) cfg entries reach
   | _ => complex (fuel - 1) cfg entries reach
 
@@ -120,7 +121,7 @@ private partial def complex
       match independ_opt with
       | .some (r₁, r₂) =>
         let handle := fun l rs =>
-            reloop fuel cfg [l] (reach.filterMap (fun (l', _) =>
+            reloop' fuel cfg [l] (reach.filterMap (fun (l', _) =>
               if rs.elem l' then .some l' else .none
             )
           )
@@ -134,7 +135,7 @@ private partial def complex
         let next_r := reach.filterMap (fun (l, _) =>
             if ¬r₁.elem l && ¬r₂.elem l then .some l else .none
           )
-        .some (.multi (handle l₁ r₁) (handle l₂ r₂) (reloop fuel cfg next_e next_r))
+        .some (.multi (handle l₁ r₁) (handle l₂ r₂) (reloop' fuel cfg next_e next_r))
       | .none =>
           .some (.illegal entries)
           -- mk_loop entries reach l₁
@@ -150,11 +151,15 @@ where mk_loop (entries : List Label)
   let inner_lbls := inner.map (·.fst)
   let inner_entry := l :: entries.filter (inner_lbls.elem ·)
   let next_entry := next.filter (fun (n, _) => inner.all (·.snd.elem n))
-  let inner_shape := reloop fuel cfg inner_entry inner_lbls
-  let next_shape  := reloop fuel cfg (next_entry.map (·.fst)) (next |>.map (·.fst))
+  let inner_shape := reloop' fuel cfg inner_entry inner_lbls
+  let next_shape  := reloop' fuel cfg (next_entry.map (·.fst)) (next |>.map (·.fst))
   .some (.loop inner_shape next_shape)
 
 end
+
+def reloop (cfg : C0_CFG α β) : Option Shape :=
+  let vertices := toVertices cfg.digraph
+  reloop' (vertices.length * 10) cfg [cfg.start.val] vertices
 
 /-
 def l : Nat → Label := fun n => ⟨n, .none⟩
@@ -216,7 +221,7 @@ def test4_cfg : CFG Nat Nat :=
   }
 
 def run : CFG α β → Option Shape :=
-  (fun cfg => reloop 50 cfg [l 0] (cfg.graph.toVertices))
+  (fun cfg => reloop' 50 cfg [l 0] (cfg.graph.toVertices))
 
 #eval Id.run IO.println (run test4_cfg)
 -/

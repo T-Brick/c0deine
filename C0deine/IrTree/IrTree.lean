@@ -62,6 +62,7 @@ structure Func where
   enter : Label
   args : List SizedTemp
   blocks : Label.Map Block
+  enter_in : blocks.contains enter
 
 def Block.succ_labels (f : Func) (b : Block) : Option (List Label) :=
   f.blocks.find? b.label |>.map (fun b => (
@@ -76,6 +77,18 @@ def Block.succ_labels (f : Func) (b : Block) : Option (List Label) :=
 def Block.succ (f : Func) (b : Block) : Option (List Block) :=
   b.succ_labels f |>.map (List.filterMap f.blocks.find?)
 
+def Func.to_cfg (f : Func) : ControlFlow.C0_CFG Stmt BlockExit :=
+  let labels := (Std.HashMap.toList f.blocks).map (·.fst)
+  let succ := fun l =>
+    if f.blocks.contains l then
+      match f.blocks.find? l |>.bind (Block.succ_labels f) with
+      | .none => []
+      | .some lbls => lbls
+    else []
+  let graph := ControlFlow.Digraph.of_succ labels succ
+  let cfg := ControlFlow.CFG.mk graph ⟨f.enter, sorry⟩ sorry
+  ⟨cfg, f.name, f.blocks⟩
+
 @[inline] def _root_.C0deine.Label.loop (f : Func) (l : Label) : Bool :=
   match f.blocks.find? l with
   | .some b => b.loop
@@ -87,6 +100,8 @@ def Block.succ (f : Func) (b : Block) : Option (List Block) :=
   | _       => false
 
 def Prog := List Func
+
+def Prog.to_cfgs (prog : Prog) := prog.map (Func.to_cfg ·)
 
 def PureBinop.toString : PureBinop → String
   | add      => "+"

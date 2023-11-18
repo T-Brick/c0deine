@@ -64,4 +64,17 @@ instance : Hashable (Block α β) where hash b := hash b.label
 
 instance : Digraph Label FuncGraphType := FuncGraph
 structure C0_CFG (α β : Type) extends CFG Label FuncGraphType where
+  name : Label
   blocks : Label.Map (Block α β)
+
+
+def Block.toString [ToString α] [ToString β] (b : Block α β) :=
+  let body := b.body.map (fun stmt => s!"\t{stmt}\n") |> String.join
+  s!"{b.label}:\t\t{b.type}\n{body}\t{b.exit}"
+instance [ToString α] [ToString β] : ToString (Block α β) := ⟨Block.toString⟩
+
+def C0_CFG.toString (cfg : C0_CFG α β) : String :=
+  s!"#--- begin {cfg.name} ---#\n{cfg.toCFG}\n#--- end {cfg.name} ---#"
+instance : ToString (C0_CFG α β) := ⟨C0_CFG.toString⟩
+instance : ToString (List (C0_CFG α β)) :=
+  ⟨fun cfgs => String.intercalate "\n\n" (cfgs.map ToString.toString)⟩

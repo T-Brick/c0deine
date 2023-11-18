@@ -593,7 +593,7 @@ def gdecl (header : Bool) (glbl : Tst.GDecl) : Env.Prog (Option Func) := do
     let (_remain, blocks) ←
       Env.Prog.startFunc entry .funcEntry (stmts [] fdef.body)
     let () ← Env.Prog.addFunc fdef.name label
-    return some ⟨label, entry, args, blocks⟩
+    return some ⟨label, entry, args, blocks, sorry⟩
   | .sdef sd =>
     let alignList ← sd.fields |>.mapM (fun ts =>
         match ts.type with
@@ -606,7 +606,7 @@ def gdecl (header : Bool) (glbl : Tst.GDecl) : Env.Prog (Option Func) := do
           | some n => pure (UInt64.ofNat n)
           | _ => panic! s!"IR Trans: {sd.name} has malformed field types"
       )
-    let alignment := alignList.foldl UInt64.max (UInt64.ofNat 1)
+    let alignment := alignList.foldl max (UInt64.ofNat 1)
 
     let align : UInt64 → UInt64 → UInt64 := fun off a => off + (a - off) % a
 
