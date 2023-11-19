@@ -1,4 +1,7 @@
 //return 5
 int main() {
-  return 2 + 3;
+  int x = 2;
+  int y = 3;
+  y = 3;
+  return x + y;
 }

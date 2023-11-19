@@ -78,7 +78,7 @@ def Block.succ (f : Func) (b : Block) : Option (List Block) :=
   b.succ_labels f |>.map (List.filterMap f.blocks.find?)
 
 def Func.to_cfg (f : Func) : ControlFlow.C0_CFG Stmt BlockExit :=
-  let labels := (Std.HashMap.toList f.blocks).map (·.fst)
+  let labels := (f.blocks.toList).map (·.fst)
   let succ := fun l =>
     if f.blocks.contains l then
       match f.blocks.find? l |>.bind (Block.succ_labels f) with

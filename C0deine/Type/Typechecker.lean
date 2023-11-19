@@ -677,7 +677,7 @@ partial def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
           | some status => ctx''.symbols.insert name status
           | none => ctx''.symbols.erase name
         let calledOldCtx := { ctx'' with symbols := symbols' }
-        return (calledOldCtx, .decl ⟨tau, name⟩ init' body'.reverse)
+        return (calledOldCtx, .decl ⟨tau, name⟩ init' body')
 
   | .assn lv op e =>
     match lv with

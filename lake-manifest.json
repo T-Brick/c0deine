@@ -28,7 +28,7 @@
   {"git":
    {"url": "https://github.com/T-Brick/ControlFlow",
     "subDir?": null,
-    "rev": "d1451f1c86687195a379fd0a06acf907c5da7183",
+    "rev": "e32d8be39de93f6b05a9b551a61ab0d47c728397",
     "opts": {},
     "name": "controlflow",
     "inputRev?": "main",
