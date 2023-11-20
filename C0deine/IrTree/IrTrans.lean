@@ -440,7 +440,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrT
     | .var name, none =>
       let dest ← Env.Func.var name
       let (stms, src) ← texpr rhs
-      return stms.append [.move dest src]
+      return past.append <| stms.append [.move dest src]
     | .var _name, some _ =>
       panic! s!"IR Trans: 'x += e' should have been elaborated away"
     | _, _ =>
@@ -450,7 +450,9 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrT
       let size ← Env.Prog.toFunc (Typ.tempSize tlv.type)
       match oop.map binop_op_int with
       | none =>
-        return stms1.append stms2
+        return past
+          |>.append stms1
+          |>.append stms2
           |>.append checks
           |>.append [.store dest src]
       | some (.inl pure) =>
@@ -459,7 +461,9 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrT
         let load := .load temp dest
         let src' := ⟨lhs'.type, .binop pure ttemp src⟩
         let store := .store dest src'
-        return stms1.append stms2
+        return past
+          |>.append stms1
+          |>.append stms2
           |>.append checks
           |>.append [load, store]
       | some (.inr impure) =>
@@ -470,7 +474,9 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrT
         let load : IrTree.Stmt := .load t1 dest
         let effect := .effect t2 impure tt1 src
         let store := .store dest tt2
-        return stms1.append stms2
+        return past
+          |>.append stms1
+          |>.append stms2
           |>.append checks
           |>.append [load]
           |>.append [effect, store]
