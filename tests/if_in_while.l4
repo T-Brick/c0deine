@@ -1,0 +1,16 @@
+//return 6
+
+int main() {
+  int i = 0;
+
+  while(i < 5) {
+    i = i + 1;
+    if(i < 3) {
+      i = 3;
+    } else {
+      i = 6;
+    }
+  }
+
+  return i;
+}

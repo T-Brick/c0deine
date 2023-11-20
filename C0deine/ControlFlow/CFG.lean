@@ -67,7 +67,6 @@ structure C0_CFG (α β : Type) extends CFG Label FuncGraphType where
   name : Label
   blocks : Label.Map (Block α β)
 
-
 def Block.toString [ToString α] [ToString β] (b : Block α β) :=
   let body := b.body.map (fun stmt => s!"\t{stmt}\n") |> String.join
   s!"{b.label}:\t\t{b.type}\n{body}\t{b.exit}"

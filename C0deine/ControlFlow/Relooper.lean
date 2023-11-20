@@ -50,16 +50,6 @@ instance : ToString Shape := ⟨Shape.toString⟩
 instance : ToString (Option Shape) where
   toString := fun | .none => "-" | .some s => s.toString
 
-private def min_two [BEq α] (rel : α → α → Bool) : List α →  List α
-  | [] => []
-  | x :: [] => x :: []
-  | x::xs =>
-    let min := List.foldl (fun x acc => if rel x acc then x else acc) x
-    let min₁ := min (x::xs)
-    let lst := (x::xs).erase min₁
-    let min₂ := min lst
-    min₁ :: min₂ :: (lst.erase min₂)
-
 mutual
 partial def reloop'
     (fuel : Nat)
@@ -85,10 +75,10 @@ private partial def simple
   match entries with
   | [] => .none
   | l :: [] =>
-    if reach.find? (l = ·.fst) |>.bind (·.snd.find? (· = l)) |>.isNone
-    then
+    if reach.find? (l = ·.fst) |>.bind (·.snd.find? (· = l)) |>.isNone then
       let entries' := succ cfg.digraph l |>.inter (reach.map (·.fst))
-      let reach' := reach.filterMap (fun (l', _) => if l' ≠ l then some l' else none)
+      let reach' :=
+        reach.filterMap (fun (l', _) => if l' ≠ l then some l' else none)
       .some (.simple l (reloop' (fuel - 1) cfg entries' reach'))
     else complex (fuel - 1) cfg entries reach
   | _ => complex (fuel - 1) cfg entries reach
@@ -107,7 +97,7 @@ private partial def complex
     | [] => .none
     | l :: _ => mk_loop entries reach l
   else
-    match min_two (fun l₁ l₂ => has_edge cfg.digraph ⟨l₁, l₂⟩) entries with
+    match entries with
     | [] => .none
     | l :: [] => mk_loop entries reach l
     | l₁ :: l₂ :: ls =>
@@ -159,69 +149,41 @@ end
 
 def reloop (cfg : C0_CFG α β) : Option Shape :=
   let vertices := toVertices cfg.digraph
-  reloop' (vertices.length * 10) cfg [cfg.start.val] vertices
+  reloop' (vertices.length * 2) cfg [cfg.start.val] vertices
 
-/-
 def l : Nat → Label := fun n => ⟨n, .none⟩
 
 def test1_cfg : C0_CFG Nat Nat :=
-  { graph :=
-      Digraph.empty
-      |>.add_edge ⟨l 0, l 2⟩
-      |>.add_edge ⟨l 2, l 5⟩
-      |>.add_edge ⟨l 5, l 9⟩
-      |>.add_edge ⟨l 9, l 2⟩
-      |>.add_edge ⟨l 2, l 12⟩
-  , entry := (l 0)
+  { toCFG :=
+    { digraph :=
+        (ControlFlow.Digraph.empty : FuncGraphType Label)
+        |>.add_edge ⟨l 6, l 8⟩
+        |>.add_edge ⟨l 6, l 7⟩
+        |>.add_edge ⟨l 7, l 8⟩
+        |>.add_edge ⟨l 7, l 7⟩
+    , start := ⟨l 6, sorry⟩
+    , reachable := sorry
+    }
+  , name := ⟨0, .some "main"⟩
   , blocks := Std.HashMap.empty
   }
 
--- this example is guarenteed to work because we assume binary branches
-def test2_cfg : CFG Nat Nat :=
-  { graph :=
-      Digraph.empty
-      |>.add_edge ⟨l 0, l 1⟩
-      |>.add_edge ⟨l 0, l 2⟩
-      |>.add_edge ⟨l 0, l 3⟩
-      |>.add_edge ⟨l 0, l 4⟩
-      |>.add_edge ⟨l 0, l 5⟩
-      |>.add_edge ⟨l 1, l 2⟩
-      |>.add_edge ⟨l 2, l 3⟩
-      |>.add_edge ⟨l 3, l 4⟩
-      |>.add_edge (l 4, l 5)
-      |>.add_edge (l 5, l 6)
-      |>.add_edge (l 6, l 7)
-  , entry := (l 0)
+def test2_cfg : C0_CFG Nat Nat :=
+  { toCFG :=
+    { digraph :=
+        (ControlFlow.Digraph.empty : FuncGraphType Label)
+        |>.add_edge ⟨l 6, l 7⟩
+        |>.add_edge ⟨l 6, l 8⟩
+        |>.add_edge ⟨l 7, l 8⟩
+        |>.add_edge ⟨l 7, l 7⟩
+    , start := ⟨l 6, sorry⟩
+    , reachable := sorry
+    }
+  , name := ⟨0, .some "main"⟩
   , blocks := Std.HashMap.empty
   }
 
-def test3_cfg : CFG Nat Nat :=
-  { graph :=
-      Digraph.empty
-      |>.add_edge ⟨l 0, l 1⟩
-      |>.add_edge ⟨l 0, l 2⟩
-      |>.add_edge ⟨l 1, l 3⟩
-      |>.add_edge ⟨l 2, l 3⟩
-      |>.add_edge (l 3, l 4)
-  , entry := (l 0)
-  , blocks := Std.HashMap.empty
-  }
-
-def test4_cfg : CFG Nat Nat :=
-  { graph :=
-      Digraph.empty
-      |>.add_edge ⟨l 0, l 1⟩
-      |>.add_edge ⟨l 0, l 2⟩
-      |>.add_edge ⟨l 1, l 3⟩
-      |>.add_edge ⟨l 2, l 4⟩
-      |>.add_edge ⟨l 3, l 4⟩
-      |>.add_edge (l 3, l 1)
-  , entry := (l 0)
-  , blocks := Std.HashMap.empty
-  }
-
-def run : CFG α β → Option Shape :=
-  (fun cfg => reloop' 50 cfg [l 0] (cfg.graph.toVertices))
-
-#eval Id.run IO.println (run test4_cfg)
--/
+#eval test1_cfg
+#eval test2_cfg
+#eval Id.run IO.println (reloop test1_cfg)
+#eval Id.run IO.println (reloop test2_cfg)

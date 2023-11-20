@@ -1,0 +1,13 @@
+//return 5
+
+int main() {
+  int i = 0;
+
+  if(i < 5) {
+    i = 5;
+  } else {
+    i = 6;
+  }
+
+  return i;
+}
