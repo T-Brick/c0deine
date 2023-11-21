@@ -203,7 +203,6 @@ def Instr.listToListStrings (ins : List Instr) : List String :=
   | [] => []
   | i :: ilst => (Instr.toListStrings i).append (Instr.listToListStrings ilst)
 end
-
 termination_by
   Instr.toListStrings i => sizeOf i
   Instr.listToListStrings ilst => sizeOf ilst

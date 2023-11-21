@@ -26,8 +26,29 @@ open ControlFlow.Path.Find
 inductive Shape where
 | simple : Label → Option Shape → Shape
 | loop   : (inner next : Option Shape) → Shape
-| multi  : (left right : Option Shape) → (next : Option Shape) → Shape
+| multi  : (left right next : Option Shape) → Shape
 | illegal : List Label → Shape
+
+def Shape.getLabels : Shape → List Label
+  | .simple lbl _         => [lbl]
+  | .loop .none _         => []
+  | .loop (.some inner) _ => getLabels inner
+  | .multi left right _   =>
+    match left, right with
+    | .none  , .none   => []
+    | .some l, .none   => getLabels l
+    | .none  , .some r => getLabels r
+    | .some l, .some r => getLabels l ++ getLabels r
+  | .illegal _ => []
+
+def Shape.getNext : Shape → List Label
+  | .simple _ (.some next)  => getLabels next
+  | .loop _ (.some next)    => getLabels next
+  | .multi _ _ (.some next) => getLabels next
+  | .simple _ .none         => []
+  | .loop _ .none           => []
+  | .multi _ _ .none        => []
+  | .illegal _              => []
 
 partial def Shape.toString : Shape → String
   | .simple l s =>
@@ -151,6 +172,9 @@ def reloop (cfg : C0_CFG α β) : Option Shape :=
   let vertices := toVertices cfg.digraph
   reloop' (vertices.length * 2) cfg [cfg.start.val] vertices
 
+
+namespace Test
+
 def l : Nat → Label := fun n => ⟨n, .none⟩
 
 def test1_cfg : C0_CFG Nat Nat :=
@@ -187,3 +211,11 @@ def test2_cfg : C0_CFG Nat Nat :=
 #eval test2_cfg
 #eval Id.run IO.println (reloop test1_cfg)
 #eval Id.run IO.println (reloop test2_cfg)
+#eval (reloop test1_cfg).map Shape.getLabels
+#eval (.multi (.some <| .simple (l 0) .none)
+              (.some <| .simple (l 1) .none)
+              (.some <| .simple (l 2) .none)) |> Shape.getLabels
+#eval (.loop (.some <| .simple (l 0) .none)
+             (.some <| .simple (l 1) .none)) |> Shape.getLabels
+
+end Test

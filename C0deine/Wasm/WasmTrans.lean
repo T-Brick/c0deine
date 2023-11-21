@@ -6,6 +6,7 @@ import C0deine.Context.Temp
 import C0deine.Context.Label
 import C0deine.Config.Config
 import C0deine.Utils.Comparison
+import C0deine.ControlFlow.Relooper
 
 namespace C0deine.Target.Wasm.Trans
 
@@ -187,14 +188,74 @@ def stmt : IrTree.Stmt → List Instr
 
   | .check ch               => check ch
 
-structure TransBlockData where
-  instrs : List Instr
-  visited : List Label
+@[inline] def exit (bexit : IrTree.BlockExit) : List Instr :=
+  match bexit with
+  | .jump l => []
+  | .cjump te hotpath tt ff => texpr te
+  | .return .none => [.return]
+  | .return (.some te) => texpr te |>.append [.return]
 
-def block
+-- todo clean this up with helpers and such!
+def func
     (f : IrTree.Func)
-    (b : IrTree.Block)
-    (loop_exit : Label)
-    (visited : List Label)
-    : Context TransBlockData :=
-  sorry
+    (shape : ControlFlow.Relooper.Shape)
+    : List Instr :=
+  traverse shape .none ++ [.unreachable]
+where traverse (shape : ControlFlow.Relooper.Shape)
+               (priorExit : Option IrTree.BlockExit) :=
+  match shape with
+  | .simple l next =>
+    match f.blocks.find? l with
+    | .some block =>
+      let body_instr := block.body.bind stmt
+      let exit_instr := exit block.exit
+      let next_instr :=
+        match next with
+        | .some n => traverse n (.some block.exit)
+        | .none   => []
+
+      body_instr ++ exit_instr ++ next_instr
+    | .none =>
+      panic! s!"WASM Trans: Could not find block labeled {l}, in shape {shape} in {f}!"
+  | .loop inner next =>
+    let lbls := ControlFlow.Relooper.Shape.getLabels shape
+    match inner, lbls with
+    | .some i, [i_lbl] =>
+      let i_instr := traverse i .none
+      let n_instr :=
+        match next with
+        | .some n => traverse n .none
+        | .none   => []
+
+      .loop (.some i_lbl) (i_instr ++ [.br_if (.label i_lbl)]) :: n_instr
+    | .some _, _ =>
+      panic! s!"WASM Trans: Shape loop, {shape}, has too many/few successors: {lbls}!"
+    | .none, _ =>
+      panic! s!"WASM Trans: Shape loop, {shape}, missing loop body!"
+  | .multi left right next =>
+    let lbls := ControlFlow.Relooper.Shape.getLabels shape
+    match left, right, lbls, priorExit with
+    | .some l, .some r, [l_lbl, r_lbl], .some (.cjump cc _hotpath tt ff) =>
+      let c_flip := if ff = l_lbl then [.i32 .eqz] else []
+      let l_instr := traverse l .none
+      let r_instr := traverse r .none
+      let n_instr :=
+        match next with
+        | .some n => traverse n .none
+        | .none   => []
+
+      .block (.some l_lbl) (
+        .block (.some r_lbl) (
+          c_flip ++ .br_if (.label r_lbl) :: r_instr ++ [.br (.label l_lbl)]
+        ) :: l_instr
+      ) :: n_instr
+    | _, _, _, .some (.cjump _ _ _ _) =>
+      panic! s!"WASM Trans: Shape multi, {shape}, missing branch!"
+    | _, _, _, .none | _, _, _, .some _ =>
+      panic! s!"WASM Trans: Shape multi, {shape}, doesn't have condition to branch {priorExit}!"
+  | .illegal lbls => panic! s!"WASM Trans: Illegal shape {shape}!"
+
+def prog : IrTree.Prog
+         → List (ControlFlow.Relooper.Shape)
+         → List (List Instr) :=
+  fun prog shapes => List.zip prog shapes |>.map (fun (f, s) => func f s)
