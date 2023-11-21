@@ -196,7 +196,7 @@ def stmt : IrTree.Stmt → List Instr
   | .return (.some te) => texpr te |>.append [.return]
 
 -- todo clean this up with helpers and such!
-def func
+def func_body
     (f : IrTree.Func)
     (shape : ControlFlow.Relooper.Shape)
     : List Instr :=
@@ -255,7 +255,25 @@ where traverse (shape : ControlFlow.Relooper.Shape)
       panic! s!"WASM Trans: Shape multi, {shape}, doesn't have condition to branch {priorExit}!"
   | .illegal lbls => panic! s!"WASM Trans: Illegal shape {shape}!"
 
-def prog : IrTree.Prog
-         → List (ControlFlow.Relooper.Shape)
-         → List (List Instr) :=
-  fun prog shapes => List.zip prog shapes |>.map (fun (f, s) => func f s)
+-- todo: temp just to get things working
+partial def find_used_temps (instrs : List Instr) : List Temp :=
+  instrs.foldl (fun acc i =>
+    match i with
+    | .block _ body => find_used_temps body ++ acc
+    | .loop _ body => find_used_temps body ++ acc
+    | .wasm_local (.get (.temp t)) => t :: acc
+    | .wasm_local (.set (.temp t)) => t :: acc
+    | .wasm_local (.tee (.temp t)) => t :: acc
+    | .wasm_global (.get (.temp t)) => t :: acc
+    | .wasm_global (.set (.temp t)) => t :: acc
+    | _ => acc
+  ) [] |>.eraseDups
+
+def func (f : IrTree.Func) (shape : ControlFlow.Relooper.Shape) : Func :=
+  let body := func_body f shape
+  ⟨f.name, f.args, find_used_temps body, body⟩
+
+def prog (prog : IrTree.Prog)
+         (shapes : List (ControlFlow.Relooper.Shape))
+         : Prog :=
+  List.zip prog shapes |>.map (fun (f, s) => func f s)

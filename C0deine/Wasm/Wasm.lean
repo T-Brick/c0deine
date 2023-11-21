@@ -42,7 +42,7 @@ inductive Instr.Accessor
 
 instance : ToString Instr.Accessor where toString
   | .num i  => toString i
-  | .temp t => s!"${t}"
+  | .temp t => s!"$t{t.toNat}"
 
 inductive Instr.Local
 | get (i : Instr.Accessor)
@@ -135,7 +135,7 @@ inductive Instr.Branch
 | num (n : Nat)
 
 def Instr.Branch.toString : Branch → String
-  | label lbl => s!"{lbl}"
+  | label lbl => s!"${lbl}"
   | num n => s!"{n}"
 instance : ToString Instr.Branch where toString := Instr.Branch.toString
 
@@ -160,6 +160,16 @@ inductive Instr
 | i64 (i : Instr.Integer 64)
 | i64_extend_i32_u
 
+-- this is temporary until WASM library is working enough to transition
+-- todo add result
+structure Func where
+  name : Label
+  args : List SizedTemp
+  locals : List Temp -- todo make sized
+  body : List Instr
+
+def Prog := List Func
+
 -- Outputs the WAT format for WASM, can be compiled to WASM (for now)
 mutual
 def Instr.toListStrings (ins : Instr) : List String :=
@@ -173,7 +183,7 @@ def Instr.toListStrings (ins : Instr) : List String :=
     let header :=
       match lOpt with
       | none => "(block"
-      | some lbl => s!"(block ${lbl}"
+      | some lbl => s!"(block ${lbl} (param i32)" -- this is not correct but allows testing
     header :: body_strs |>.concat ")"
   | loop lOpt body =>
     let body_strs := Instr.listToListStrings body
@@ -211,3 +221,30 @@ instance : ToString Instr where
   toString := String.intercalate "\n" ∘ Instr.toListStrings
 instance : ToString (List Instr) where
   toString := String.intercalate "\n" ∘ List.map toString
+
+def arg_toString (st : SizedTemp) :=
+  match st.size with
+  | .byte -- todo fix
+  | .word
+  | .double => s!"$t{st.data.toNat} i32"
+  | .quad   => s!"$t{st.data.toNat} i64"
+
+nonrec def Func.toString (f : Func) : String :=
+  let args :=
+    f.args.map (fun st => s!"(param {arg_toString st})")
+    |> String.intercalate " "
+  let temps :=
+    f.locals.map (fun t => s!"(local $t{t.toNat} i32)") -- todo size
+    |> String.intercalate "\n  "
+  let body := (String.intercalate "\n  " ∘ List.map toString) f.body
+  s!"(func ${f.name} {args} (result i32)\n  {temps}\n  {body}\n)"
+instance : ToString Func := ⟨Func.toString⟩
+
+nonrec def Prog.toString (prog : Prog) : String :=
+  let funcs := prog.map toString |> String.intercalate "\n\n"
+  let log := "(import \"console\" \"log\" (func $log (param i32)))"
+  let abort := "(func $abort (i32.const -1) (call $log) unreachable)"
+  let header := s!"(module {log} {abort}"
+  let invoke := "(func $main (call $_c0_main) (call $log))\n\n(start $main)"
+  s!"{header}\n\n{funcs}\n\n{invoke})"
+instance : ToString Prog := ⟨Prog.toString⟩
