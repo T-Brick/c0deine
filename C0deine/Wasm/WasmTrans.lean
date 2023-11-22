@@ -87,7 +87,7 @@ partial def texpr (te : Typ.Typed IrTree.Expr) : List Instr :=
   | .byte b       => [i32_const (Unsigned.ofNat b.toNat)]
   | .const i      => [i32_const (Unsigned.ofInt i)]
   | .temp t       => [locl (.get (stemp t))]
-  | .memory m     => [i64_const (Unsigned.ofNat m)]
+  | .memory m     => [i32_const (Unsigned.ofNat m)]
   | .binop op l r =>
     let l' := texpr l
     let r' := texpr r
@@ -172,19 +172,17 @@ def check (check : IrTree.Check) : List Instr :=
 def addr (a : IrTree.Address) : List Instr :=
   let base' := texpr a.base
   let offset' :=
-    [ num_to_instr <| .integer (.extend_i32 .u)
-    , i64_const (Unsigned.ofNat a.offset.toNat)
-    , i64_bin .add
+    [ i32_const (Unsigned.ofNat a.offset.toNat)
+    , i32_bin .add
     ]
   base'.append offset' |>.append (
     match a.index with
     | .some index =>
       let index' := texpr index
       index'.append
-        [ num_to_instr <| .integer (.extend_i32 .u)
-        , i64_const (Unsigned.ofNat a.scale)
-        , i64_bin .mul
-        , i64_bin .add
+        [ i32_const (Unsigned.ofNat a.scale)
+        , i32_bin .mul
+        , i32_bin .add
         ]
     | .none => []
   )
@@ -207,56 +205,57 @@ def stmt : IrTree.Stmt → List Instr
   | .alloc dest asize        =>
     let size' := texpr asize
     size'.append
-      [ num_to_instr <| .integer (.extend_i32 .u)
-      , i64_const 0
-      , i64_mem (.load ⟨0, 8⟩)          -- 0 address has ptr to next free seg
-      , i64_bin .add                    -- get next free pointer after alloc
+      [ i32_const 0
+      , i32_mem (.load ⟨0, 4⟩)          -- 0 address has ptr to next free seg
+      , i32_bin .add                    -- get next free pointer after alloc
       , locl (.set (temp Temp.general))
       , block .no_label
         [ loop .no_label                -- loop to increase memory size
           [ locl (.get (temp Temp.general))
           , Plain.memory .size          -- returns number of pages
-          , i64_const 65536
-          , i64_bin .mul
-          , i64_rel (.lt .u)
+          , i32_const 65536
+          , i32_bin .mul
+          , i32_rel (.lt .u)
           , Plain.br_if (.num 1)        -- next ptr within bounds, don't grow
-          , i64_const 1                 -- grow by 1 page
+          , i32_const 1                 -- grow by 1 page
           , Plain.memory .grow
           , Plain.br (.num 0)
           ]
         ]
-      , i64_const 0
-      , i64_mem (.load ⟨0, 8⟩)          -- pointer we want to return
+      , i32_const 0
+      , i32_mem (.load ⟨0, 4⟩)          -- pointer we want to return
       , locl (.set (temp dest))
-      , i64_const 0
+      , i32_const 0
       , locl (.get (temp Temp.general))
-      , i64_mem (.store ⟨0, 8⟩)         -- update free pointer
+      , i32_mem (.store ⟨0, 4⟩)         -- update free pointer
       ]
 
   | .load dest a            =>
     let addr' := addr a
     let load' :=
-      match dest.size with
-      | .byte   =>
-        i64_mem (.load8 .u ⟨0, Unsigned.ofNat dest.size.bytes⟩)
-      | .word   => i64_mem (.load16 .u ⟨0, Unsigned.ofNat dest.size.bytes⟩)
-      | .double => i64_mem (.load32 .u ⟨0, Unsigned.ofNat dest.size.bytes⟩)
-      | .quad   => i64_mem (.load ⟨0, Unsigned.ofNat dest.size.bytes⟩)
+      i32_mem (.load ⟨0, 4⟩)
+      -- match dest.size with
+      -- | .byte   =>
+        -- i64_mem (.load8 .u ⟨0, Unsigned.ofNat dest.size.bytes⟩)
+      -- | .word   => i64_mem (.load16 .u ⟨0, Unsigned.ofNat dest.size.bytes⟩)
+      -- | .double => i64_mem (.load32 .u ⟨0, Unsigned.ofNat dest.size.bytes⟩)
+      -- | .quad   => i64_mem (.load ⟨0, Unsigned.ofNat dest.size.bytes⟩)
     addr'.append [load', locl (.set (stemp dest))]
 
   | .store a source         =>
     let source' := texpr source
     let addr' := addr a
     let store' :=
-      match source.type with
-      | .any | (.mem _) =>
-        i64_mem (.store ⟨0, Unsigned.ofNat source.type.sizeof!⟩)
-      | (.prim .bool) =>
-        i64_mem (.store8 ⟨0, Unsigned.ofNat source.type.sizeof!⟩)
-      | (.prim .int)   =>
-        i64_mem (.store32 ⟨0, Unsigned.ofNat source.type.sizeof!⟩)
+      i32_mem (.store ⟨0, 4⟩)
+      -- match source.type with
+      -- | .any | (.mem _) =>
+        -- i64_mem (.store ⟨0, Unsigned.ofNat source.type.sizeof!⟩)
+      -- | (.prim .bool) =>
+        -- i64_mem (.store8 ⟨0, Unsigned.ofNat source.type.sizeof!⟩)
+      -- | (.prim .int)   =>
+        -- i64_mem (.store32 ⟨0, Unsigned.ofNat source.type.sizeof!⟩)
 
-    addr'.append <| (num_to_instr <| .integer .wrap_i64) :: source' ++ [store']
+    addr' ++ source' ++ [store']
 
   | .check ch               => check ch
 
@@ -318,11 +317,19 @@ where traverse (shape : ControlFlow.Relooper.Shape)
         | .some n => traverse n .none
         | .none   => []
 
-      block (.name l_lbl.toWasmIdent) ( -- todo add params
-        block (.name l_lbl.toWasmIdent) (
-          c_flip ++ .plain (.br_if (label r_lbl)) :: r_instr ++ [.plain <|.br (label l_lbl)]
-        ) :: l_instr
-      ) :: n_instr
+      let cond := c_flip ++ [.plain <|.br_if (label r_lbl)]
+      let r_block := Instr.block <|
+        .block (.name r_lbl.toWasmIdent)
+          (.typeuse (.elab_param_res [⟨.none, .num .i32⟩] []))
+          (cond ++ r_instr ++ [.plain <|.br (label l_lbl)])
+          .none
+      let l_block := Instr.block <|
+        .block (.name l_lbl.toWasmIdent)
+          (.typeuse (.elab_param_res [⟨.none, .num .i32⟩] []))
+          (r_block :: l_instr)
+          .none
+
+      l_block :: n_instr
     | _, _, _, .some (.cjump _ _ _ _) =>
       panic! s!"WASM Trans: Shape multi, {shape}, missing branch!"
     | _, _, _, .none | _, _, _, .some _ =>
@@ -344,11 +351,12 @@ partial def find_used_temps (instrs : List Instr) : List Ident :=
   ) [] |>.eraseDups
 
 def wasm_val_type_from_temp_ident (id : Ident) : Wasm.Syntax.Typ.Val :=
-  if id.name.startsWith "$tq"      then ValueSize.quad.wasm_val_type
-  else if id.name.startsWith "$tl" then ValueSize.double.wasm_val_type
-  else if id.name.startsWith "$tw" then ValueSize.word.wasm_val_type
-  else if id.name.startsWith "$tb" then ValueSize.byte.wasm_val_type
-  else ValueSize.double.wasm_val_type
+  ValueSize.double.wasm_val_type
+  -- if id.name.startsWith "tq"      then ValueSize.quad.wasm_val_type
+  -- else if id.name.startsWith "tl" then ValueSize.double.wasm_val_type
+  -- else if id.name.startsWith "tw" then ValueSize.word.wasm_val_type
+  -- else if id.name.startsWith "tb" then ValueSize.byte.wasm_val_type
+  -- else ValueSize.double.wasm_val_type
 
 def func (f : IrTree.Func) (shape : ControlFlow.Relooper.Shape) : Module.Function :=
   let body := func_body f shape
@@ -401,9 +409,10 @@ def prog (prog : IrTree.Prog)
       ]
     }
 
+  let memory : Module.Field := .mems ⟨.none, ⟨1, .none⟩⟩
   let start : Module.Field := .start ⟨.name Label.main.toWasmIdent⟩
 
   let funcs : List Module.Field :=
     List.zip prog shapes |>.map (fun (f, s) => .funcs (func f s))
 
-  ⟨.none, [log, abort, main, start] ++ funcs⟩
+  ⟨.none, [log, abort, memory, main, start] ++ funcs⟩
