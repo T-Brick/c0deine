@@ -262,7 +262,7 @@ def stmt : IrTree.Stmt → List Instr
 @[inline] def exit (bexit : IrTree.BlockExit) : List Instr :=
   match bexit with
   | .jump l => []
-  | .cjump te hotpath tt ff => texpr te
+  | .cjump te hotpath tt ff => texpr te ++ [locl (.set (temp Temp.general))]
   | .return .none => [Plain.wasm_return]
   | .return (.some te) => texpr te |>.append [Plain.wasm_return]
 
@@ -271,36 +271,42 @@ def func_body
     (f : IrTree.Func)
     (shape : ControlFlow.Relooper.Shape)
     : List Instr :=
-  traverse shape .none ++ [.plain .unreachable]
+  (traverse shape .none).fst ++ [.plain .unreachable]
 where traverse (shape : ControlFlow.Relooper.Shape)
-               (priorExit : Option IrTree.BlockExit) :=
+               (priorExit : Option IrTree.BlockExit)
+               : List Instr × Option IrTree.BlockExit :=
   match shape with
   | .simple l next =>
     match f.blocks.find? l with
     | .some block =>
       let body_instr := block.body.bind stmt
       let exit_instr := exit block.exit
-      let next_instr :=
+      let (next_instr, next_exit) :=
         match next with
         | .some n => traverse n (.some block.exit)
-        | .none   => []
+        | .none   => ([], .none)
 
-      body_instr ++ exit_instr ++ next_instr
+      ( body_instr ++ exit_instr ++ next_instr
+      , match next_exit with | .none => .some block.exit | _ => next_exit
+      )
     | .none =>
       panic! s!"WASM Trans: Could not find block labeled {l}, in shape {shape} in {f}!"
   | .loop inner next =>
     let lbls := ControlFlow.Relooper.Shape.getLabels shape
     match inner, lbls with
     | .some i, [i_lbl] =>
-      let i_instr := traverse i .none
-      let n_instr :=
+      let (i_instr, _) := traverse i .none
+      let (n_instr, next_exit) :=
         match next with
         | .some n => traverse n .none
-        | .none   => []
+        | .none   => ([], .none)
 
-      loop (.name i_lbl.toWasmIdent)
-        ( i_instr ++ [plain <|.br_if (label i_lbl)]
-        ) :: n_instr
+      ( loop (.name i_lbl.toWasmIdent)
+          ( i_instr
+            ++ [locl (.get (temp Temp.general)), plain <|.br_if (label i_lbl)]
+          ) :: n_instr
+      , next_exit
+      )
     | .some _, _ =>
       panic! s!"WASM Trans: Shape loop, {shape}, has too many/few successors: {lbls}!"
     | .none, _ =>
@@ -310,26 +316,29 @@ where traverse (shape : ControlFlow.Relooper.Shape)
     match left, right, lbls, priorExit with
     | .some l, .some r, [l_lbl, r_lbl], .some (.cjump cc _hotpath tt ff) =>
       let c_flip := if ff = l_lbl then [i32_eqz] else []
-      let l_instr := traverse l .none
-      let r_instr := traverse r .none
-      let n_instr :=
-        match next with
-        | .some n => traverse n .none
-        | .none   => []
+      let (l_instr, l_exit) := traverse l .none
+      let (r_instr, r_exit) := traverse r .none
+      let (n_instr, next_exit) :=
+        match next with -- l_exit == r_exit
+        | .some n => traverse n r_exit
+        | .none   => ([], .none)
 
-      let cond := c_flip ++ [.plain <|.br_if (label r_lbl)]
+      let cond :=
+        [locl (.get (temp Temp.general))]
+        ++ c_flip
+        ++ [.plain <|.br_if (label r_lbl)]
       let r_block := Instr.block <|
         .block (.name r_lbl.toWasmIdent)
-          (.typeuse (.elab_param_res [⟨.none, .num .i32⟩] []))
+          (.typeuse (.elab_param_res [] []))
           (cond ++ r_instr ++ [.plain <|.br (label l_lbl)])
           .none
       let l_block := Instr.block <|
         .block (.name l_lbl.toWasmIdent)
-          (.typeuse (.elab_param_res [⟨.none, .num .i32⟩] []))
+          (.typeuse (.elab_param_res [] []))
           (r_block :: l_instr)
           .none
 
-      l_block :: n_instr
+      (l_block :: n_instr, next_exit)
     | _, _, _, .some (.cjump _ _ _ _) =>
       panic! s!"WASM Trans: Shape multi, {shape}, missing branch!"
     | _, _, _, .none | _, _, _, .some _ =>

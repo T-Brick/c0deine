@@ -50,6 +50,18 @@ def Shape.getNext : Shape → List Label
   | .multi _ _ .none        => []
   | .illegal _              => []
 
+def Shape.getAllLabels : Shape → List Label
+  | .simple lbl (.some next)        => lbl :: getAllLabels next
+  | .simple lbl .none               => lbl :: []
+  | .loop (.some body) (.some next) => getAllLabels body ++ getAllLabels next
+  | .loop .none        (.some next) => getAllLabels next
+  | .loop (.some body) .none        => getAllLabels body
+  | .multi l r n                    =>
+       (match l with | .none => [] | .some b => getAllLabels b)
+    ++ (match r with | .none => [] | .some b => getAllLabels b)
+    ++ (match n with | .none => [] | .some b => getAllLabels b)
+  | _ => []
+
 partial def Shape.toString : Shape → String
   | .simple l s =>
     let r := opt_toString s
@@ -136,19 +148,23 @@ private partial def complex
               if rs.elem l' then .some l' else .none
             )
           )
-        let handled_labels := (l₁ :: r₁).union (l₂ :: r₁)
+        let res₁ := handle l₁ r₁
+        let res₂ := handle l₂ r₂
+
+        let handled_labels :=
+          (res₁.map Shape.getAllLabels |>.getD []).union
+          (res₂.map Shape.getAllLabels |>.getD [])
         let valid_succs := reach.map (·.fst) |>.diff handled_labels
         let next_e :=
           handled_labels
           |>.bind (succ cfg.digraph · |>.inter valid_succs)
           |>.eraseDups
-          |>.union ls
-        let next_r := reach.filterMap (fun (l, _) =>
+          |>.union (ls.diff handled_labels)
+        let next_r := reach.filterMap (fun (l, _) => -- is this correct?
             if ¬r₁.elem l && ¬r₂.elem l then .some l else .none
           )
-        .some (.multi (handle l₁ r₁) (handle l₂ r₂) (reloop' fuel cfg next_e next_r))
-      | .none =>
-          .some (.illegal entries)
+        .some (.multi res₁ res₂ (reloop' fuel cfg next_e next_r))
+      | .none => .some (.illegal entries)
           -- mk_loop entries reach l₁
 where mk_loop (entries : List Label)
               (reach : List (Label × List Label))
