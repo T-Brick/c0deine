@@ -58,11 +58,12 @@ instance : Inhabited BlockExit := ⟨.return .none⟩
 def Block := ControlFlow.Block Stmt BlockExit
 
 structure Func where
-  name : Label
-  enter : Label
-  args : List SizedTemp
-  blocks : Label.Map Block
-  enter_in : blocks.contains enter
+  name        : Label
+  enter       : Label
+  args        : List SizedTemp
+  blocks      : Label.Map Block
+  result_size : Option ValueSize
+  enter_in    : blocks.contains enter
 
 def Block.succ_labels (f : Func) (b : Block) : Option (List Label) :=
   f.blocks.find? b.label |>.map (fun b => (
@@ -173,7 +174,11 @@ instance : ToString Block where toString := Block.toString
 
 def Func.toString (f : Func) :=
   let blocks := f.blocks.toList.map (fun b => s!"{b.2}\n") |> String.join
-  s!"{f.name}: ({f.args})\n\tjump {f.enter}\n{blocks}"
+  let res :=
+    match f.result_size with
+    | .some s => s!" -> {s}"
+    | .none => ""
+  s!"{f.name}: ({f.args}){res}\n\tjump {f.enter}\n{blocks}"
 instance : ToString Func where toString := Func.toString
 
 def Prog.toString (prog : Prog) :=

@@ -26,7 +26,6 @@ import C0deine.IrTree.IrTrans
 import C0deine.ControlFlow.CFG
 import C0deine.ControlFlow.Relooper
 
-import C0deine.Wasm.Wasm
 import C0deine.Wasm.WasmTrans
 
 import C0deine.AbsAsm.AbsAsm2

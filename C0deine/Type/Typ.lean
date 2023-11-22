@@ -113,12 +113,20 @@ def isSmall : Typ → Bool
   | _ => true
 
 def sizeof : Typ → Option Nat
-  | .any => none
-  | .prim .int => some 4
-  | .prim .bool => some 1
+  | .any              => none
+  | .prim .int        => some 4
+  | .prim .bool       => some 1
   | .mem (.pointer _) => some 8
-  | .mem (.array _) => some 8
-  | .mem (.struct _) => none
+  | .mem (.array _)   => some 8
+  | .mem (.struct _)  => none
+
+def sizeof! : Typ → Nat
+  | .any              => 8
+  | .prim .int        => 4
+  | .prim .bool       => 1
+  | .mem (.pointer _) => 8
+  | .mem (.array _)   => 8
+  | .mem (.struct _)  => 8
 
 structure Typed (α : Type) where
   type : Typ

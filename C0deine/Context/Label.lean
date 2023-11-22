@@ -1,4 +1,5 @@
 import Std
+import Wasm.Text.Context
 
 namespace C0deine
 
@@ -27,5 +28,11 @@ def memerr : Label := ⟨4, "sigusr2"⟩
 def startId := 5
 
 @[reducible] def Map (α : Type) := Std.HashMap Label α
+
+def toWasmIdent (l : Label) : Wasm.Text.Ident :=
+  { name := toString l
+  , name_nonempty := by sorry
+  , name_valid_chars := by sorry
+  }
 
 end Label

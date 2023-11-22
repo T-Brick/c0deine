@@ -1,5 +1,5 @@
 import C0deine.X86.X86
-import C0deine.Wasm.Wasm
+import Wasm.Text.Module
 
 namespace C0deine
 

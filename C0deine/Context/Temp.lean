@@ -1,5 +1,6 @@
 import Std
 import C0deine.Utils.ValueSize
+import Wasm.Text.Context
 
 namespace C0deine
 
@@ -23,6 +24,12 @@ def toUInt64 : Temp → UInt64 := Nat.toUInt64
 def Map (α : Type) := Std.HashMap Temp α
 def Map.empty : Map α := Std.HashMap.empty
 
+def toWasmIdent (temp : Temp) : Wasm.Text.Ident :=
+  { name := s!"t{show Nat from temp}"
+  , name_nonempty := by sorry
+  , name_valid_chars := by sorry
+  }
+
 end Temp
 
 def SizedTemp := Sized Temp
@@ -30,4 +37,10 @@ def SizedTemp := Sized Temp
 def SizedTemp.temp (stemp : SizedTemp) : Temp := stemp.data
 def SizedTemp.toString (stemp : SizedTemp) : String :=
   s!"%t{stemp.size}{show Nat from stemp.temp}"
-instance : ToString SizedTemp where toString := SizedTemp.toString
+instance : ToString SizedTemp := ⟨SizedTemp.toString⟩
+
+def SizedTemp.toWasmIdent (stemp : SizedTemp) : Wasm.Text.Ident :=
+  { name := s!"t{stemp.size}{show Nat from stemp.temp}"
+  , name_nonempty := by sorry
+  , name_valid_chars := by sorry
+  }

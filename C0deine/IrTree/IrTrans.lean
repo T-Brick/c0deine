@@ -599,7 +599,8 @@ def gdecl (header : Bool) (glbl : Tst.GDecl) : Env.Prog (Option Func) := do
     let (_remain, blocks) ←
       Env.Prog.startFunc entry .funcEntry (stmts [] fdef.body)
     let () ← Env.Prog.addFunc fdef.name label
-    return some ⟨label, entry, args, blocks, sorry⟩
+    let res ← fdef.type.mapM Typ.tempSize
+    return some ⟨label, entry, args, blocks, res, sorry⟩
   | .sdef sd =>
     let alignList ← sd.fields |>.mapM (fun ts =>
         match ts.type with

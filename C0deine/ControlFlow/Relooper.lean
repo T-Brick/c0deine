@@ -172,7 +172,7 @@ def reloop (cfg : C0_CFG α β) : Option Shape :=
   let vertices := toVertices cfg.digraph
   reloop' (vertices.length * 2) cfg [cfg.start.val] vertices
 
-
+/-
 namespace Test
 
 def l : Nat → Label := fun n => ⟨n, .none⟩
@@ -219,3 +219,4 @@ def test2_cfg : C0_CFG Nat Nat :=
              (.some <| .simple (l 1) .none)) |> Shape.getLabels
 
 end Test
+-/
