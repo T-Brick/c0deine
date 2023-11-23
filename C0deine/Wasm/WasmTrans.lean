@@ -204,31 +204,8 @@ def stmt : IrTree.Stmt → List Instr
 
   | .alloc dest asize        =>
     let size' := texpr asize
-    size'.append
-      [ i32_const 0
-      , i32_mem (.load ⟨0, 4⟩)          -- 0 address has ptr to next free seg
-      , i32_bin .add                    -- get next free pointer after alloc
-      , locl (.set (temp Temp.general))
-      , block .no_label
-        [ loop .no_label                -- loop to increase memory size
-          [ locl (.get (temp Temp.general))
-          , Plain.memory .size          -- returns number of pages
-          , i32_const 65536
-          , i32_bin .mul
-          , i32_rel (.lt .u)
-          , Plain.br_if (.num 1)        -- next ptr within bounds, don't grow
-          , i32_const 1                 -- grow by 1 page
-          , Plain.memory .grow
-          , Plain.br (.num 0)
-          ]
-        ]
-      , i32_const 0
-      , i32_mem (.load ⟨0, 4⟩)          -- pointer we want to return
-      , locl (.set (temp dest))
-      , i32_const 0
-      , locl (.get (temp Temp.general))
-      , i32_mem (.store ⟨0, 4⟩)         -- update free pointer
-      ]
+    size' ++
+      [.plain <|.call (label Label.calloc), locl (.set (stemp ⟨.quad, dest⟩))]
 
   | .load dest a            =>
     let addr' := addr a
@@ -408,12 +385,47 @@ def prog (prog : IrTree.Prog)
       ]
     }
 
+  let calloc : Module.Field := .funcs
+    { lbl     := .some Label.calloc.toWasmIdent
+    , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
+    , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
+    , body    :=
+      [ locl (.get (.num 0))            -- get arg (ie. sizeOf type)
+      , i32_const 0
+      , i32_mem (.load ⟨0, 4⟩)          -- 0 address has ptr to next free seg
+      , i32_bin .add                    -- get next free pointer after alloc
+      , locl (.set (temp Temp.general))
+      , block .no_label
+        [ loop .no_label                -- loop to increase memory size
+          [ locl (.get (temp Temp.general))
+          , Plain.memory .size          -- returns number of pages
+          , i32_const 65536             -- pagesize
+          , i32_bin .mul
+          , i32_rel (.lt .u)
+          , Plain.br_if (.num 1)        -- next ptr within bounds, don't grow
+          , i32_const 1                 -- grow by 1 page
+          , Plain.memory .grow
+          , Plain.br (.num 0)
+          ]
+        ]
+      , i32_const 0
+      , i32_mem (.load ⟨0, 4⟩)          -- pointer we want to return
+      , i32_const 0
+      , locl (.get (temp Temp.general))
+      , i32_mem (.store ⟨0, 4⟩)         -- update free pointer
+      , Plain.wasm_return
+      ]
+    }
+
   let main : Module.Field := .funcs
     { lbl     := .some Label.main.toWasmIdent
     , typeuse := .elab_param_res [] []
     , locals  := []
     , body    :=
-      [ Plain.call (.name ⟨"_c0_main", sorry, sorry⟩)
+      [ (i32_const 0)               -- store pointer to next free seg at 0
+      , (i32_const 4)
+      , (i32_mem (.store ⟨0, 4⟩))
+      , Plain.call (.name ⟨"_c0_main", sorry, sorry⟩)
       , Plain.call (.name log_id)
       ]
     }
@@ -424,4 +436,4 @@ def prog (prog : IrTree.Prog)
   let funcs : List Module.Field :=
     List.zip prog shapes |>.map (fun (f, s) => .funcs (func f s))
 
-  ⟨.none, [log, abort, memory, main, start] ++ funcs⟩
+  ⟨.none, [log, abort, memory, calloc, main, start] ++ funcs⟩

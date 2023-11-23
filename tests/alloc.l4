@@ -1,0 +1,8 @@
+// return 30561
+int main() {
+  int* x = alloc(int);
+  int* y= alloc(int);
+  *x = 15150;
+  *y = 15411;
+  return *x + *y;
+}
