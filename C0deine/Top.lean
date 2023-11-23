@@ -51,20 +51,23 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     | none =>
       pure (none, .empty, .new)
     | some h =>
-    match Parser.C0Parser.parse .empty h .new with
-    | (.error e, _) =>
-      IO.println e
-      return 1
-    | (.ok (cst, tydefs), ctx) =>
-      pure (some cst, tydefs, ctx)
+      match Parser.C0Parser.prog.run h.toUTF8 .new with
+      | ((.error e, state), _) =>
+        IO.println s!"{e () |>.formatPretty state}"
+        return 1
+      | ((.ok (cst, tydefs), _), ctx) =>
+        pure (some cst, tydefs, ctx)
+
 
   vprintln "parsing input"
 
-  match Parser.C0Parser.parse headerTydefs contents ctx with
-  | (.error e, _) =>
-    IO.println e
+  match (Parser.C0Parser.prog headerTydefs).run contents.toUTF8 ctx with
+  | ((.error e, state), _) =>
+    IO.println s!"{e () |>.formatPretty state}"
     return 1
-  | (.ok (cst,_), ctx) =>
+  | ((.ok (cst,_), _), ctx) =>
+
+
 
   -- vprintln cst
   vprintln "abstracting"

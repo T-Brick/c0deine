@@ -280,7 +280,7 @@ where traverse (shape : ControlFlow.Relooper.Shape)
         | .none   => ([], .none)
 
       match body_exit with
-      | .some (.cjump t _ _ _) => 
+      | .some (.cjump t _ _ _) =>
         ( loop (.name i_lbl.toWasmIdent)
             ( i_instr
               ++ [locl (.get (temp t)), plain <|.br_if (label i_lbl)]

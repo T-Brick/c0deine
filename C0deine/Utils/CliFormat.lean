@@ -17,8 +17,7 @@ def Rect.ofLines (lines : List String) : Rect :=
     . simp at hl ⊢
       cases hl
       . simp [*, Nat.le_max_left]
-      . apply Nat.le_trans _ (Nat.le_max_right ..)
-        simp [*] at *
+      . simp [*] at *
   { width, height := lines.length
   , lines := lines.map (fun l => l.pushn ' ' (width - l.length))
   , h_height := by simp, h_width := by
@@ -75,14 +74,14 @@ def Rect.padHeight (r : Rect) (height : Nat) (h_height : r.height ≤ height)
           first
           | (apply r.h_width; assumption)
           | (have := List.mem_replicate.mp (by assumption) |>.2
-             cases this; simp; simp [String.length])
+             cases this; simp)
         )
   }
 
 def Rect.padWidth (r : Rect) (width : Nat) (h_width : r.width ≤ width)
                   (align : HAlign) : Rect :=
   { width, height := r.height
-  , lines := r.lines.map (fun l => 
+  , lines := r.lines.map (fun l =>
     match align with
     | .left   => l.pushn ' ' (width - l.length)
     | .right  => "".pushn ' ' (width - l.length) ++ l
@@ -94,12 +93,11 @@ def Rect.padWidth (r : Rect) (width : Nat) (h_width : r.width ≤ width)
       rcases this with ⟨line,hmem,rfl⟩
       have := r.h_width _ hmem
       cases align <;> simp at * <;> simp [*]
-      . apply Nat.add_sub_cancel' h_width
-      . simp [String.length]; rw [Nat.sub_sub, Nat.add_comm r.width]
+      . rw [Nat.sub_sub, Nat.add_comm r.width]
         apply Nat.add_sub_cancel'
         apply Nat.add_le_of_le_sub h_width
         apply Nat.div_le_self
-      . simp [String.length]; apply Nat.sub_add_cancel h_width
+      . apply Nat.sub_add_cancel h_width
   }
 
 def Rect.joinVert (top bottom : Rect) (h : top.width = bottom.width) : Rect :=
@@ -111,7 +109,7 @@ def Rect.joinVert (top bottom : Rect) (h : top.width = bottom.width) : Rect :=
 def Rect.joinHorz (left right : Rect) (h : left.height = right.height) : Rect :=
   { height := left.height, width := left.width + right.width
   , lines := List.zipWith (· ++ ·) left.lines right.lines
-  , h_height := by simp [left.h_height, right.h_height, h]; apply Nat.min_eq_left (Nat.le_refl _)
+  , h_height := by simp [left.h_height, right.h_height, h]
   , h_width := by intro l hl; have := List.mem_zipWith hl
                   rcases this with ⟨y,z, rfl, hy, hz⟩
                   simp [left.h_width _ hy, right.h_width _ hz]}
@@ -120,7 +118,7 @@ def empty : Rect := { width := 0, height := 0, lines := [], h_width := by simp, 
 
 def fill (c : Char) (width height : Nat) : Rect :=
   { width, height, lines := List.replicate height ("".pushn c width)
-  , h_width := by intro l hl; have := List.mem_replicate.mp hl; simp [this]; simp [String.length]
+  , h_width := by intro l hl; have := List.mem_replicate.mp hl; simp [this]
   , h_height := by simp }
 
 def space (width height : Nat) : Rect :=
@@ -163,11 +161,9 @@ def Rect.tileVert (height : Nat) (r : Rect) (hr : r.height > 0) : Rect :=
                     rw [List.mem_replicate] at hl'
                     simp at hl'; cases hl'
                     simp [r.h_width _ h]
-  , h_height  := by simp [-List.replicate, -List.join]
-                    apply Nat.min_eq_left
-                    simp [r.h_height]
+  , h_height  := by simp [r.h_height]
                     conv => lhs; rw [← Nat.div_add_mod (m := height) (n := r.height)]
-                    conv => rhs; rw [Nat.mul_comm _ r.height, Nat.mul_add, Nat.mul_one]
+                    conv => rhs; rw [Nat.mul_comm _ r.height, Nat.add_comm]
                     apply Nat.add_le_add_left
                     apply Nat.le_of_lt; apply Nat.mod_lt _ hr }
 
@@ -178,7 +174,7 @@ def Rect.tileHorz (width : Nat) (r : Rect) (hr : r.width > 0) : Rect :=
                     have := List.mem_map.mp hl
                     rcases this with ⟨l',hl',rfl⟩
                     simp
-                    apply Nat.min_eq_right
+                    -- apply Nat.min_eq_right
                     sorry
   , h_height  := by simp [r.h_height] }
 
@@ -192,11 +188,10 @@ def vbox (children : List Rect) (align : HAlign := .left)
     . simp at hl ⊢
       cases hl
       . simp [*, Nat.le_max_left]
-      . apply Nat.le_trans _ (Nat.le_max_right ..)
-        simp [*] at *
+      . simp [*] at *
   match children with
   | [] => space width 0
-  | c::cs => 
+  | c::cs =>
     aux width cs (fun c hc => this c (List.Mem.tail _ hc))
       (c.padWidth width (this c (List.Mem.head _)) align)
       (by simp [Rect.padWidth])
@@ -227,8 +222,7 @@ def hbox (children : List Rect) (align : VAlign := .top)
     . simp at hl ⊢
       cases hl
       . simp [*, Nat.le_max_left]
-      . apply Nat.le_trans _ (Nat.le_max_right ..)
-        simp [*] at *
+      . simp [*] at *
   match children with
   | [] => space 0 height
   | c::cs =>
