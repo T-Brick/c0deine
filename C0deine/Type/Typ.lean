@@ -128,10 +128,12 @@ def sizeof! : Typ → Nat
   | .mem (.array _)   => 8
   | .mem (.struct _)  => 8
 
-structure Typed (α : Type) where
-  type : Typ
-  data : α
+inductive Typed (α : Type) where
+| mk : (type : Typ) → (data : α) → Typed α
 deriving Inhabited
+
+def Typed.data : Typed α → α   | .mk _ data => data
+def Typed.type : Typed α → Typ | .mk type _ => type
 
 def Typed.toString [ToString α] (a : Typed α) : String :=
   s!"({a.data} : {a.type})"

@@ -431,7 +431,7 @@ partial def Addr.index (arr indx : Typ.Typed Tst.Expr)
 end
 
 mutual
-partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt) := do
+def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt) := do
   match stm with
   | .decl name init body =>
     let t ←
@@ -583,7 +583,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrT
     let (stms, _) ← texpr e -- drop pure expression
     return past.append stms
 
-partial def stmts (past : List IrTree.Stmt)
+def stmts (past : List IrTree.Stmt)
           (stms : List Tst.Stmt)
           : Env.Func (List IrTree.Stmt) := do
   match stms with
@@ -592,6 +592,9 @@ partial def stmts (past : List IrTree.Stmt)
     let past' ← stmt past s
     stmts past' ss
 end
+termination_by
+  stmt ctx s   => sizeOf s
+  stmts ctx ss => sizeOf ss
 
 def dec_args (args : List (Typ.Typed Symbol)) : Env.Prog (List SizedTemp) := do
   match args with

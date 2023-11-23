@@ -536,7 +536,6 @@ def exprs (ctx : FuncCtx)
     let (calls, es') ← exprs ctx es
     return (calls1.merge calls, e' :: es')
 end
-
 termination_by
   expr ctx e   => sizeOf e
   exprs ctx es => sizeOf es
@@ -591,7 +590,9 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue) : Result := do
         then throw <| Error.lval lval s!"Struct '{name}' is not defined"
         else
           match status.fields.find? field with
-          | some tau => return (calls, ⟨tau, .dot lv' field⟩)
+          | some tau =>
+            let struct := ⟨.mem (.struct name), .deref lv'⟩
+            return (calls, ⟨tau, .dot struct field⟩)
           | none => throw <| Error.lval lval <|
             s!"Invalid field '{field}' for struct type '{lv'.type}'"
       | none => throw <| Error.lval lval s!"Struct '{name}' is not defined"
@@ -631,7 +632,7 @@ def wrapError (stmt : Ast.Stmt)
   res.tryCatch (fun err => throw {err with statement := some stmt})
 
 mutual
-partial def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
+def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
   let handle := wrapError stm
   let handleLV := wrapError stm
   let throwS := throw ∘ Error.stmt stm
@@ -784,7 +785,7 @@ partial def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
     let (calls, e') ← handle <| Synth.Expr.small <| Synth.Expr.expr ctx e
     return ({ctx with calls}, .expr e')
 
-partial def stmts (ctx : FuncCtx)
+def stmts (ctx : FuncCtx)
           (body : List Ast.Stmt)
           : Except Error (FuncCtx × List Tst.Stmt) := do
   match body with
@@ -794,6 +795,9 @@ partial def stmts (ctx : FuncCtx)
     let (ctx'', bs') ← stmts ctx' bs
     return (ctx'', b' :: bs')
 end
+termination_by
+  stmt ctx s   => sizeOf s
+  stmts ctx ss => sizeOf ss
 
 end Stmt
 
