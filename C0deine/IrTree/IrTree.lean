@@ -51,7 +51,7 @@ inductive Stmt
 inductive BlockExit
 | jump (lbl : Label)
     -- hotpath = some true => tt will be most likely jump
-| cjump (e : Typed Expr) (hotpath : Option Bool) (tt : Label) (ff : Label)
+| cjump (t : Temp) (hotpath : Option Bool) (tt : Label) (ff : Label)
 | «return» (e : Option (Typed Expr))
 instance : Inhabited BlockExit := ⟨.return .none⟩
 
@@ -157,12 +157,12 @@ instance : ToString Stmt where toString := Stmt.toString
 
 def BlockExit.toString : BlockExit → String
   | jump lbl => s!"jump {lbl}"
-  | cjump e none tt ff =>
-    s!"cjump ({e}) {tt} {ff}"
-  | cjump e (some true) tt ff =>
-    s!"cjump ({e}) [{tt}] {ff}"
-  | cjump e (some false) tt ff =>
-    s!"cjump ({e}) {tt} [{ff}]"
+  | cjump t none tt ff =>
+    s!"cjump {t} {tt} {ff}"
+  | cjump t (some true) tt ff =>
+    s!"cjump {t} [{tt}] {ff}"
+  | cjump t (some false) tt ff =>
+    s!"cjump {t} {tt} [{ff}]"
   | «return» (.none) => "return"
   | «return» (.some e) => s!"return {e}"
 instance : ToString BlockExit where toString := BlockExit.toString

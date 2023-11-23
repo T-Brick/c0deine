@@ -57,7 +57,9 @@ def loop (l : Wasm.Text.Label) (ins : List Instr) : Instr :=
   .block (.loop l (.value .none) ins .none)
 
 def temp  : Temp      → Module.Index := .name ∘ Temp.toWasmIdent
-def stemp : SizedTemp → Module.Index := .name ∘ SizedTemp.toWasmIdent
+-- def stemp : SizedTemp → Module.Index := .name ∘ SizedTemp.toWasmIdent
+def stemp : SizedTemp → Module.Index :=
+  .name ∘ Temp.toWasmIdent ∘ SizedTemp.temp
 def label : Label     → Module.Index := .name ∘ Label.toWasmIdent
 
 def pure_binop (op : IrTree.PureBinop) : Instr :=
@@ -238,7 +240,7 @@ def stmt : IrTree.Stmt → List Instr
 @[inline] def exit (bexit : IrTree.BlockExit) : List Instr :=
   match bexit with
   | .jump l => []
-  | .cjump te hotpath tt ff => texpr te ++ [locl (.set (temp Temp.general))]
+  | .cjump t hotpath tt ff => []
   | .return .none => [Plain.wasm_return]
   | .return (.some te) => texpr te |>.append [Plain.wasm_return]
 
@@ -290,7 +292,7 @@ where traverse (shape : ControlFlow.Relooper.Shape)
   | .multi left right next =>
     let lbls := ControlFlow.Relooper.Shape.getLabels shape
     match left, right, lbls, priorExit with
-    | .some l, .some r, [l_lbl, r_lbl], .some (.cjump cc _hotpath tt ff) =>
+    | .some l, .some r, [l_lbl, r_lbl], .some (.cjump ct _hotpath tt ff) =>
       let c_flip := if ff = l_lbl then [i32_eqz] else []
       let (l_instr, l_exit) := traverse l .none
       let (r_instr, r_exit) := traverse r .none
@@ -300,7 +302,7 @@ where traverse (shape : ControlFlow.Relooper.Shape)
         | .none   => ([], .none)
 
       let cond :=
-        [locl (.get (temp Temp.general))]
+        [locl (.get (temp ct))]
         ++ c_flip
         ++ [.plain <|.br_if (label r_lbl)]
       let r_block := Instr.block <|
@@ -335,14 +337,6 @@ partial def find_used_temps (instrs : List Instr) : List Ident :=
     | _ => acc
   ) [] |>.eraseDups
 
-def wasm_val_type_from_temp_ident (id : Ident) : Wasm.Syntax.Typ.Val :=
-  ValueSize.double.wasm_val_type
-  -- if id.name.startsWith "tq"      then ValueSize.quad.wasm_val_type
-  -- else if id.name.startsWith "tl" then ValueSize.double.wasm_val_type
-  -- else if id.name.startsWith "tw" then ValueSize.word.wasm_val_type
-  -- else if id.name.startsWith "tb" then ValueSize.byte.wasm_val_type
-  -- else ValueSize.double.wasm_val_type
-
 def func (f : IrTree.Func) (shape : ControlFlow.Relooper.Shape) : Module.Function :=
   let body := func_body f shape
 
@@ -352,10 +346,7 @@ def func (f : IrTree.Func) (shape : ControlFlow.Relooper.Shape) : Module.Functio
     f.result_size.map ([·.wasm_val_type]) |>.getD []
 
   let locals : List Wasm.Text.Module.Local :=
-    (find_used_temps body).map (fun id =>
-      let type := wasm_val_type_from_temp_ident id
-      ⟨.some id, type⟩
-    )
+    (find_used_temps body).map (⟨.some ·, .num .i32⟩)
 
   { lbl     := .some f.name.toWasmIdent
   , typeuse := .elab_param_res params result

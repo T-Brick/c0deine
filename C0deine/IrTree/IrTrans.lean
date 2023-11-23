@@ -241,6 +241,8 @@ partial def expr (tau : Typ)
       let c := MkTyped.int (.const 0)
       return (stmts, .binop (.comp .equal) e' c)
 
+  | .binop (.bool .and) l r => ternary tau l r ⟨.prim .bool, .false⟩
+  | .binop (.bool .or)  l r => ternary tau l ⟨.prim .bool, .true⟩ r
   | .binop op l r =>
     let (stmts1, l') ← texpr l
     let (stmts2, r') ← texpr r
@@ -256,33 +258,7 @@ partial def expr (tau : Typ)
         | .div | .mod => []
       return ([stmts1, stmts2, shift, [effect]].join, .temp dest)
 
-  | .ternop cond tt ff =>
-    let lT ← Env.Func.freshLabel
-    let lF ← Env.Func.freshLabel
-    let lN ← Env.Func.freshLabel
-    let dest ← Env.Func.freshTemp
-    let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
-
-    let (stmts, cond') ← texpr cond
-    let exit := .cjump cond' none lT lF
-    let curLabel ← Env.Func.curBlockLabel
-    let curType ← Env.Func.curBlockType
-    let block := ⟨curLabel, curType, stmts, exit⟩
-    let () ← Env.Func.addBlock block lT .ternaryTrue
-
-    let (stmtsT, tt') ← texpr tt
-    let exitT := .jump lN
-    let destT := .move sdest tt'
-    let blockT := ⟨lT, .ternaryTrue, stmtsT.append [destT], exitT⟩
-    let () ← Env.Func.addBlock blockT lF .ternaryFalse
-
-    let (stmtsF, ff') ← texpr ff
-    let exitF := .jump lN
-    let destF := .move sdest ff'
-    let blockF := ⟨lF, .ternaryFalse, stmtsF.append [destF], exitF⟩
-    let () ← Env.Func.addBlock blockF lN .afterTernary
-
-    return ([], .temp sdest)
+  | .ternop cond tt ff => ternary tau cond tt ff
 
   | .app f as =>
     let (stmts, args') ← args as
@@ -347,6 +323,38 @@ partial def expr (tau : Typ)
     let dest ← Env.Func.freshTemp
     let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
     return (stmts.append checks |>.append [.load sdest address], .temp sdest)
+
+partial def ternary (tau : Typ) (cond tt ff : Typ.Typed Tst.Expr)
+            : Env.Func ((List IrTree.Stmt) × IrTree.Expr) := do
+    let lT ← Env.Func.freshLabel
+    let lF ← Env.Func.freshLabel
+    let lN ← Env.Func.freshLabel
+    let dest ← Env.Func.freshTemp
+    let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
+
+    let (stmts, cond') ← texpr cond
+    let cond_temp ← Env.Func.freshTemp
+    let scond_temp := ⟨← Env.Prog.toFunc (Typ.tempSize cond.type), cond_temp⟩
+    let condT := .move scond_temp cond'
+    let exit := .cjump cond_temp none lT lF
+    let curLabel ← Env.Func.curBlockLabel
+    let curType ← Env.Func.curBlockType
+    let block := ⟨curLabel, curType, stmts.append [condT], exit⟩
+    let () ← Env.Func.addBlock block lT .ternaryTrue
+
+    let (stmtsT, tt') ← texpr tt
+    let exitT := .jump lN
+    let destT := .move sdest tt'
+    let blockT := ⟨lT, .ternaryTrue, stmtsT.append [destT], exitT⟩
+    let () ← Env.Func.addBlock blockT lF .ternaryFalse
+
+    let (stmtsF, ff') ← texpr ff
+    let exitF := .jump lN
+    let destF := .move sdest ff'
+    let blockF := ⟨lF, .ternaryFalse, stmtsF.append [destF], exitF⟩
+    let () ← Env.Func.addBlock blockF lN .afterTernary
+
+    return ([], .temp sdest)
 
 partial def texpr (texp : Typ.Typed Tst.Expr)
           : Env.Func ((List IrTree.Stmt) × Typ.Typed Expr) :=
@@ -487,10 +495,14 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrT
     let after ← Env.Func.freshLabel
 
     let (cstms, cond') ← texpr cond
-    let exit := .cjump cond' none tLbl fLbl
+    let cond_temp ← Env.Func.freshTemp
+    let scond_temp := ⟨← Env.Prog.toFunc (Typ.tempSize cond.type), cond_temp⟩
+    let condT := .move scond_temp cond'
+
+    let exit := .cjump cond_temp none tLbl fLbl
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
-    let block := ⟨curLabel, curType, past.append cstms, exit⟩
+    let block := ⟨curLabel, curType, past.append cstms |>.append [condT], exit⟩
     let () ← Env.Func.addBlock block tLbl .thenClause
 
     let tt' ← stmts [] tt
@@ -514,18 +526,21 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrT
     let afterLoop ← Env.Func.freshLabel
 
     let (cstms, cond') ← texpr cond
+    let cond_temp ← Env.Func.freshTemp
+    let scond_temp := ⟨← Env.Prog.toFunc (Typ.tempSize cond.type), cond_temp⟩
+    let condT := .move scond_temp cond'
 
-    let exit := .cjump cond' (some true) loopBody afterLoop
+    let exit := .cjump cond_temp (some true) loopBody afterLoop
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
-    let block := ⟨curLabel, curType, past.append cstms, exit⟩
+    let block := ⟨curLabel, curType, past.append cstms |>.append [condT], exit⟩
     let () ← Env.Func.addBlock block loopBody .loop
 
     let body' ← stmts [] body
-    let exit := .cjump cond' (some true) loopBody afterLoop
+    let exit := .cjump cond_temp (some true) loopBody afterLoop
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
-    let block := ⟨curLabel, curType, body'.append cstms, exit⟩
+    let block := ⟨curLabel, curType, body'.append cstms |>.append [condT], exit⟩
     let () ← Env.Func.addBlock block afterLoop .afterLoop
     return []
 
@@ -553,10 +568,14 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrT
     let assertLbl := Label.abort
 
     let (stms, e') ← texpr e
-    let exit := .cjump e' (some true) after assertLbl
+    let cond_temp ← Env.Func.freshTemp
+    let scond_temp := ⟨← Env.Prog.toFunc (Typ.tempSize e.type), cond_temp⟩
+    let condT := .move scond_temp e'
+
+    let exit := .cjump cond_temp (some true) after assertLbl
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
-    let block := ⟨curLabel, curType, past.append stms, exit⟩
+    let block := ⟨curLabel, curType, past.append stms |>.append [condT], exit⟩
     let () ← Env.Func.addBlock block after curType
     return []
 
