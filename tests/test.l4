@@ -1,0 +1,13 @@
+// return 5
+
+int fact10() {
+  int acc = 1;
+  for(int i = 1; i < 11; i++) {
+    acc = acc * i;
+  }
+  return acc;
+}
+
+int main() {
+  return fact10();
+}

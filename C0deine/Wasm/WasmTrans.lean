@@ -80,7 +80,7 @@ def pure_binop (op : IrTree.PureBinop) : Instr :=
 def effect_binop (op : IrTree.EffectBinop) : Instr :=
   match op with
   | .div => i32_bin (.div .s)
-  | .mod => i32_bin (.mod .s)
+  | .mod => i32_bin (.rem .s)
   | .lsh => i32_bin (.shl)
   | .rsh => i32_bin (.shr .s)
 
@@ -273,18 +273,22 @@ where traverse (shape : ControlFlow.Relooper.Shape)
     let lbls := ControlFlow.Relooper.Shape.getLabels shape
     match inner, lbls with
     | .some i, [i_lbl] =>
-      let (i_instr, _) := traverse i .none
+      let (i_instr, body_exit) := traverse i .none
       let (n_instr, next_exit) :=
         match next with
         | .some n => traverse n .none
         | .none   => ([], .none)
 
-      ( loop (.name i_lbl.toWasmIdent)
-          ( i_instr
-            ++ [locl (.get (temp Temp.general)), plain <|.br_if (label i_lbl)]
-          ) :: n_instr
-      , next_exit
-      )
+      match body_exit with
+      | .some (.cjump t _ _ _) => 
+        ( loop (.name i_lbl.toWasmIdent)
+            ( i_instr
+              ++ [locl (.get (temp t)), plain <|.br_if (label i_lbl)]
+            ) :: n_instr
+        , next_exit
+        )
+      | _ =>
+        panic! s!"WASM Trans: Shape loop, {shape}, body has improper exit {body_exit}!"
     | .some _, _ =>
       panic! s!"WASM Trans: Shape loop, {shape}, has too many/few successors: {lbls}!"
     | .none, _ =>
