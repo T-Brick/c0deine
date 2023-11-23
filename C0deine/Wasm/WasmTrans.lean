@@ -85,7 +85,7 @@ def effect_binop (op : IrTree.EffectBinop) : Instr :=
 partial def texpr (te : Typ.Typed IrTree.Expr) : List Instr :=
   match te.data with
   | .byte b       => [i32_const (Unsigned.ofNat b.toNat)]
-  | .const i      => [i32_const (Unsigned.ofInt i)]
+  | .const i      => [i32_const (Signed.ofInt i)]
   | .temp t       => [locl (.get (stemp t))]
   | .memory m     => [i32_const (Unsigned.ofNat m)]
   | .binop op l r =>
@@ -190,13 +190,13 @@ def addr (a : IrTree.Address) : List Instr :=
 def stmt : IrTree.Stmt → List Instr
   | .move dest te =>
     let te' := texpr te
-    te'.append [locl (.set (stemp dest))]
+    te' ++ [locl (.set (stemp dest))]
 
   | .effect dest op lhs rhs =>
     let lhs' := texpr lhs
     let rhs' := texpr rhs
     let op'  := effect_binop op
-    lhs'.append rhs' |> .append [op', locl (.set (stemp dest))]
+    lhs' ++ rhs' ++ [op', locl (.set (stemp dest))]
 
   | .call dest name args    =>
     let args' := args.map texpr
@@ -217,13 +217,12 @@ def stmt : IrTree.Stmt → List Instr
       -- | .word   => i64_mem (.load16 .u ⟨0, Unsigned.ofNat dest.size.bytes⟩)
       -- | .double => i64_mem (.load32 .u ⟨0, Unsigned.ofNat dest.size.bytes⟩)
       -- | .quad   => i64_mem (.load ⟨0, Unsigned.ofNat dest.size.bytes⟩)
-    addr'.append [load', locl (.set (stemp dest))]
+    addr' ++ [load', locl (.set (stemp dest))]
 
   | .store a source         =>
     let source' := texpr source
-    let addr' := addr a
-    let store' :=
-      i32_mem (.store ⟨0, 4⟩)
+    let addr'   := addr a
+    let store'  := i32_mem (.store ⟨0, 4⟩)
       -- match source.type with
       -- | .any | (.mem _) =>
         -- i64_mem (.store ⟨0, Unsigned.ofNat source.type.sizeof!⟩)
