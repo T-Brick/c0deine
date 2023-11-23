@@ -32,7 +32,8 @@ def toWasmIdent (temp : Temp) : Wasm.Text.Ident :=
 
 end Temp
 
-def SizedTemp := Sized Temp
+@[reducible] def SizedTemp := Sized Temp
+deriving DecidableEq
 
 def SizedTemp.temp (stemp : SizedTemp) : Temp := stemp.data
 def SizedTemp.toString (stemp : SizedTemp) : String :=

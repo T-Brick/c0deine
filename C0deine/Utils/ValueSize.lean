@@ -7,6 +7,7 @@ inductive ValueSize
 | word
 | double
 | quad
+deriving DecidableEq
 
 namespace ValueSize
 
@@ -40,3 +41,4 @@ end ValueSize
 structure Sized (α : Type) where
   size : ValueSize
   data : α
+deriving DecidableEq

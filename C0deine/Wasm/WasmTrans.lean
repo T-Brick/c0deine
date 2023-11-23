@@ -345,12 +345,15 @@ def func (f : IrTree.Func) (shape : ControlFlow.Relooper.Shape) : Module.Functio
   let body := func_body f shape
 
   let params : List Wasm.Text.Typ.Param :=
-    f.args.map (fun st => (.some st.temp.toWasmIdent, st.size.wasm_val_type))
+    f.args.map (fun st => (.some st.temp.toWasmIdent, .num .i32))
   let result : List Wasm.Text.Typ.Result :=
-    f.result_size.map ([·.wasm_val_type]) |>.getD []
+    f.result_size.map (fun _ => [.num .i32]) |>.getD []
 
   let locals : List Wasm.Text.Module.Local :=
-    (find_used_temps body).map (⟨.some ·, .num .i32⟩)
+    let args := f.args.map (·.data.toWasmIdent)
+    (find_used_temps body).filterMap (fun id =>
+      if args.elem id then .none else .some ⟨.some id, .num .i32⟩
+    )
 
   { lbl     := .some f.name.toWasmIdent
   , typeuse := .elab_param_res params result
