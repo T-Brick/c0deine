@@ -1,4 +1,4 @@
-// return 30561
+//test return 30561
 int main() {
   int* x = alloc(int);
   int* y= alloc(int);

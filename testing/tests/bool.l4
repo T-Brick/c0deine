@@ -1,4 +1,4 @@
-//return -1
+//test return -1
 int main() {
   if(false && (1 / 0 == 1)) {
     return 1;

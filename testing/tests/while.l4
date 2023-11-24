@@ -1,4 +1,4 @@
-//return 5
+//test return 5
 
 int main() {
   int i = 0;

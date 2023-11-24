@@ -104,9 +104,9 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   vprintln relooped
 
   vprintln "wasm translation..."
-  let wasm := Wasm.Trans.prog irtree (relooped.filterMap (·))
+  let wasm := Target.Wasm.Trans.prog irtree (relooped.filterMap (·))
   vprintln "wasm!"
-  IO.println wasm
+  IO.println (Target.Wasm.mkModule wasm)
 
 
   return 0

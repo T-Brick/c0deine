@@ -5,4 +5,4 @@ lab%: # don't really care about the lab numbers so we just throw that out
 	lake build
 
 clean:
-	lake clean
+	lake clean && testing/clean.sh
