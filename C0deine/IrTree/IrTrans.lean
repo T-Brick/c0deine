@@ -73,7 +73,7 @@ def Prog.func (f : Symbol) : Prog Label :=
     match env.functions.find? f with
     | some l => return (l, env)
     | none => do
-      let l ← Label.fresh
+      let l ← Label.namedFresh ("_c0_" ++ f.name)
       let env' := {env with functions := env.functions.insert f l}
       return (l, env')
 
