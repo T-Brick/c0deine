@@ -202,9 +202,12 @@ def func_body
     (shape : ControlFlow.Relooper.Shape)
     : List Instr :=
   (traverse shape .none).fst ++ [.plain .unreachable]
-where traverse (shape : ControlFlow.Relooper.Shape)
-               (priorExit : Option IrTree.BlockExit)
-               : List Instr × Option IrTree.BlockExit :=
+where
+  error (msg : String) : List Instr × Option IrTree.BlockExit :=
+      ([.comment msg], .none)
+  traverse (shape : ControlFlow.Relooper.Shape)
+           (priorExit : Option IrTree.BlockExit)
+           : List Instr × Option IrTree.BlockExit :=
   match shape with
   | .simple l next =>
     match f.blocks.find? l with
@@ -220,7 +223,7 @@ where traverse (shape : ControlFlow.Relooper.Shape)
       , match next_exit with | .none => .some block.exit | _ => next_exit
       )
     | .none =>
-      panic! s!"WASM Trans: Could not find block labeled {l}, in shape {shape} in {f}!"
+      error s!"WASM Trans: Could not find block labeled {l}, in shape {shape} in {f}!"
   | .loop inner next =>
     let lbls := ControlFlow.Relooper.Shape.getLabels shape
     match inner, lbls with
@@ -228,7 +231,7 @@ where traverse (shape : ControlFlow.Relooper.Shape)
       let (i_instr, body_exit) := traverse i .none
       let (n_instr, next_exit) :=
         match next with
-        | .some n => traverse n .none
+        | .some n => traverse n body_exit
         | .none   => ([], .none)
 
       match body_exit with
@@ -240,11 +243,11 @@ where traverse (shape : ControlFlow.Relooper.Shape)
         , next_exit
         )
       | _ =>
-        panic! s!"WASM Trans: Shape loop, {shape}, body has improper exit {body_exit}!"
+        error s!"WASM Trans Error: Shape loop, {shape}, body has improper exit {body_exit}!"
     | .some _, _ =>
-      panic! s!"WASM Trans: Shape loop, {shape}, has too many/few successors: {lbls}!"
+      error s!"WASM Trans: Shape loop, {shape}, has too many/few successors: {lbls}!"
     | .none, _ =>
-      panic! s!"WASM Trans: Shape loop, {shape}, missing loop body!"
+      error s!"WASM Trans: Shape loop, {shape}, missing loop body!"
   | .multi left right next =>
     let lbls := ControlFlow.Relooper.Shape.getLabels shape
     match left, right, lbls, priorExit with
@@ -274,10 +277,11 @@ where traverse (shape : ControlFlow.Relooper.Shape)
 
       (l_block :: n_instr, next_exit)
     | _, _, _, .some (.cjump _ _ _ _) =>
-      panic! s!"WASM Trans: Shape multi, {shape}, missing branch!"
+      error s!"WASM Trans: Shape multi, {shape}, missing branch!"
     | _, _, _, .none | _, _, _, .some _ =>
-      panic! s!"WASM Trans: Shape multi, {shape}, doesn't have condition to branch {priorExit}!"
-  | .illegal lbls => panic! s!"WASM Trans: Illegal shape {shape}!"
+      error s!"WASM Trans: Shape multi, {shape}, doesn't have condition to branch: {priorExit}!"
+  | .illegal lbls => error s!"WASM Trans: Illegal shape {shape}!"
+
 
 -- todo: temp just to get things working
 partial def find_used_temps (instrs : List Instr) : List Ident :=

@@ -1,6 +1,7 @@
 import Numbers
 import C0deine.Context.Label
 import C0deine.Context.Temp
+import C0deine.Config.Targets
 import Wasm.Text.Instr
 import Wasm.Text.Index
 import Wasm.Text.Module
@@ -53,7 +54,7 @@ def stemp : SizedTemp → Module.Index :=
   .name ∘ Temp.toWasmIdent ∘ SizedTemp.temp
 def label : Label     → Module.Index := .name ∘ Label.toWasmIdent
 
-def calloc : Module.Field := .funcs
+def calloc_func : Module.Field := .funcs
   { lbl     := .some Label.calloc.toWasmIdent
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
   , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
@@ -84,8 +85,14 @@ def calloc : Module.Field := .funcs
     , Plain.wasm_return
     ]
   }
+def calloc_import : Module.Field := .imports
+  ⟨ "c0deine"
+  , "calloc"
+  , .func (.some Label.calloc.toWasmIdent)
+          (.elab_param_res [(.none, .num .i32)] [])
+  ⟩
 
-def abort : Module.Field := .funcs
+def abort_func : Module.Field := .funcs
   { lbl     := .some Label.abort.toWasmIdent
   , typeuse := .elab_param_res [] []
   , locals  := []
@@ -94,33 +101,73 @@ def abort : Module.Field := .funcs
     , Plain.unreachable
     ]
   }
-
-def log_id : Ident := ⟨"log", sorry, sorry⟩
-def log : Module.Field := .imports
-  ⟨ "console"
-  , "log"
-  , .func (.some log_id) (.elab_param_res [(.none, .num .i32)] [])
+def abort_import : Module.Field := .imports
+  ⟨ "c0deine"
+  , "abort"
+  , .func (.some Label.abort.toWasmIdent) (.elab_param_res [] [])
   ⟩
 
-def main_func : Module.Function := 
-  { lbl     := .some Label.main.toWasmIdent
-  , typeuse := .elab_param_res [] []
-  , locals  := []
-  , body    :=
-    [ (i32_const 0)               -- store pointer to next free seg at 0
-    , (i32_const 4)
-    , (i32_mem (.store ⟨0, 4⟩))
-    , Plain.call (.name ⟨"_c0_main", sorry, sorry⟩)
-    ]
-  }
+/- todo move into proper std libraries -/
+def result_id : Ident := ⟨"result", sorry, sorry⟩
+def result : Module.Field := .imports
+  ⟨ "c0deine"
+  , "result"
+  , .func (.some result_id) (.elab_param_res [(.none, .num .i32)] [])
+  ⟩
 
-def main : Module.Field := .funcs main_func
-
-def main_log : Module.Field := .funcs
-  { main_func with body := main_func.body ++ [.plain <|.call (.name log_id)] }
-
-def memory : Module.Field := .mems ⟨.none, ⟨1, .none⟩⟩
 def start  : Module.Field := .start ⟨.name Label.main.toWasmIdent⟩
 
-def mkModule (funcs : List Module.Function) : Module :=
-  ⟨.none, [log, abort, memory, calloc, main_log, start] ++ funcs.map .funcs⟩
+def main_import : Module.Field := .imports
+  ⟨ "c0deine"
+  , "main"
+  , .func (.some Label.main.toWasmIdent) (.elab_param_res [] [])
+  ⟩
+
+def main (config : Wasm.Config) : List Module.Field :=
+  let main_body := (
+    if config.import_calloc then [] else
+      [ (i32_const 0)               -- store pointer to next free seg at 0
+      , (i32_const 4)
+      , (i32_mem (.store ⟨0, 4⟩))
+      ]
+    ).append [Plain.call (.name ⟨"_c0_main", sorry, sorry⟩)]
+  match config.main with
+  | .import =>
+    [ .exports
+        ⟨ "_c0_main"
+        , .func (.name ⟨"_c0_main", sorry, sorry⟩)
+        ⟩
+    ]
+  | .start  => [start, .funcs
+    { lbl     := .some Label.main.toWasmIdent
+    , typeuse := .elab_param_res [] []
+    , locals  := []
+    , body    := main_body.append [Plain.call (.name result_id)]
+    }]
+  | .return => [.funcs
+    { lbl     := .some Label.main.toWasmIdent
+    , typeuse := .elab_param_res [] [.num .i32]
+    , locals  := []
+    , body    := main_body
+    }]
+
+def memory : Module.Field := .mems ⟨.none, ⟨1, .none⟩⟩
+
+def mkImports (config : Wasm.Config) : List (Module.Field) :=
+  [ .some result
+  , if config.import_abort then .some abort_import else .none
+  , if config.import_calloc then .some calloc_import else .none
+  , match config.main with | .import => .some main_import | _ => .none
+  ].filterMap (·)
+
+def mkModule (config : Wasm.Config) (funcs : List Module.Function) : Module :=
+  let c0_funcs := funcs.map .funcs
+  ⟨ .none
+  , mkImports config
+    ++ [ .some memory
+       , if config.import_abort then .none else .some abort_func
+       , if config.import_calloc then .none else .some calloc_func
+       ].filterMap (·)
+    ++ (main config)
+    ++ c0_funcs
+  ⟩
