@@ -72,7 +72,8 @@ def check (check : IrTree.Check) : List Instr :=
     let comment := .comment s!"Null check on {te}"
     let block := block .no_label <| te'.append
       [ Plain.br_if (.num 0)
-      , Plain.call (label Label.abort) -- todo maybe we need to pass args?
+      , Error.mem
+      , Plain.call (label Label.abort)
       , Plain.unreachable
       ]
     [comment, block]
@@ -92,6 +93,7 @@ def check (check : IrTree.Check) : List Instr :=
         , Plain.br_if (.num 0)        -- abort
         , Plain.br (.num 1)           -- success
         ]
+      , Error.arith
       , Plain.call (label Label.abort)
       , Plain.unreachable
       ] -- todo maybe we need to pass args?
@@ -118,6 +120,7 @@ def check (check : IrTree.Check) : List Instr :=
         , Plain.br_if (.num 0)         -- abort
         , Plain.br (.num 1)            -- success
         ]
+      , Error.mem
       , Plain.call (label Label.abort)
       , Plain.unreachable
       ] -- todo maybe we need to pass args?

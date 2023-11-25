@@ -25,7 +25,7 @@ structure Config where
 
 instance : Inhabited Config where default :=
   { import_calloc := false
-  , import_abort  := false
+  , import_abort  := true
   , main          := .start
   }
 

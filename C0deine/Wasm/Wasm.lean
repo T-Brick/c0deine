@@ -54,6 +54,21 @@ def stemp : SizedTemp → Module.Index :=
   .name ∘ Temp.toWasmIdent ∘ SizedTemp.temp
 def label : Label     → Module.Index := .name ∘ Label.toWasmIdent
 
+/- We pass the signal numbers we want into the abort function
+    (nb. div-by-zero is already a wasm exception)
+-/
+def Error.mem    : Instr := i32_const 12    -- SIGUSR2
+def Error.assert : Instr := i32_const 6     -- SIGABRT
+def Error.arith  : Instr := i32_const 8     -- SIGFPE
+
+/- todo move into proper std libraries -/
+def result_id : Ident := ⟨"result", sorry, sorry⟩
+def result : Module.Field := .imports
+  ⟨ "c0deine"
+  , "result"
+  , .func (.some result_id) (.elab_param_res [(.none, .num .i32)] [])
+  ⟩
+
 def calloc_func : Module.Field := .funcs
   { lbl     := .some Label.calloc.toWasmIdent
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
@@ -94,25 +109,19 @@ def calloc_import : Module.Field := .imports
 
 def abort_func : Module.Field := .funcs
   { lbl     := .some Label.abort.toWasmIdent
-  , typeuse := .elab_param_res [] []
+  , typeuse := .elab_param_res [(.none, .num .i32)] []
   , locals  := []
   , body    :=
-    [ i32_const (-1)
+    [ locl (.get (.num 0))
+    , Plain.call (.name result_id)
     , Plain.unreachable
     ]
   }
 def abort_import : Module.Field := .imports
   ⟨ "c0deine"
   , "abort"
-  , .func (.some Label.abort.toWasmIdent) (.elab_param_res [] [])
-  ⟩
-
-/- todo move into proper std libraries -/
-def result_id : Ident := ⟨"result", sorry, sorry⟩
-def result : Module.Field := .imports
-  ⟨ "c0deine"
-  , "result"
-  , .func (.some result_id) (.elab_param_res [(.none, .num .i32)] [])
+  , .func (.some Label.abort.toWasmIdent)
+          (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
 def start  : Module.Field := .start ⟨.name Label.main.toWasmIdent⟩
