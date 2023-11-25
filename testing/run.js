@@ -4,7 +4,7 @@ const path = require('path');
 
 var args = process.argv.slice(2);
 
-var quiet = 1;
+var quiet = 0;
 
 var failed = 0;
 var success = 0;
@@ -179,7 +179,7 @@ const main = function() {
 
   if(fs.lstatSync(args[0]).isFile()) {
     const filename = args[0]
-    evalTest(filename);
+    evalTest(filename, () => {});
     return;
   }
 
