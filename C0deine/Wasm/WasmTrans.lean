@@ -96,7 +96,24 @@ def check (check : IrTree.Check) : List Instr :=
       , Error.arith
       , Plain.call (label Label.abort)
       , Plain.unreachable
-      ] -- todo maybe we need to pass args?
+      ]
+    [comment, block]
+
+  | .mod l r =>
+    let l' := texpr l
+    let r' := texpr r
+    let comment := .comment s!"Mod check on {l} % {r}"
+    let block := block .no_label <| (l'.append r').append
+      [ i32_const (-1)
+      , i32_rel .ne
+      , Plain.br_if (.num 0)
+      , i32_const Signed.MIN_VALUE
+      , i32_rel .ne
+      , Plain.br_if (.num 0)
+      , Error.arith
+      , Plain.call (label Label.abort)
+      , Plain.unreachable
+      ]
     [comment, block]
 
   | .bounds source index =>
@@ -123,7 +140,7 @@ def check (check : IrTree.Check) : List Instr :=
       , Error.mem
       , Plain.call (label Label.abort)
       , Plain.unreachable
-      ] -- todo maybe we need to pass args?
+      ]
     [comment, block]
 
 def addr (a : IrTree.Address) : List Instr :=

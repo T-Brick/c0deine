@@ -256,7 +256,8 @@ partial def expr (tau : Typ)
       let shift := -- include bounds check
         match op' with
         | .lsh | .rsh => [.check (.shift r')]
-        | .div | .mod => []
+        | .mod => [.check (.mod l' r')]
+        | .div => []
       return (effect :: shift ++ stmts2, .temp dest)
 
   | .ternop cond tt ff => ternary tau acc cond tt ff

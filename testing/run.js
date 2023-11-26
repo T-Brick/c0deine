@@ -9,6 +9,11 @@ var quiet = 0;
 var failed = 0;
 var success = 0;
 
+const print_imports = {c0deine: {
+  result: res => { console.log((res | 0))},
+  abort: sig => { console.log("abort: " + (sig | 0))},
+}};
+
 const passTest = function(filename) {
   success++;
   if(quiet <= 0) {
@@ -128,12 +133,7 @@ const compile = function(filename, result, k) {
   );
 }
 
-const run = function(filename, expect, k) {
-  const check_imports = {c0deine: {
-    result: result(filename, expect),
-    abort: abort(filename, expect),
-  }};
-
+const run = function(filename, imports, expect, k) {
   const bytes = fs.readFileSync(filename + ".wasm");
   const wasm = new WebAssembly.Module(bytes);
 
@@ -142,7 +142,7 @@ const run = function(filename, expect, k) {
   }
 
   try {
-    const instance = new WebAssembly.Instance(wasm, check_imports);
+    const instance = new WebAssembly.Instance(wasm, imports);
   } catch(e) {
     if(expect === undefined) {
       console.log(e + "");
@@ -162,10 +162,14 @@ const run = function(filename, expect, k) {
 const evalTest = function(filename, k) {
   parseExpectedResult(filename, res => {
     compile(filename, res, () => {
-      if(result["typecheck"]) {
+      if(res["typecheck"]) {
         return passTest(filename, "Typechecked", "Typechecked")
       }
-      run(filename, res, k);
+      const check_imports = {c0deine: {
+        result: result(filename, res),
+        abort: abort(filename, res),
+      }};
+      run(filename, check_imports, res, k);
     });
   });
 }
@@ -206,4 +210,5 @@ const main = function() {
 }
 
 main();
+// run("../test", print_imports, undefined, () => {});
 

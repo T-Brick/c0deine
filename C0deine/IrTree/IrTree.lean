@@ -38,6 +38,7 @@ inductive Check
 | null : Typed Expr → Check
 | shift : Typed Expr → Check
 | bounds (source index : Typed Expr)
+| mod (l r : Typed Expr)
 
 inductive Stmt
 | move (dest : SizedTemp) (te : Typed Expr)
@@ -142,6 +143,7 @@ instance : ToString Address where toString := Address.toString
 def Check.toString : Check → String
   | .null e => s!"null_check({e})"
   | .shift e => s!"shift_check({e})"
+  | .mod l r => s!"mod_check({l} % {r})"
   | .bounds source index => s!"bounds_check({source}[{index}])"
 instance : ToString Check where toString := Check.toString
 
