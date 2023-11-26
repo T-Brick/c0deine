@@ -14,6 +14,15 @@ const print_imports = {c0deine: {
   abort: sig => { console.log("abort: " + (sig | 0))},
 }};
 
+const buildLazyList = function(list) {
+  if(list === undefined || list === null || list.length === 0) {
+    return {nil: true}
+  }
+  return {hd: list[0], tl: () => {
+    return buildLazyList(list.slice(1));
+  }};
+}
+
 const passTest = function(filename) {
   success++;
   if(quiet <= 0) {
@@ -82,7 +91,7 @@ const abort = function(filename, expect) {
   };
 }
 
-const parseExpectedResult = function(filename, k) {
+const parseExpectedResult = function(filename, k, next) {
   fs.readFile(filename, (err, data) => {
     var str = (data + "").split("\n", 2)[0].trim();
     if(str.startsWith("//test")) {
@@ -108,27 +117,31 @@ const parseExpectedResult = function(filename, k) {
     }
 
     console.log("Couldn't parse testcase result for '" + filename + "' :(")
+    return next();
   });
 }
 
-const compile = function(filename, result, k) {
+const compile = function(filename, result, exe, next) {
   exec('sh compile.sh ' + filename,
     (error, stdout, stderr) => {
       if(result === undefined) {
         if(error !== null) {
           console.log(stdout);
           console.log(stderr);
+          return next();
         }
-        return k();
+        return exe();
       }
 
       if (error !== null && result["error"]) {
-        return passTest(filename, "Compile error", "Compile error")
+        passTest(filename, "Compile error", "Compile error")
+        return next();
       }
       if (error !== null) {
-        return failTest(filename, resultToString(result), "\n" + stdout + "\n" + stderr);
+        failTest(filename, resultToString(result), "\n" + stdout + "\n" + stderr);
+        return next();
       }
-      return k();
+      return exe();
     }
   );
 }
@@ -170,8 +183,8 @@ const evalTest = function(filename, k) {
         abort: abort(filename, res),
       }};
       run(filename, check_imports, res, k);
-    });
-  });
+    }, k);
+  }, k);
 }
 
 const main = function() {
@@ -195,15 +208,25 @@ const main = function() {
         return;
       }
 
-      for (const file of files) {
+      const iter = function(llist) {
+        if(llist === undefined || llist === null || llist.nil) {
+          console.log("Passed: " + success + "  Failed: "+ failed);
+          return;
+        }
+        const file = llist.hd
         if(file.endsWith(".l4")
             || file.endsWith(".l3")
             || file.endsWith(".l2")
             || file.endsWith(".l1")
             || file.endsWith(".c0")) {
-          evalTest(path.join(dir, file), () => {});
+          evalTest(path.join(dir, file), () => {
+            iter(llist.tl())
+          });
+        } else {
+          iter(llist.tl())
         }
-      }
+      };
+    iter(buildLazyList(files));
     });
     return;
   }
