@@ -416,9 +416,11 @@ def ternary (tau : Typ) (acc : List IrTree.Stmt)
         (transSizeTExpr tt)
         (transSizeTExpr ff)
     let (stmtsT, tt') ← texpr [] tt
-    let exitT := .jump lN
     let destT := .move sdest tt'
-    let blockT := ⟨lT, .ternaryTrue, (destT :: stmtsT).reverse, exitT⟩
+    let exitT := .jump lN
+    let curLabel ← Env.Func.curBlockLabel
+    let curType ← Env.Func.curBlockType
+    let blockT := ⟨curLabel, curType, (destT :: stmtsT).reverse, exitT⟩
     let () ← Env.Func.addBlock blockT lF .ternaryFalse
 
     have :=
@@ -426,9 +428,11 @@ def ternary (tau : Typ) (acc : List IrTree.Stmt)
         (transSizeTExpr tt)
         (transSizeTExpr ff)
     let (stmtsF, ff') ← texpr [] ff
-    let exitF := .jump lN
     let destF := .move sdest ff'
-    let blockF := ⟨lF, .ternaryFalse, (destF :: stmtsF).reverse, exitF⟩
+    let exitF := .jump lN
+    let curLabel ← Env.Func.curBlockLabel
+    let curType ← Env.Func.curBlockType
+    let blockF := ⟨curLabel, curType, (destF :: stmtsF).reverse, exitF⟩
     let () ← Env.Func.addBlock blockF lN .afterTernary
 
     return ([], .temp sdest)
@@ -441,7 +445,7 @@ def texpr (acc : List IrTree.Stmt)
 def args (acc : List IrTree.Stmt) (as : List (Typ.Typed Tst.Expr))
          : Env.Func ((List IrTree.Stmt) × (List (Typ.Typed Expr))) := do
   match as with
-  | [] => return ([], [])
+  | [] => return (acc, [])
   | arg :: as =>
     let (stmts, arg') ← texpr acc arg
     let (stmts', args') ← args stmts as
