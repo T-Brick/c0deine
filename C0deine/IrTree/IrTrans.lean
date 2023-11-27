@@ -534,7 +534,7 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
     let exit := .cjump cond_temp (some true) loopBody afterLoop
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
-    let block := ⟨curLabel, curType, (condT :: cstms ++ body').reverse, exit⟩
+    let block := ⟨curLabel, curType, (condT :: body').reverse, exit⟩
     let () ← Env.Func.addBlock block afterLoop .afterLoop
     return []
 
