@@ -218,8 +218,52 @@ def binop_op (op : Tst.BinOp)
   | .bool .or  => .inl IrTree.Expr.or
   | .cmp c     => .inl (.binop (.comp c))
 
+-- custom size definition to help prove termination
 mutual
-partial def expr (tau : Typ)
+@[simp] def transSizeExpr (e : Tst.Expr) : Nat :=
+  match e with
+  | .num _        => 0
+  | .var _        => 0
+  | .true         => 0
+  | .false        => 0
+  | .null         => 0
+  | .unop _ e     => 1 + transSizeTExpr e
+  | .binop op l r =>
+    match op with
+    | .bool _        => 1 + 1 + (transSizeTExpr l) + 1 + (transSizeTExpr r)
+    | _              => 1 + max (transSizeTExpr l) (transSizeTExpr r)
+  | .ternop cc tt ff =>
+    1 + (transSizeTExpr cc) + 1 + (transSizeTExpr tt) + 1 + (transSizeTExpr ff)
+  | .app f as        => 1 + transSizeTExprList as
+  | .alloc _         => 1
+  | .alloc_array _ e => 1 + transSizeTExpr e
+  | .dot e _field    => 2 + transSizeTExpr e
+  | .deref e         => 2 + transSizeTExpr e
+  | .index arr indx  => 2 + (transSizeTExpr arr) + (transSizeTExpr indx)
+
+@[simp] def transSizeTExpr : Typ.Typed Tst.Expr → Nat
+  | .mk _tau data => 1 + transSizeExpr data
+
+@[simp] def transSizeTExprList : List (Typ.Typed Tst.Expr) → Nat
+  | [] => 0
+  | e :: es => 1 + max (transSizeTExpr e) (transSizeTExprList es)
+end
+termination_by
+  transSizeExpr e => sizeOf e
+  transSizeTExpr e => sizeOf e
+  transSizeTExprList es => sizeOf es
+
+theorem lt_one_nat_max_left (cc tt ff : Nat) : tt < 1 + cc + max tt ff := by
+  have := Nat.le_max_left tt ff |> (Nat.le_iff_lt_or_eq).mp
+  apply Or.elim this <;> intro h
+  . simp [Nat.add_comm, Nat.lt_add_right _ _ (cc + 1) h]
+  . simp [←h]
+
+theorem lt_one_nat_max_right (cc tt ff : Nat) : ff < 1 + cc + max tt ff := by
+  rw [Nat.max_comm]; exact lt_one_nat_max_left cc ff tt
+
+mutual
+def expr (tau : Typ)
          (acc : List IrTree.Stmt)
          (exp : Tst.Expr)
          : Env.Func ((List IrTree.Stmt) × IrTree.Expr) := do
@@ -242,23 +286,37 @@ partial def expr (tau : Typ)
       let c := MkTyped.int (.const 0)
       return (stmts, .binop (.comp .equal) e' c)
 
-  | .binop (.bool .and) l r => ternary tau acc l r ⟨.prim .bool, .false⟩
-  | .binop (.bool .or)  l r => ternary tau acc l ⟨.prim .bool, .true⟩ r
   | .binop op l r =>
-    let (stmts1, l') ← texpr acc l
-    let (stmts2, r') ← texpr stmts1 r
-    match binop_op op with
-    | .inl expr' => return (stmts2, expr' l' r') -- pure/boolean
-    | .inr op' =>
-      let size ← Env.Prog.toFunc (Typ.tempSize tau)
-      let dest := ⟨size, ← Env.Func.freshTemp⟩
-      let effect := .effect dest op' l' r'
-      let shift := -- include bounds check
-        match op' with
-        | .lsh | .rsh => [.check (.shift r')]
-        | .mod => [.check (.mod l' r')]
-        | .div => []
-      return (effect :: shift ++ stmts2, .temp dest)
+    match h : op with
+    | .bool .and =>
+      have : 1 + transSizeTExpr l + max (transSizeTExpr r) 1
+           < 1 + 1 + transSizeTExpr l + 1 + transSizeTExpr r := by
+        let r := transSizeTExpr r
+        have : max r 1 < 1 + 1 + r := by simp [Nat.add_comm]; linarith
+        linarith
+      ternary tau acc l r ⟨.prim .bool, .false⟩
+    | .bool .or  =>
+      have : 1 + transSizeTExpr l + max 1 (transSizeTExpr r)
+           < 1 + 1 + transSizeTExpr l + 1 + transSizeTExpr r := by
+        let r := transSizeTExpr r
+        have : max 1 r < 1 + 1 + r := by simp [Nat.add_comm]; linarith
+        linarith
+      ternary tau acc l ⟨.prim .bool, .true⟩ r
+    | .int _ | .cmp _ =>
+      let (stmts1, l') ← texpr acc l
+      let (stmts2, r') ← texpr stmts1 r
+      match binop_op op with
+      | .inl expr' => return (stmts2, expr' l' r') -- pure/boolean
+      | .inr op' =>
+        let size ← Env.Prog.toFunc (Typ.tempSize tau)
+        let dest := ⟨size, ← Env.Func.freshTemp⟩
+        let effect := .effect dest op' l' r'
+        let shift := -- include bounds check
+          match op' with
+          | .lsh | .rsh => [.check (.shift r')]
+          | .mod => [.check (.mod l' r')]
+          | .div => []
+        return (effect :: shift ++ stmts2, .temp dest)
 
   | .ternop cond tt ff => ternary tau acc cond tt ff
 
@@ -319,15 +377,25 @@ partial def expr (tau : Typ)
         return (storeLen :: alloc :: stmts, arr)
     | none => panic! "IR Trans: Alloc array type size not known"
 
-  | .dot _e _field
-  | .deref _e
-  | .index _e _indx =>
-    let (stmts, address, checks) ← Addr.addr acc ⟨tau, exp⟩ 0 false
+  | .dot e field =>
+    let (stmts, address, checks) ← Addr.dot acc e field 0
     let dest ← Env.Func.freshTemp
     let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
     return (.load sdest address :: checks ++ stmts, .temp sdest)
 
-partial def ternary (tau : Typ) (acc : List IrTree.Stmt)
+  | .deref e =>
+    let (stmts, address, checks) ← Addr.deref acc e 0 false
+    let dest ← Env.Func.freshTemp
+    let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
+    return (.load sdest address :: checks ++ stmts, .temp sdest)
+
+  | .index arr indx =>
+    let (stmts, address, checks) ← Addr.index acc arr indx 0
+    let dest ← Env.Func.freshTemp
+    let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
+    return (.load sdest address :: checks ++ stmts, .temp sdest)
+
+def ternary (tau : Typ) (acc : List IrTree.Stmt)
             (cond tt ff : Typ.Typed Tst.Expr)
             : Env.Func ((List IrTree.Stmt) × IrTree.Expr) := do
     let lT ← Env.Func.freshLabel
@@ -346,12 +414,20 @@ partial def ternary (tau : Typ) (acc : List IrTree.Stmt)
     let block := ⟨curLabel, curType, (condT :: stmts).reverse, exit⟩
     let () ← Env.Func.addBlock block lT .ternaryTrue
 
+    have :=
+      lt_one_nat_max_left (transSizeTExpr cond)
+        (transSizeTExpr tt)
+        (transSizeTExpr ff)
     let (stmtsT, tt') ← texpr [] tt
     let exitT := .jump lN
     let destT := .move sdest tt'
     let blockT := ⟨lT, .ternaryTrue, (destT :: stmtsT).reverse, exitT⟩
     let () ← Env.Func.addBlock blockT lF .ternaryFalse
 
+    have :=
+      lt_one_nat_max_right (transSizeTExpr cond)
+        (transSizeTExpr tt)
+        (transSizeTExpr ff)
     let (stmtsF, ff') ← texpr [] ff
     let exitF := .jump lN
     let destF := .move sdest ff'
@@ -360,11 +436,12 @@ partial def ternary (tau : Typ) (acc : List IrTree.Stmt)
 
     return ([], .temp sdest)
 
-partial def texpr (acc : List IrTree.Stmt) (texp : Typ.Typed Tst.Expr)
-          : Env.Func ((List IrTree.Stmt) × Typ.Typed Expr) :=
-  MkTyped.expr (expr texp.type acc texp.data) texp.type
+def texpr (acc : List IrTree.Stmt)
+          : Typ.Typed Tst.Expr
+          → Env.Func ((List IrTree.Stmt) × Typ.Typed Expr)
+  | .mk τ e => MkTyped.expr (expr τ acc e) τ
 
-partial def args (acc : List IrTree.Stmt) (as : List (Typ.Typed Tst.Expr))
+def args (acc : List IrTree.Stmt) (as : List (Typ.Typed Tst.Expr))
          : Env.Func ((List IrTree.Stmt) × (List (Typ.Typed Expr))) := do
   match as with
   | [] => return ([], [])
@@ -377,23 +454,23 @@ partial def args (acc : List IrTree.Stmt) (as : List (Typ.Typed Tst.Expr))
 /- returns the elaborated statements, address, and pending memory checks
  - This allows us to maintain the weird semantics for checks
  -/
-partial def Addr.addr (acc : List IrTree.Stmt)
-         (texp : Typ.Typed Tst.Expr)
+def Addr.addr (_tau : Typ) (acc : List IrTree.Stmt)
+         (e : Tst.Expr)
          (offset : UInt64)
          (check : Bool)
          : Env.Func (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
-  match texp.data with
+  match e with
   | .dot e field  => Addr.dot acc e field offset
   | .deref e      => Addr.deref acc e offset check
   | .index e indx => Addr.index acc e indx offset
   | _ => panic! "IR Trans: Attempted to address a non-pointer"
 
-partial def Addr.dot (acc : List IrTree.Stmt)
-               (texp : Typ.Typed Tst.Expr)
-               (field : Symbol)
-               (offset : UInt64)
-               : Env.Func
-                  (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
+def Addr.dot (acc : List IrTree.Stmt)
+             (texp : Typ.Typed Tst.Expr)
+             (field : Symbol)
+             (offset : UInt64)
+             : Env.Func
+                (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
   let structs ← Env.Func.structs
   let struct :=
     match texp.type with
@@ -406,9 +483,10 @@ partial def Addr.dot (acc : List IrTree.Stmt)
     match struct.fields.find? field with
     | some foffset => foffset
     | none => panic! s!"IR Trans: Could not find field offset {field}"
-  Addr.addr acc texp (offset + foffset) true
+  match texp with
+  | .mk τ e => Addr.addr τ acc e (offset + foffset) true
 
-partial def Addr.deref (acc : List IrTree.Stmt)
+def Addr.deref (acc : List IrTree.Stmt)
          (texp : Typ.Typed Tst.Expr)
          (offset : UInt64)
          (check : Bool)
@@ -419,11 +497,11 @@ partial def Addr.deref (acc : List IrTree.Stmt)
   then return (.check (.null texp') :: stmts, address, [])
   else return (stmts, address, [.check (.null texp')])
 
-partial def Addr.index (acc : List IrTree.Stmt)
+def Addr.index (acc : List IrTree.Stmt)
                (arr indx : Typ.Typed Tst.Expr)
                (offset : UInt64)
                : Env.Func
-                (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
+                  (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
   let (stmts1, arr') ← texpr acc arr
   let (stmts2, indx') ← texpr stmts1 indx
   let scale ←
@@ -437,6 +515,21 @@ partial def Addr.index (acc : List IrTree.Stmt)
   let address := ⟨arr', offset, some indx', scale.toNat⟩
   return (stmts', address, [])
 end
+termination_by
+  expr tau acc e           => transSizeExpr e
+  ternary tau acc cc tt ff =>
+    1 + transSizeTExpr cc + max (transSizeTExpr tt) (transSizeTExpr ff)
+  texpr acc te             => transSizeTExpr te
+  args acc as              => transSizeTExprList as
+  Addr.addr tau acc e _ _  => 1 + transSizeExpr e
+  Addr.dot acc e _ _       => 1 + transSizeTExpr e
+  Addr.deref acc e _ _     => 1 + transSizeTExpr e
+  Addr.index acc arr i _   => 1 + transSizeTExpr arr + transSizeTExpr i
+
+def Addr.taddr (acc : List IrTree.Stmt)
+    : Typ.Typed Tst.Expr → UInt64 → Bool
+    → Env.Func (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt)
+  | .mk τ e => Addr.addr τ acc e
 
 mutual
 def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt) := do
@@ -461,7 +554,7 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
       panic! s!"IR Trans: 'x += e' should have been elaborated away"
     | _, _ =>
       let lhs' := Elab.lvalue tlv
-      let (stms1, dest, checks) ← Addr.addr past lhs' 0 false
+      let (stms1, dest, checks) ← Addr.taddr past lhs' 0 false
       let (stms2, src) ← texpr stms1 rhs
       let size ← Env.Prog.toFunc (Typ.tempSize tlv.type)
       match oop.map binop_op_int with

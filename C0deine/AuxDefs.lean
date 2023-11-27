@@ -1,5 +1,6 @@
 import Std
 import Numbers
+import Mathlib.Tactic.Linarith
 
 def Nat.digitCharInv! : Char → Nat
 | '0' => 0
