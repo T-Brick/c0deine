@@ -175,7 +175,7 @@ def Block.toString (b : Block) :=
 instance : ToString Block where toString := Block.toString
 
 def Func.toString (f : Func) :=
-  let blocks := f.blocks.toList.map (fun b => s!"{b.2}\n") |> String.join
+  let blocks := f.blocks.toList.reverse.map (fun b => s!"{b.2}\n") |> String.join
   let res :=
     match f.result_size with
     | .some s => s!" -> {s}"
@@ -186,14 +186,3 @@ instance : ToString Func where toString := Func.toString
 def Prog.toString (prog : Prog) :=
   prog.map (fun f => s!"{f}\n\n") |> String.join
 instance : ToString Prog where toString := Prog.toString
-
-#check Nat.lt_iff_add_one_le
-#check Nat.add_lt_add_iff_left
-#check Nat.lt_add_right
-#check Nat.succ_lt_succ_iff
-#check Nat.lt_add_right_iff_pos
-#check Nat.lt_add_left_iff_pos
-
-theorem test : 1 + l + max r 1 < 1 + 1 + l + 1 + r := by
-  have : max r 1 < 1 + 1 + r := by simp [Nat.add_comm]
-  linarith

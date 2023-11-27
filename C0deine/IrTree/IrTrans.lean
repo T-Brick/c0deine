@@ -184,14 +184,11 @@ def Typ.tempSize (tau : Typ) : Env.Prog ValueSize := do
   | some 1 => return .byte
   | _      => return .double
 
-partial def Elab.lvalue (tlv : Typ.Typed Tst.LValue) : Typ.Typed Tst.Expr :=
-  ⟨ tlv.type
-  , match tlv.data with
-    | .var name      => .var name
-    | .dot lv field  => .dot (Elab.lvalue lv) field
-    | .deref lv      => .deref (Elab.lvalue lv)
-    | .index lv indx => .index (Elab.lvalue lv) indx
-  ⟩
+def Elab.lvalue : Typ.Typed Tst.LValue → Typ.Typed Tst.Expr
+  | .mk τ (.var name)      => .mk τ (.var name)
+  | .mk τ (.dot lv field)  => .mk τ (.dot (Elab.lvalue lv) field)
+  | .mk τ (.deref lv)      => .mk τ (.deref (Elab.lvalue lv))
+  | .mk τ (.index lv indx) => .mk τ (.index (Elab.lvalue lv) indx)
 
 def binop_op_int (op : Tst.BinOp.Int)
                   : IrTree.PureBinop ⊕ IrTree.EffectBinop :=

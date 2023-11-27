@@ -206,33 +206,43 @@ def LValue.toString : LValue → String
 instance : ToString LValue where toString := LValue.toString
 
 mutual
-partial def Stmt.toString (s : Stmt) : String :=
+def Stmt.toString (s : Stmt) : String :=
   match s with
   | .decl type name init body =>
     let initStr :=
       match init with
       | none => ""
       | some i => s!", {i}"
-    s!"declare({type}, {name}{initStr}, {Stmt.listToString body}\n\t)"
+    let str_body := (Stmt.listToString body).replace "\n" "\n  "
+    s!"declare({type}, {name}{initStr},\n  {str_body}\n)"
   | .assn lv op v => s!"{lv} {op} {v}"
   | .ite cond tt ff =>
-    s!"if({cond}){Stmt.listToString tt}\nelse\n{Stmt.listToString ff}\nendif\n"
-  | .while cond body => s!"while({cond})\n{Stmt.listToString body}\nendwhile\n"
+    let str_tt := (Stmt.listToString tt).replace "\n" "\n  "
+    let str_ff := (Stmt.listToString ff).replace "\n" "\n  "
+    s!"if({cond})\n  {str_tt}\nelse\n  {str_ff}\nendif"
+  | .while cond body =>
+    let str_body := (Stmt.listToString body).replace "\n" "\n  "
+    s!"while({cond})\n  {str_body}\nendwhile"
   | .«return» .none => "return"
   | .«return» (.some e) => s!"return {e}"
   | .assert e => s!"assert({e})"
   | .exp e => s!"{e}"
 
-partial def Stmt.listToString (stmts : List Stmt) : String :=
+def Stmt.listToString (stmts : List Stmt) : String :=
   match stmts with
-  | [] => ""
+  | [] => "nop;"
+  | [stmt] => s!"{Stmt.toString stmt};"
   | stmt :: stmts =>
-    s!"\n\t{Stmt.toString stmt};" |>.append (Stmt.listToString stmts)
+    s!"{Stmt.toString stmt};\n{Stmt.listToString stmts}"
 end
+termination_by
+  Stmt.toString s     => sizeOf s
+  Stmt.listToString s => sizeOf s
 
 instance : ToString Stmt        where toString := Stmt.toString
 instance : ToString (List Stmt) where toString := Stmt.listToString
 
+-- used in typechecker
 def Stmt.toPrettyString (s : Stmt) : String :=
   match s with
   | .decl type name init _body =>
@@ -260,7 +270,9 @@ instance : ToString (List Param) where
 
 instance : ToString FDecl where toString f := s!"{f.type} {f.name}({f.params})"
 instance : ToString FDef where
-  toString f := s!"{f.type} {f.name}({f.params}) {f.body}"
+  toString f :=
+    let str_body := (toString f.body).replace "\n" "\n  "
+    s!"{f.type} {f.name}({f.params})\n  {str_body}\nend {f.name}"
 
 def GDecl.toString : GDecl → String
   | .fdecl f => s!"{f}"
