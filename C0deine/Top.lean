@@ -21,15 +21,15 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     fun s => do if verbose then IO.println s
 
   if !(← input.pathExists) then
-    panic! "Input file does not exist: {input}"
+    panic! s!"Input file does not exist: {input}"
   if ← input.isDir then
-    panic! "Input path is a directory: {input}"
+    panic! s!"Input path is a directory: {input}"
 
   if libInput.isSome then
     if !(← libInput.get!.pathExists) then
-      panic! "Header file does not exist: {libInput}"
+      panic! s!"Header file does not exist: {libInput}"
     if ← libInput.get!.isDir then
-      panic! "Header path is a directory: {libInput}"
+      panic! s!"Header path is a directory: {libInput}"
 
   let lang : Language :=
     match input.extension with

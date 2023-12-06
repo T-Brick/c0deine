@@ -20,7 +20,7 @@
   {"git":
    {"url": "https://github.com/T-Brick/Numbers",
     "subDir?": null,
-    "rev": "0959892835a6218ffd939e8110cda97ffe7b1e66",
+    "rev": "2e9b6c8bbb53b4c5ce9644bcea03c5e0ba11411a",
     "opts": {},
     "name": "numbers",
     "inputRev?": "main",
@@ -36,7 +36,7 @@
   {"git":
    {"url": "https://github.com/T-Brick/lean-wasm",
     "subDir?": null,
-    "rev": "d9fc2b4a1eab4718ac07691135dcadfaa962ba44",
+    "rev": "d7fb0efb03b9e99db2dba269bbb1c177a5d2b786",
     "opts": {},
     "name": "wasm",
     "inputRev?": "main",

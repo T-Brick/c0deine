@@ -54,4 +54,3 @@ def symbol (name : String) : Context Symbol :=
       })
 
 end Symbol
-
