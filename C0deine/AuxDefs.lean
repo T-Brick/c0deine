@@ -1,6 +1,6 @@
 import Std
 import Numbers
-import Mathlib.Tactic.Linarith
+import Mathlib.Tactic
 
 def Nat.digitCharInv! : Char → Nat
 | '0' => 0
@@ -151,7 +151,6 @@ theorem List.length_join_replicate : (replicate n L).join.length = n * L.length 
   induction n
   . simp
   . simp [Nat.succ_mul, Nat.add_comm]
-    congr
 
 def Std.HashMap.insert_multi [BEq α] [Hashable α]
     (self : Std.HashMap α (List β))

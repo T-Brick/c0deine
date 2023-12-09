@@ -1,6 +1,6 @@
 import Std
 import C0deine.Utils.ValueSize
-import Wasm.Text.Context
+import Wasm.Text.Ident
 
 namespace C0deine
 

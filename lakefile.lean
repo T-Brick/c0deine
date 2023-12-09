@@ -14,7 +14,8 @@ lean_exe c0deine {
   root := `Main
 }
 
-require std from git "https://github.com/leanprover/std4" @ "v4.3.0-rc1"
+require mathlib from git
+  "https://github.com/leanprover-community/mathlib4" @ "v4.4.0-rc1"
 require Cli from git "https://github.com/mhuisi/lean4-cli" @ "nightly"
 require numbers from git "https://github.com/T-Brick/Numbers" @ "main"
 require controlflow from git "https://github.com/T-Brick/ControlFlow" @ "main"

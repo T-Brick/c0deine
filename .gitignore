@@ -4,3 +4,4 @@
 !/lean_packages/manifest.json
 *.wat
 *.wasm
+/.lake

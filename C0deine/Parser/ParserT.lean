@@ -140,7 +140,7 @@ def formatPretty (state : State s) (e : ParserT.Error s) : String :=
 
     hbox (align := .top) [
       -- line numbers
-      hbox (sep := [" |"]) [
+      hbox (sep := [" |"]) (hsep := sorry) [
         vbox (align := .right)
           (List.range' (ctxStart.val+1) (line.val-ctxStart.val+1) |>.map (toString ·))
       , empty]

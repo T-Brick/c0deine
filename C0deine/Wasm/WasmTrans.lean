@@ -217,7 +217,7 @@ def stmt : IrTree.Stmt → List Instr
   | .return (.some te) => texpr te |>.append [Plain.wasm_return]
 
 -- todo clean this up with helpers and such!
-def func_body
+partial def func_body
     (f : IrTree.Func)
     (shape : ControlFlow.Relooper.Shape)
     : List Instr :=
@@ -288,11 +288,13 @@ where
         .block (.name r_lbl.toWasmIdent)
           (.typeuse (.elab_param_res [] []))
           (cond ++ r_instr ++ [.plain <|.br (label l_lbl)])
+          .wasm_end
           .none
       let l_block := Instr.block <|
         .block (.name l_lbl.toWasmIdent)
           (.typeuse (.elab_param_res [] []))
           (r_block :: l_instr)
+          .wasm_end
           .none
 
       (l_block :: n_instr, next_exit)
@@ -307,8 +309,8 @@ where
 partial def find_used_temps (instrs : List Instr) : List Ident :=
   instrs.foldl (fun acc i =>
     match i with
-    | .block (.block _ _ body _)       => find_used_temps body ++ acc
-    | .block (.loop _ _ body _)        => find_used_temps body ++ acc
+    | .block (.block _ _ body _ _)       => find_used_temps body ++ acc
+    | .block (.loop _ _ body _ _)        => find_used_temps body ++ acc
     | .plain (.locl (.get (.name t)))  => t :: acc
     | .plain (.locl (.set (.name t)))  => t :: acc
     | .plain (.locl (.tee (.name t)))  => t :: acc
