@@ -1,0 +1,6 @@
+//test error
+
+int main() {
+  char c0 = ''';
+  return 0;
+}

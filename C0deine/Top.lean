@@ -83,10 +83,10 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     return 1
   | .ok tst =>
 
-  if tcOnly then return 0
-
   vprintln "typechecked!"
   vprintln tst
+
+  if tcOnly then return 0
 
   vprintln "ir translation..."
   let (irtree, ctx) := IrTree.Trans.prog config tst ctx

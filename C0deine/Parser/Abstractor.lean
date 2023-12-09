@@ -25,6 +25,14 @@ def Trans.type (lang : Language)
     if lang.under .l2
     then unsupported lang "bools"
     else return some .bool
+  | .char =>
+    if lang.under .c0
+    then unsupported lang "chars"
+    else return some .char
+  | .string =>
+    if lang.under .c0
+    then unsupported lang "strings"
+    else return some .string
   | .void =>
     if lang.under .l3
     then unsupported lang "void function type"
@@ -128,6 +136,8 @@ def Trans.expr (lang : Language) (e : Cst.Expr) : Except String Ast.Expr := do
     if lang.under l' then unsupported lang s!"{e}" else return res
   match e with
   | .num n   => return .num n
+  | .char c  => ret .c0 (.char c)
+  | .str s   => ret .c0 (.str s)
   | .«true»  => ret .l2 .«true»
   | .«false» => ret .l2 .«false»
   | .null    => ret .l4 .null
@@ -193,6 +203,16 @@ def Trans.expr (lang : Language) (e : Cst.Expr) : Except String Ast.Expr := do
       let e' ← Trans.expr lang e
       let indx' ← Trans.expr lang indx
       return .index e' indx'
+  | .result =>
+    if lang.under .c0
+    then unsupported lang "\\result"
+    else return .result
+  | .length e =>
+    if lang.under .c0
+    then unsupported lang "\\length"
+    else
+      let e' ← Trans.expr lang e
+      return .length e'
 
 def Trans.exprs (lang : Language)
                 (exps : List Cst.Expr)
@@ -204,7 +224,6 @@ def Trans.exprs (lang : Language)
     let es' ← Trans.exprs lang es
     return e'::es'
 end
-
 termination_by
   Trans.expr lang e => sizeOf e
   Trans.exprs lang e => sizeOf e
@@ -240,6 +259,45 @@ def Trans.lvalue (lang : Language)
       let indx' ← Trans.expr lang indx
       return .index lv' indx'
 
+def Trans.spec (lang : Language)
+               (specs : List Cst.Spec)
+               : Except String (List Ast.Anno) := do
+  match specs with
+  | []      => return []
+  | s :: ss => do
+    if lang.under .c0
+    then unsupported lang "contracts"
+    else
+      let s' ← (
+          match s with
+          | .requires e   => return .requires   (← Trans.expr lang e)
+          | .ensures e    => return .ensures    (← Trans.expr lang e)
+          | .loop_invar e => return .loop_invar (← Trans.expr lang e)
+          | .assert e     => return .assert     (← Trans.expr lang e)
+        )
+      let ss' ← Trans.spec lang ss
+      return s' :: ss'
+
+def Trans.anno (lang : Language)
+               (annos : List Cst.Anno)
+               : Except String (List Ast.Anno) := do
+  match annos with
+  | [] => return []
+  | .line s  :: as
+  | .block s :: as =>
+    let s' ← Trans.spec lang s
+    let as' ← Trans.anno lang as
+    return s' ++ as'
+
+def Trans.sepAnno (lang : Language)
+                  (stmt : Cst.Stmt)
+                  : Except String (List Ast.Anno × Cst.Stmt) := do
+  match stmt with
+  | .anno a s =>
+    let a' ← Trans.anno lang [a]
+    let (as', stmt') ← Trans.sepAnno lang s
+    return (a' ++ as', stmt')
+  | _ => return ([], stmt)
 
 mutual
 partial def Trans.stmts (lang : Language)
@@ -249,10 +307,15 @@ partial def Trans.stmts (lang : Language)
   | [] => return []
   | .simp simp :: rest => Trans.simp lang simp rest
   | .ctrl ctrl :: rest => Trans.control lang ctrl rest
-  | .block blk :: rest =>
+  | .block blk annos :: rest =>
     let blk' ← Trans.stmts lang blk
     let rest' ← Trans.stmts lang rest
-    return blk'.append rest'
+    let annos' ← Trans.anno lang annos
+    return blk' ++ (annos'.map .anno) ++ rest'
+  | .anno a s :: rest =>
+    let a' ← Trans.anno lang [a]
+    let s' ← Trans.stmts lang (s :: rest)
+    return a'.map .anno ++ s'
 
 partial def Trans.simp (lang : Language)
                (simp : Cst.Simp)
@@ -305,10 +368,11 @@ partial def Trans.control (lang : Language)
     if lang.under .l2
     then unsupported lang "while loops"
     else
+      let (annos', body) ← Trans.sepAnno lang body
       let cond' ← Trans.expr lang cond
       let body' ← Trans.stmts lang [body]
       let rest' ← Trans.stmts lang rest
-      return (.while cond' body') :: rest'
+      return (.while cond' annos' body') :: rest'
   | .«for» initOpt cond stepOpt body =>
     if lang.under .l2
     then unsupported lang "for loops"
@@ -316,7 +380,7 @@ partial def Trans.control (lang : Language)
       match stepOpt with
       | some (.decl _ _ _) => throw s!"For loop steps cannot have declarations"
       | some step =>
-        let bodyStep := .block [body, .simp step]
+        let bodyStep := .block [body, .simp step] []
         let whileStmt := .ctrl (.while cond bodyStep)
         match initOpt with
         | some init =>
@@ -349,6 +413,13 @@ partial def Trans.control (lang : Language)
       let e' ← Trans.expr lang e
       let rest' ← Trans.stmts lang rest
       return .assert e' :: rest'
+  | .error e =>
+    if lang.under .c0
+    then unsupported lang "error statements"
+    else
+      let e' ← Trans.expr lang e
+      let rest' ← Trans.stmts lang rest
+      return .error e' :: rest'
 end
 
 def Trans.param (lang : Language)
@@ -373,15 +444,17 @@ def Trans.gdecl (lang : Language)
     else
       let type' ← Trans.type lang f.type
       let params' ← f.params.mapM (Trans.param lang)
-      return .fdecl ⟨type', f.name, params'⟩
+      let annos' ← Trans.anno lang f.annos
+      return .fdecl ⟨type', f.name, params', annos'⟩
   | .fdef f =>
     if f.name.name != "main" && lang.under .l3
     then unsupported lang "functions that aren't main"
     else
       let type' ← Trans.type lang f.type
       let params' ← f.params.mapM (Trans.param lang)
+      let annos' ← Trans.anno lang f.annos
       let body' ← Trans.stmts lang [f.body]
-      return .fdef ⟨⟨type', f.name, params'⟩, body'⟩
+      return .fdef ⟨⟨type', f.name, params', annos'⟩, body'⟩
   | .tydef t =>
     if lang.under .l3
     then unsupported lang "typdefs"
@@ -394,6 +467,8 @@ def Trans.gdecl (lang : Language)
     if lang.under .l4
     then unsupported lang "struct definitions"
     else return .sdef ⟨s.name, ← s.fields.mapM (Trans.field lang)⟩
+  | .cdir _d =>
+    throw "Compiler directives must appear at the beginning of a file."
 
 def abstract (lang : Language)
              (header : Option Cst.Prog)

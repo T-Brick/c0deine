@@ -1,0 +1,8 @@
+//test error
+
+int main(){
+  string s = "a
+
+  asdfasd";
+  return 0;
+}

@@ -10,6 +10,8 @@ deriving ToString, DecidableEq, Repr
 inductive Typ
 | int
 | bool
+| char
+| string
 | tydef (name : Ident)
 | ptr : Typ → Typ
 | arr : Typ → Typ
@@ -37,6 +39,8 @@ inductive AsnOp
 
 inductive Expr
 | num (v : Int32)
+| char (c : Char)
+| str (s : String)
 | «true» | «false»
 | null
 | unop (op : UnOp) (e : Expr)
@@ -50,6 +54,8 @@ inductive Expr
 | arrow (e : Expr) (field : Ident)
 | deref (e : Expr)
 | index (e : Expr) (index : Expr)
+| result
+| length (e : Expr)
 
 inductive LValue
 | var (name : Ident)
@@ -58,21 +64,29 @@ inductive LValue
 | deref (lv : LValue)
 | index (lv : LValue) (index : Expr)
 
+inductive Anno
+| requires   : Expr → Anno
+| ensures    : Expr → Anno
+| loop_invar : Expr → Anno
+| assert     : Expr → Anno
+
 inductive Stmt
 | decl (type : Typ) (name : Ident) (init : Option Expr) (body : List Stmt)
 | assn (lv : LValue) (op : AsnOp) (v : Expr)
 | ite (cond : Expr) (tt : List Stmt) (ff : List Stmt)
-| while (cond : Expr) (body : List Stmt)
+| while (cond : Expr) (annos : List Anno) (body : List Stmt)
 | «return» (e : Option Expr)
 | assert (e : Expr)
+| error (e : Expr)
 | exp (e : Expr)
+| anno (a : Anno)
 
 structure Field where
   type : Typ
   name : Ident
 
 structure SDef where
-  name : Ident
+  name   : Ident
   fields : List Field
 
 structure SDecl where
@@ -87,9 +101,10 @@ structure Param where
   name : Ident
 
 structure FDecl where
-  type : Option Typ
-  name : Ident
+  type   : Option Typ
+  name   : Ident
   params : List Param
+  annos  : List Anno
 
 structure FDef extends FDecl where
   body : List Stmt
@@ -117,6 +132,8 @@ def LValue.toExpr : LValue → Expr
 def Typ.toString : Typ → String
   | .int => "int"
   | .bool => "bool"
+  | .char => "char"
+  | .string => "string"
   | .tydef (name : Ident) => s!"alias {name}"
   | .ptr ty => s!"{ty.toString}*"
   | .arr ty => s!"{ty.toString}[]"
@@ -174,6 +191,8 @@ instance : ToString AsnOp where toString := AsnOp.toString
 mutual
 partial def Expr.toString : Expr → String
   | num v => s!"{v}"
+  | char c => s!"'{c}'"
+  | str s => s!"\"{s}\""
   | «true» => "true"
   | «false» => "false"
   | null => "NULL"
@@ -188,6 +207,8 @@ partial def Expr.toString : Expr → String
   | arrow e field => s!"({e.toString})->{field}"
   | deref e => s!"*({e.toString})"
   | index e i => s!"({e.toString})[{i.toString}]"
+  | result => "\\result"
+  | length e => s!"\\length ({e.toString})"
 
 partial def Expr.argsToString : List Expr → String
   | [] => ""
@@ -205,6 +226,17 @@ def LValue.toString : LValue → String
   | index e i => s!"({e.toString})[{i.toString}]"
 instance : ToString LValue where toString := LValue.toString
 
+def Anno.toString : Anno → String
+  | .requires e   => s!"//@ requires {e}"
+  | .ensures e    => s!"//@ ensures {e}"
+  | .loop_invar e => s!"//@ loop_invariant {e}"
+  | .assert e     => s!"//@ assert {e}"
+instance : ToString Anno := ⟨Anno.toString⟩
+def Anno.listToString : List Anno → String
+  | [] => ""
+  | as => String.intercalate "\n  " (as.map Anno.toString) ++ "\n  "
+instance : ToString (List Anno) := ⟨Anno.listToString⟩
+
 mutual
 def Stmt.toString (s : Stmt) : String :=
   match s with
@@ -220,13 +252,16 @@ def Stmt.toString (s : Stmt) : String :=
     let str_tt := (Stmt.listToString tt).replace "\n" "\n  "
     let str_ff := (Stmt.listToString ff).replace "\n" "\n  "
     s!"if({cond})\n  {str_tt}\nelse\n  {str_ff}\nendif"
-  | .while cond body =>
+  | .while cond as body =>
     let str_body := (Stmt.listToString body).replace "\n" "\n  "
-    s!"while({cond})\n  {str_body}\nendwhile"
+    let str_anno := Anno.listToString as
+    s!"while({cond})\n  {str_anno}{str_body}\nendwhile"
   | .«return» .none => "return"
   | .«return» (.some e) => s!"return {e}"
   | .assert e => s!"assert({e})"
+  | .error e => s!"error({e})"
   | .exp e => s!"{e}"
+  | .anno a => Anno.toString a
 
 def Stmt.listToString (stmts : List Stmt) : String :=
   match stmts with
@@ -252,7 +287,7 @@ def Stmt.toPrettyString (s : Stmt) : String :=
       | some i => s!" = {i}"
     s!"{type} {name}{initStr};"
   | .ite cond _tt _ff => s!"if({cond}) ..."
-  | .while cond _body => s!"while({cond}) ..."
+  | .while cond _anno _body => s!"while({cond}) ..."
   | _ => s.toString
 
 instance : ToString Field where toString f := s!"{f.type} {f.name};"
@@ -268,11 +303,13 @@ instance : ToString Param where toString p := s!"{p.type} {p.name}"
 instance : ToString (List Param) where
   toString ps := String.intercalate ", " (ps.map (fun p => s!"{p}"))
 
-instance : ToString FDecl where toString f := s!"{f.type} {f.name}({f.params})"
-instance : ToString FDef where
-  toString f :=
-    let str_body := (toString f.body).replace "\n" "\n  "
-    s!"{f.type} {f.name}({f.params})\n  {str_body}\nend {f.name}"
+instance : ToString FDecl where toString f :=
+  let str_annos := Anno.listToString f.annos
+  s!"{f.type} {f.name}({f.params})\n  {str_annos}"
+instance : ToString FDef where toString f :=
+  let str_body := (toString f.body).replace "\n" "\n  "
+  let str_annos := Anno.listToString f.annos
+  s!"{f.type} {f.name}({f.params})\n  {str_annos}{str_body}\nend {f.name}"
 
 def GDecl.toString : GDecl → String
   | .fdecl f => s!"{f}"

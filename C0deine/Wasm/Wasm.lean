@@ -62,10 +62,10 @@ def Error.assert : Instr := i32_const 6     -- SIGABRT
 def Error.arith  : Instr := i32_const 8     -- SIGFPE
 
 /- todo move into proper std libraries -/
-def result_id : Ident := ⟨"result", sorry, sorry⟩
+def result_id : Ident := ⟨"result", by simp, sorry⟩
 def result : Module.Field := .imports
-  ⟨ "c0deine"
-  , "result"
+  ⟨ ⟨"c0deine", by simp⟩
+  , ⟨"result" , by simp⟩
   , .func (.some result_id) (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
@@ -101,8 +101,8 @@ def calloc_func : Module.Field := .funcs
     ]
   }
 def calloc_import : Module.Field := .imports
-  ⟨ "c0deine"
-  , "calloc"
+  ⟨ ⟨"c0deine", by simp⟩
+  , ⟨"calloc" , by simp⟩
   , .func (.some Label.calloc.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
@@ -118,8 +118,8 @@ def abort_func : Module.Field := .funcs
     ]
   }
 def abort_import : Module.Field := .imports
-  ⟨ "c0deine"
-  , "abort"
+  ⟨ ⟨"c0deine", by simp⟩
+  , ⟨"abort"  , by simp⟩
   , .func (.some Label.abort.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
@@ -127,8 +127,8 @@ def abort_import : Module.Field := .imports
 def start  : Module.Field := .start ⟨.name Label.main.toWasmIdent⟩
 
 def main_import : Module.Field := .imports
-  ⟨ "c0deine"
-  , "main"
+  ⟨ ⟨"c0deine", by simp⟩
+  , ⟨"main"   , by simp⟩
   , .func (.some Label.main.toWasmIdent) (.elab_param_res [] [])
   ⟩
 
@@ -139,12 +139,12 @@ def main (config : Wasm.Config) : List Module.Field :=
       , (i32_const 4)
       , (i32_mem (.store ⟨0, 4⟩))
       ]
-    ).append [Plain.call (.name ⟨"_c0_main", sorry, sorry⟩)]
+    ).append [Plain.call (.name ⟨"_c0_main", by simp, sorry⟩)]
   match config.main with
   | .import =>
     [ .exports
-        ⟨ "_c0_main"
-        , .func (.name ⟨"_c0_main", sorry, sorry⟩)
+        ⟨ ⟨"_c0_main", by simp⟩
+        , .func (.name ⟨"_c0_main", by simp, sorry⟩)
         ⟩
     ]
   | .start  => [start, .funcs

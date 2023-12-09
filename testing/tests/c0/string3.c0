@@ -1,0 +1,7 @@
+//test error
+
+int main(){
+  string s = "hi";
+  if(s == s) return 1;
+  return 0;
+}

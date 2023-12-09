@@ -1,0 +1,16 @@
+//test error
+
+void add1(int[] arr, int n)
+//@requires \length(arr) == n;
+{
+  for(int i = 0; i < \length(arr); i++) {
+    arr[i] += 1;
+  }
+}
+
+int main() {
+  int n = 5;
+  int[] arr = alloc_array(int, n);
+  add1(arr, n);
+  return 0;
+}

@@ -169,7 +169,9 @@ def Typ.size (tau : Typ) : Env.Prog (Option UInt64) := do
   match tau with
   | .any              => return none
   | .prim .int        => return some 4
-  | .prim .bool       => return some 4 -- todo reduce to 1
+  | .prim .bool       => return some 1
+  | .prim .char       => return some 1
+  | .prim .string     => return some 8
   | .mem (.pointer _) => return some 8
   | .mem (.array _)   => return some 8
   | .mem (.struct n)  =>
@@ -188,7 +190,8 @@ def Elab.lvalue : Typ.Typed Tst.LValue → Typ.Typed Tst.Expr
   | .mk τ (.var name)      => .mk τ (.var name)
   | .mk τ (.dot lv field)  => .mk τ (.dot (Elab.lvalue lv) field)
   | .mk τ (.deref lv)      => .mk τ (.deref (Elab.lvalue lv))
-  | .mk τ (.index lv indx) => .mk τ (.index (Elab.lvalue lv) indx)
+  | .mk τ (.index lv indx) =>
+    .mk τ (.index (Elab.lvalue lv) ⟨indx.type, indx.data.val⟩)
 
 def binop_op_int (op : Tst.BinOp.Int)
                   : IrTree.PureBinop ⊕ IrTree.EffectBinop :=
@@ -220,6 +223,8 @@ mutual
 @[simp] def transSizeExpr (e : Tst.Expr) : Nat :=
   match e with
   | .num _        => 0
+  | .char _       => 0
+  | .str _        => 0
   | .var _        => 0
   | .true         => 0
   | .false        => 0
@@ -237,6 +242,8 @@ mutual
   | .dot e _field    => 2 + transSizeTExpr e
   | .deref e         => 2 + transSizeTExpr e
   | .index arr indx  => 2 + (transSizeTExpr arr) + (transSizeTExpr indx)
+  | .result          => 0
+  | .length e        => 1 + transSizeTExpr e
 
 @[simp] def transSizeTExpr : Typ.Typed Tst.Expr → Nat
   | .mk _tau data => 1 + transSizeExpr data
@@ -265,11 +272,13 @@ def expr (tau : Typ)
          (exp : Tst.Expr)
          : Env.Func ((List IrTree.Stmt) × IrTree.Expr) := do
   match exp with
-  | .num (v : Int32) => return (acc, .const v)
-  | .var (name : Symbol) => return (acc, .temp (← Env.Func.var name))
-  | .«true» => return (acc, .byte 1)
-  | .«false» => return (acc, .byte 0)
-  | .null => return (acc, .memory 0)
+  | .num v     => return (acc, .const v)
+  | .char c    => return (acc, .byte (c.toUInt8 sorry))
+  | .str s     => sorry
+  | .var name  => return (acc, .temp (← Env.Func.var name))
+  | .«true»    => return (acc, .byte 1)
+  | .«false»   => return (acc, .byte 0)
+  | .null      => return (acc, .memory 0)
   | .unop op e =>
     let (stmts, e') ← texpr acc e
     match op with
@@ -391,6 +400,10 @@ def expr (tau : Typ)
     let dest ← Env.Func.freshTemp
     let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
     return (.load sdest address :: checks ++ stmts, .temp sdest)
+
+  | .result   => sorry
+
+  | .length e => sorry
 
 def ternary (tau : Typ) (acc : List IrTree.Stmt)
             (cond tt ff : Typ.Typed Tst.Expr)
@@ -533,7 +546,8 @@ def Addr.taddr (acc : List IrTree.Stmt)
   | .mk τ e => Addr.addr τ acc e
 
 mutual
-def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt) := do
+def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt)
+    : Env.Func (List IrTree.Stmt) := do
   match stm with
   | .decl name init body =>
     let t ←
@@ -541,7 +555,7 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
     let init_stmts ← do
       match init with
       | some i =>
-        let (stmts, res) ← texpr past i
+        let (stmts, res) ← texpr past ⟨i.type, i.data.val⟩
         pure (.move t res :: stmts)
       | none => pure []
     stmts init_stmts body
@@ -549,14 +563,14 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
     match tlv.data, oop with
     | .var name, none =>
       let dest ← Env.Func.var name
-      let (stms, src) ← texpr past rhs
+      let (stms, src) ← texpr past ⟨rhs.type, rhs.data.val⟩
       return .move dest src :: stms
     | .var _name, some _ =>
       panic! s!"IR Trans: 'x += e' should have been elaborated away"
     | _, _ =>
       let lhs' := Elab.lvalue tlv
       let (stms1, dest, checks) ← Addr.taddr past lhs' 0 false
-      let (stms2, src) ← texpr stms1 rhs
+      let (stms2, src) ← texpr stms1 ⟨rhs.type, rhs.data.val⟩
       let size ← Env.Prog.toFunc (Typ.tempSize tlv.type)
       match oop.map binop_op_int with
       | none => return .store dest src :: checks ++ stms2
@@ -582,7 +596,7 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
     let fLbl  ← Env.Func.freshLabel
     let after ← Env.Func.freshLabel
 
-    let (cstms, cond') ← texpr past cond
+    let (cstms, cond') ← texpr past ⟨cond.type, cond.data.val⟩
     let cond_temp ← Env.Func.freshTemp
     let scond_temp := ⟨← Env.Prog.toFunc (Typ.tempSize cond.type), cond_temp⟩
     let condT := .move scond_temp cond'
@@ -608,12 +622,12 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
     let () ← Env.Func.addBlock block after .afterITE
     return []
 
-  | .while cond body =>
+  | .while cond _annos body =>
     -- elaborate to a `do while` which saves jumps
     let loopBody  ← Env.Func.freshLabel
     let afterLoop ← Env.Func.freshLabel
 
-    let (cstms, cond') ← texpr past cond
+    let (cstms, cond') ← texpr past ⟨cond.type, cond.data.val⟩
     let cond_temp ← Env.Func.freshTemp
     let scond_temp := ⟨← Env.Prog.toFunc (Typ.tempSize cond.type), cond_temp⟩
     let condT := .move scond_temp cond'
@@ -642,7 +656,7 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
     return []
 
   | .«return» (.some e) =>
-    let (stms, e') ← texpr past e
+    let (stms, e') ← texpr past ⟨e.type, e.data.val⟩
     let exit := .«return» (some e')
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
@@ -655,7 +669,7 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
     let after ← Env.Func.freshLabel
     let assertLbl := Label.abort
 
-    let (stms, e') ← texpr past e
+    let (stms, e') ← texpr past ⟨e.type, e.data.val⟩
     let cond_temp ← Env.Func.freshTemp
     let scond_temp := ⟨← Env.Prog.toFunc (Typ.tempSize e.type), cond_temp⟩
     let condT := .move scond_temp e'
@@ -667,9 +681,13 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt) : Env.Func (List IrTree.Stmt
     let () ← Env.Func.addBlock block after curType
     return []
 
+  | .error e => sorry
+
   | .expr e =>
-    let (stms, _) ← texpr past e -- drop pure expression
+    let (stms, _) ← texpr past ⟨e.type, e.data.val⟩ -- drop pure expression
     return stms
+
+  | .anno a => sorry
 
 def stmts (past : List IrTree.Stmt)
           (stms : List Tst.Stmt)

@@ -1,0 +1,7 @@
+//test error
+
+int main(){
+  char c = 'h';
+  if(c + c) return 1;
+  return 0;
+}

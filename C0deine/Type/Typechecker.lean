@@ -31,49 +31,62 @@ inductive Status.Symbol
 
 def SymbolTable := Symbol.Map Status.Symbol
 def StructTable := Symbol.Map Status.Struct
-def Calls := Symbol.Map Unit
-
-def Calls.merge (calls1 calls2 : Calls) : Calls :=
-  calls1.mergeWith (fun _ () () => ()) calls2
 
 class Ctx (α : Type) where
-  symbols : α → SymbolTable
-  structs : α → StructTable
-  calls   : α → Calls
+  symbols    : α → SymbolTable
+  structs    : α → StructTable
+  calls      : α → Tst.Calls
+  strings    : α → List String
 
 structure FuncCtx where
-  name    : Symbol
-  symbols : SymbolTable
-  structs : StructTable
-  calls   : Calls
-  ret_type : Option Typ
-  returns : Bool
+  name       : Symbol
+  symbols    : SymbolTable
+  structs    : StructTable
+  calls      : Tst.Calls
+  strings    : List String
+  ret_type   : Option Typ
+  returns    : Bool
 instance : Ctx FuncCtx where
-  symbols := FuncCtx.symbols
-  structs := FuncCtx.structs
-  calls   := FuncCtx.calls
+  symbols    := FuncCtx.symbols
+  structs    := FuncCtx.structs
+  calls      := FuncCtx.calls
+  strings    := FuncCtx.strings
 
 structure GlobalCtx where
-  symbols   : SymbolTable
-  structs   : StructTable
-  calls     : Calls
-  funcCalls : Symbol.Map Calls
+  symbols    : SymbolTable
+  structs    : StructTable
+  calls      : Tst.Calls
+  funcCalls  : Symbol.Map Tst.Calls
+  strings    : List String
 
 instance : Ctx GlobalCtx where
-  symbols := GlobalCtx.symbols
-  structs := GlobalCtx.structs
-  calls   := GlobalCtx.calls
+  symbols    := GlobalCtx.symbols
+  structs    := GlobalCtx.structs
+  calls      := GlobalCtx.calls
+  strings    := GlobalCtx.strings
 
 
 -- defaults to not returning
 def GlobalCtx.toFuncCtx (name : Symbol)
-                         (ret : Option Typ)
-                         (ctx : GlobalCtx)
-                         : FuncCtx :=
-  ⟨name, ctx.symbols, ctx.structs, ctx.calls, ret, false⟩
+                        (ret : Option Typ)
+                        (ctx : GlobalCtx)
+                        : FuncCtx :=
+  { name     := name
+  , symbols  := ctx.symbols
+  , structs  := ctx.structs
+  , calls    := ctx.calls
+  , strings  := ctx.strings
+  , ret_type := ret
+  , returns  := false
+  }
 
 def FuncCtx.toGlobalCtx (ctx : FuncCtx) : GlobalCtx :=
-  ⟨ctx.symbols, ctx.structs, ctx.calls, Std.HashMap.empty.insert ctx.name ctx.calls⟩
+  { symbols   := ctx.symbols
+  , structs   := ctx.structs
+  , calls     := ctx.calls
+  , funcCalls := Std.HashMap.empty.insert ctx.name ctx.calls
+  , strings   := ctx.strings
+  }
 
 -- joins two contexts together, assuming non-variables are the same
 def FuncCtx.join (ctx1 ctx2 : FuncCtx) : FuncCtx :=
@@ -87,7 +100,15 @@ def FuncCtx.join (ctx1 ctx2 : FuncCtx) : FuncCtx :=
       | _, none => none
       | _, _    => some status
   let symbols := ctx1.symbols.filterMap intersect
-  ⟨ctx1.name, symbols, ctx1.structs, calls, ctx1.ret_type, returns⟩
+  let strings := ctx1.strings ∪ ctx2.strings
+  { name     := ctx1.name
+  , symbols  := symbols
+  , structs  := ctx1.structs
+  , calls    := calls
+  , strings  := strings
+  , ret_type := ctx1.ret_type
+  , returns  := returns
+  }
 
 structure Error where
   message : String
@@ -98,21 +119,33 @@ deriving Inhabited
 
 namespace Error
 
-def func (name : Symbol) (message : String) : Error :=
+@[inline] def func (name : Symbol) (message : String) : Error :=
   ⟨message, none, none, some name⟩
 
-def stmt (stmt : Ast.Stmt) (message : String) : Error :=
+@[inline] def stmt (stmt : Ast.Stmt) (message : String) : Error :=
   ⟨message, none, some stmt, none⟩
 
-def expr (expr : Ast.Expr) (message : String) : Error :=
+@[inline] def expr (expr : Ast.Expr) (message : String) : Error :=
   ⟨message, some (.inl <| .inl expr), none, none⟩
-def texpr (expr : Typ.Typed Tst.Expr) (message : String) : Error :=
+@[inline] def texpr (expr : Typ.Typed Tst.Expr) (message : String) : Error :=
   ⟨message, some (.inl <| .inr expr), none, none⟩
 
-def lval (lv : Ast.LValue) (message : String) : Error :=
+@[inline] def no_contract
+    (texpr : Typ.Typed Tst.Expr)
+    (_np : ¬(Tst.Expr.no_contract texpr.data))
+    : Error :=
+  Error.texpr texpr <| "Expression can only occur in contracts"
+
+@[inline] def no_result
+    (texpr : Typ.Typed Tst.Expr)
+    (_np : ¬(Tst.Expr.no_result texpr.data))
+    : Error :=
+  Error.texpr texpr <| "Result expression can only occur in ensures clauses"
+
+@[inline] def lval (lv : Ast.LValue) (message : String) : Error :=
   ⟨message, some (.inr lv), none, none⟩
 
-def msg (message : String) : Error :=
+@[inline] def msg (message : String) : Error :=
   ⟨message, none, none, none⟩
 
 def toString (err : Error) : String :=
@@ -138,8 +171,10 @@ end Error
 
 
 def Trans.type [Ctx α] (ctx : α) : Ast.Typ → Option Typ
-  | .int => some <| .prim .int
-  | .bool => some <| .prim .bool
+  | .int    => some <| .prim .int
+  | .bool   => some <| .prim .bool
+  | .char   => some <| .prim .char
+  | .string => some <| .prim .string
   | .tydef name =>
     match (Ctx.symbols ctx).find? name with
     | some (.alias tau) => some tau
@@ -287,7 +322,7 @@ def Validate.callsDefined (ctx : GlobalCtx)
                           : Except Error Unit :=
   let err := fun name => throw <| Error.msg <|
     s!"Function '{name}' is called but not defined"
-  ctx.calls.foldM (fun () name () => do
+  ctx.calls.foldM (fun () name _ => do
     match ctx.symbols.find? name with
     | some (.func status) =>
       if status.defined
@@ -300,8 +335,20 @@ def Validate.callsDefined (ctx : GlobalCtx)
 
 namespace Synth.Expr
 
-def Result := Except Error (Calls × Typ.Typed Tst.Expr)
-deriving Inhabited
+structure Result (P : Tst.Expr → Bool) where
+  calls   : Tst.Calls
+  strings : List String
+  texpr   : Typ.Typed Tst.Expr
+  valid   : Tst.Expr.All P texpr.data
+
+structure Result.List (P : Tst.Expr → Bool) where
+  calls   : Tst.Calls
+  strings : List String
+  texprs  : List (Typ.Typed Tst.Expr)
+  valid   : ∀ te ∈ texprs, Tst.Expr.All P te.data
+
+@[inline] def ExprOutput (P : Tst.Expr → Bool) :=
+  Except Error (Result P)
 
 -- todo: types must be equivalent
 def intersect_type (t1 : Typ) (t2 : Typ) : Typ :=
@@ -314,55 +361,88 @@ def intersect_type (t1 : Typ) (t2 : Typ) : Typ :=
   | _, .any => t1
   | _, _    => t1
 
-def binop_type (expect : Typ)
-               (expr : Ast.Expr)
-               (op : Ast.BinOp)
-               (lhs : Typ)
-               (rhs : Typ)
-               : Except Error Typ := do
+def binop_type
+    (expect₁ : Typ)
+    (opt_expect₂ : Option Typ)
+    (expr : Ast.Expr)
+    (op : Ast.BinOp)
+    (lhs : Typ)
+    (rhs : Typ)
+    : Except Error Typ := do
   let check := fun (ty : Typ) =>
-    if expect = ty
-    then pure ty
-    else throw <| Error.expr expr <|
-      s!"Binary operator '{op}' expects both sides to have type {expect} but they both have type '{ty}'"
+    if expect₁ = ty then pure ty else
+    match opt_expect₂ with
+    | .some expect₂ =>
+      if expect₂ = ty then pure ty else
+      throw <| Error.expr expr <|
+        s!"Binary operator '{op}' expects both sides to have type '{expect₁}' or '{expect₂}' but they both have type '{ty}'"
+    | .none =>
+      throw <| Error.expr expr <|
+        s!"Binary operator '{op}' expects both sides to have type '{expect₁}' but they both have type '{ty}'"
   match lhs, rhs with
   | .prim .int, .prim .int    => check (.prim .int)
   | .prim .bool, .prim .bool  => check (.prim .bool)
-  | .any, .any                => pure expect
+  | .prim .char, .prim .char  => check (.prim .char)
+  | .any, .any                => pure expect₁
   | _, _ => throw <| Error.expr expr <|
+    if lhs.equiv rhs then
+      s!"Binary operator '{op}' cannot operate on type '{lhs}'"
+    else
       s!"Binary operator '{op}' expects both sides to have the same type but instead got '{lhs}' and '{rhs}'"
 
-def nonvoid (res : Result) : Result := do
-  let (calls, te) ← res
-  match te.type with
-  | .any => throw <| Error.texpr te <| s!"Expression cannot be void"
-  | _ => return (calls, te)
+@[inline] def nonvoid (eres : ExprOutput P) : ExprOutput P := do
+  let res ← eres
+  match res.texpr.type with
+  | .any => throw <| Error.texpr res.texpr <| s!"Expression cannot be void"
+  | _ => return res
 
-def small (res : Result) : Result := do
-  let (calls, te) ← res
-  if te.type.isSmall then return (calls, te)
-  else throw <| Error.texpr te <| s!"Expression cannot have large type"
+@[inline] def small (eres : ExprOutput P) : ExprOutput P := do
+  let res ← eres
+  if res.texpr.type.isSmall then return res
+  else throw <| Error.texpr res.texpr <| s!"Expression cannot have large type"
 
-def small_nonvoid (res : Result) : Result := do
-   let (calls, te) ← nonvoid res
-   if te.type.isSmall then return (calls, te)
-   else throw <| Error.texpr te <| s!"Expression cannot have large type"
+@[inline] def small_nonvoid (eres : ExprOutput P)
+    : ExprOutput P := do
+   let res ← nonvoid eres
+   if res.texpr.type.isSmall then return res
+   else throw <| Error.texpr res.texpr <| s!"Expression cannot have large type"
 
 mutual
-def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
+def expr (ctx : FuncCtx)
+    (P : Tst.Expr → Bool)
+    (fail : (te : Typ.Typed Tst.Expr) → ¬P te.data → Error)
+    (exp : Ast.Expr)
+    : ExprOutput P := do
   match exp with
   | .num n             =>
-    return (ctx.calls, ⟨.prim .int, .num n⟩)
-  | .«true»            =>
-    return (ctx.calls, ⟨.prim .bool, .«true»⟩)
-  | .«false»           =>
-    return (ctx.calls, ⟨.prim .bool, .«false»⟩)
+    if p : P (.num n)
+    then return ⟨ctx.calls, ctx.strings, ⟨.prim .int, .num n⟩, .num p⟩
+    else throw <| fail ⟨.prim .int, .num n⟩ p
+  | .char c            =>
+    if p : P (.char c)
+    then return ⟨ctx.calls, ctx.strings, ⟨.prim .char, .char c⟩, .char p⟩
+    else throw <| fail ⟨.prim .char, .char c⟩ p
+  | .str s             =>
+    let strings' := if s ∉ ctx.strings then s::ctx.strings else ctx.strings
+    if p : P (.str s)
+    then return ⟨ctx.calls, strings', ⟨.prim .string, .str s⟩, .str p⟩
+    else throw <| fail ⟨.prim .string, .str s⟩ p
+  | .true              =>
+    if p : P .true
+    then return ⟨ctx.calls, ctx.strings, ⟨.prim .bool, .true⟩, .true p⟩
+    else throw <| fail ⟨.prim .bool, .true⟩ p
+  | .false             =>
+    if p : P .false
+    then return ⟨ctx.calls, ctx.strings, ⟨.prim .bool, .«false»⟩, .false p⟩
+    else throw <| fail ⟨.prim .bool, .false⟩ p
   | .null              =>
-    return (ctx.calls, ⟨.mem (.pointer .any), .null⟩)
+    if p : P .null
+    then return ⟨ctx.calls, ctx.strings, ⟨.mem (.pointer .any), .null⟩, .null p⟩
+    else throw <| fail ⟨.mem (.pointer .any), .null⟩ p
   | .unop op e         =>
-    let (calls, te) ← small_nonvoid <| expr ctx e
+    let res ← small_nonvoid <| expr ctx P fail e
     let (op', tau) ←
-      match op, te.type with
+      match op, res.texpr.type with
       | .int .neg, .prim .int
       | .int .neg, .any         => pure (.int .neg, .prim .int)
       | .int .not, .prim .int
@@ -372,17 +452,21 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
       | .int .neg, _
       | .int .not, _ =>
         throw <| Error.expr exp <|
-          s!"Unary operator '{op}' expects type '{Typ.prim .int}' but got '{te.type}'"
+          s!"Unary operator '{op}' expects type '{Typ.prim .int}' but got '{res.texpr.type}'"
       | .bool .neg, _ =>
         throw <|  Error.expr exp <|
-          s!"Unary operator '{op}' expects type '{Typ.prim .bool}' but got '{te.type}'"
-    return (calls, ⟨tau, .unop op' te⟩)
+          s!"Unary operator '{op}' expects type '{Typ.prim .bool}' but got '{res.texpr.type}'"
+    let e' := .unop op' res.texpr
+    if p : P e'
+    then return ⟨res.calls, res.strings, ⟨tau, e'⟩, .unop res.valid p⟩
+    else throw <| fail ⟨tau, e'⟩ p
 
   | .binop op l r      =>
-    let (cl, l') ← small_nonvoid <| expr ctx l
-    let (cr, r') ← small_nonvoid <| expr ctx r
-    let e' : Tst.Expr := .binop (Trans.binop op) l' r'
-    let calls := cl.merge cr
+    let resl ← small_nonvoid <| expr ctx P fail l
+    let resr ← small_nonvoid <| expr ctx P fail r
+    let e' : Tst.Expr := .binop (Trans.binop op) resl.texpr resr.texpr
+    let calls   := resl.calls.merge resr.calls
+    let strings := resl.strings ∪ resr.strings
     let tau ←
       match op with
       | .int .plus
@@ -394,51 +478,73 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
       | .int .xor
       | .int .or
       | .int .lsh
-      | .int .rsh           => binop_type (.prim .int) exp op l'.type r'.type
+      | .int .rsh           =>
+        binop_type (.prim .int) .none exp op resl.texpr.type resl.texpr.type
+
       | .cmp .less
       | .cmp .greater
       | .cmp .less_equal
       | .cmp .greater_equal =>
-        let _ ← binop_type (.prim .int) exp op l'.type r'.type
+        let _ ← binop_type (.prim .int) (.some (.prim .char)) exp op
+            resl.texpr.type resl.texpr.type
         pure (.prim .bool)
+
       | .bool .and
-      | .bool .or           => binop_type (.prim .bool) exp op l'.type r'.type
+      | .bool .or           =>
+        binop_type (.prim .bool) .none exp op resl.texpr.type resl.texpr.type
+
       | .cmp .equal
       | .cmp .not_equal     =>
-        if l'.type.equiv r'.type
-        then pure (.prim .bool)
+        if resl.texpr.type.equiv resr.texpr.type then
+          match resl.texpr.type with
+          | .prim .string    => throw <| Error.expr exp <|
+            s!"Binary operator '{op}' cannot compare strings."
+          | .mem (.struct _) => throw <| Error.expr exp <|
+            s!"Binary operator '{op}' cannot compare structs."
+          | _                => pure (.prim .bool)
         else throw <| Error.expr exp <|
-           s!"Binary operator '{op}' expects both sides to have same type but got '{l'.type}' and '{r'.type}'"
-    return (calls, ⟨tau, e'⟩)
+           s!"Binary operator '{op}' expects both sides to have same type but got '{resl.texpr.type}' and '{resr.texpr.type}'"
+    if p : P e'
+    then return ⟨calls, strings, ⟨tau, e'⟩, .binop resl.valid resr.valid p⟩
+    else throw <| fail ⟨tau, e'⟩ p
 
   | .ternop cond tt ff =>
-    let (cc, c') ← small_nonvoid <| expr ctx cond
-    let (ct, tt') ← small_nonvoid <| expr ctx tt
-    let (cf, ff') ← small_nonvoid <| expr ctx ff
-    let calls := cc.merge ct |>.merge cf
-    if c'.type ≠ .prim .bool
-    then throw <| Error.expr exp s!"Ternary condition {c'} must be a bool"
-    else
-      if tt'.type.equiv ff'.type
-      then
-        let tau' := intersect_type tt'.type ff'.type
-        return (calls, ⟨tau', .ternop c' tt' ff'⟩)
-      else throw <| Error.expr exp <|
-        s!"Ternary true branch has type '{tt'.type}' but the false branch has type '{ff'.type}'"
+    let resc ← small_nonvoid <| expr ctx P fail cond
+    let rest ← small_nonvoid <| expr ctx P fail tt
+    let resf ← small_nonvoid <| expr ctx P fail ff
+    let calls   := resc.calls.merge rest.calls |>.merge resf.calls
+    let strings := resc.strings ∪ rest.strings ∪ resf.strings
+    if resc.texpr.type ≠ .prim .bool
+    then throw <| Error.expr exp s!"Ternary condition {resc.texpr} must be a bool"
+    else if rest.texpr.type.equiv resf.texpr.type then
+      let tau' := intersect_type rest.texpr.type resf.texpr.type
+      let e'   := .ternop resc.texpr rest.texpr resf.texpr
+      if p : P e' then
+        return ⟨ calls
+               , strings, ⟨tau', e'⟩
+               , .ternop resc.valid rest.valid resf.valid p
+               ⟩
+      else throw <| fail ⟨tau', e'⟩ p
+    else throw <| Error.expr exp <|
+      s!"Ternary true branch has type '{rest.texpr.type}' but the false branch has type '{resf.texpr.type}'"
 
   | .app f args        =>
     match ctx.symbols.find? f with
     | some (.func status) =>
-      let (calls, args') ← exprs ctx args
-      let arg_types := args'.map (fun arg => arg.type)
+      let resargs ← exprs ctx P fail args
+      let arg_types := resargs.texprs.map (fun arg => arg.type)
       let ret_type := -- return unit (i.e. void_star) if there's no return type
         match status.type.ret with
         | some tau => tau
         | none => .any
-      if arg_types.length = status.type.args.length
-      && (List.zip arg_types status.type.args
-          |>.all fun (a, b) => Typ.equiv a b)
-      then return (calls.insert f (), ⟨ret_type, .app f args'⟩)
+      let types_match := arg_types.zip status.type.args
+        |>.all fun (a, b) => Typ.equiv a b
+      if arg_types.length = status.type.args.length && types_match then
+        let calls   := resargs.calls.insert f .false
+        let e' := .app f resargs.texprs
+        if p : P e' then
+          return ⟨calls, resargs.strings, ⟨ret_type, e'⟩, .app resargs.valid p⟩
+        else throw <| fail ⟨ret_type, e'⟩ p
       else throw <| Error.expr exp <|
         s!"Arguments should have types {status.type.args} but received {arg_types}"
     | some (.var _) => throw <| Error.expr exp <|
@@ -450,101 +556,162 @@ def expr (ctx : FuncCtx) (exp : Ast.Expr) : Result := do
   | .alloc tau         =>
     let opt_tau' := Trans.type ctx tau |>.filter (Trans.isSized ctx)
     match opt_tau' with
-    | some tau' => return (ctx.calls, ⟨.mem (.pointer tau'), .alloc tau'⟩)
+    | some tau' =>
+      let e' := .alloc tau'
+      if p : P e'
+      then return ⟨ctx.calls, ctx.strings, ⟨.mem (.pointer tau'), e'⟩, .alloc p⟩
+      else throw <| fail ⟨.mem (.pointer tau'), e'⟩ p
     | none      => throw <| Error.expr exp s!"Invalid allocation type"
 
   | .alloc_array tau e =>
     let opt_tau' := Trans.type ctx tau |>.filter (Trans.isSized ctx)
-    let (calls, e') ← small_nonvoid <| expr ctx e
-    match opt_tau', e'.type with
+    let res ← small_nonvoid <| expr ctx P fail e
+    match opt_tau', res.texpr.type with
     | none, _ => throw <| Error.expr exp s!"Invalid array type"
     | some tau', .prim .int =>
-      return (calls, ⟨.mem (.array tau'), .alloc_array tau' e'⟩)
+      let e' := .alloc_array tau' res.texpr
+      if p : P e' then
+        return ⟨ res.calls
+               , res.strings
+               , ⟨.mem (.array tau'), e'⟩
+               , .alloc_array res.valid p
+               ⟩
+      else throw <| fail ⟨.mem (.array tau'), e'⟩ p
     | _, _ => throw <| Error.expr exp <|
-      s!"Array length expected an '{Typ.prim .int}' but got '{e'.type}'"
+      s!"Array length expected an '{Typ.prim .int}' but got '{res.texpr.type}'"
 
   | .var name          =>
     match ctx.symbols.find? name with
     | some (.var status) =>
-      if status.initialised
-      then return (ctx.calls, ⟨status.type, .var name⟩)
+      if status.initialised then
+        let e' := .var name
+        if p : P e'
+        then return ⟨ctx.calls, ctx.strings, ⟨status.type, e'⟩, .var p⟩
+        else throw <| fail ⟨status.type, e'⟩ p
       else throw <| Error.expr exp s!"Variable not initialised"
     | _ => throw <| Error.expr exp s!"Variable not declared"
 
   | .dot e field       =>
-    let (calls, e') ← nonvoid <| expr ctx e
-    match e'.type with
+    let res ← nonvoid <| expr ctx P fail e
+    match res.texpr.type with
     | .mem (.struct name) =>
       match ctx.structs.find? name with
       | some status =>
         if ¬status.defined
-        then throw <| Error.texpr e' s!"Struct '{name}' is not defined"
+        then throw <| Error.texpr res.texpr s!"Struct '{name}' is not defined"
         else
           match status.fields.find? field with
-          | some tau => return (calls, ⟨tau, .dot e' field⟩)
+          | some tau =>
+            let e' := .dot res.texpr field
+            if p : P e'
+            then return ⟨res.calls, res.strings, ⟨tau, e'⟩, .dot res.valid p⟩
+            else throw <| fail ⟨tau, e'⟩ p
           | none => throw <| Error.expr exp <|
-            s!"Invalid field '{field}' for struct type '{e'.type}'"
-      | none => throw <| Error.texpr e' s!"Struct '{name}' is not defined"
+            s!"Invalid field '{field}' for struct type '{res.texpr.type}'"
+      | none => throw <| Error.texpr res.texpr s!"Struct '{name}' is not defined"
     | _ => throw <| Error.expr exp <|
-      s!"Field accessor expects a struct not type '{e'.type}'"
+      s!"Field accessor expects a struct not type '{res.texpr.type}'"
 
   | .arrow e field     =>
-    let (calls, e') ← expr ctx e
-    match e'.type with
+    let res ← expr ctx P fail e
+    match res.texpr.type with
     | .mem (.pointer <| .mem (.struct name)) =>
       match ctx.structs.find? name with
       | some status =>
         if ¬status.defined
-        then throw <| Error.texpr e' s!"Struct '{name}' is not defined"
-        else
-          let e'' := ⟨.mem (.struct name), .deref e'⟩
+        then throw <| Error.texpr res.texpr s!"Struct '{name}' is not defined"
+        else if pe : P (.deref res.texpr) then
+          let te' := ⟨.mem (.struct name), .deref res.texpr⟩
+          have pe' : Tst.Expr.All P (Typ.Typed.data te') := by
+            simp [Typ.Typed.data]
+            exact .deref res.valid pe
+
           match status.fields.find? field with
-          | some tau => return (calls, ⟨tau, .dot e'' field⟩)
+          | some tau =>
+            let e' := .dot te' field
+            if p : P e'
+            then return ⟨res.calls, res.strings, ⟨tau, e'⟩, .dot pe' p⟩
+            else throw <| fail ⟨tau, e'⟩ p
           | none => throw <| Error.expr exp <|
-            s!"Invalid field '{field}' for struct type '{e'.type}'"
-      | none => throw <| Error.texpr e' s!"Struct '{name}' is not defined"
+            s!"Invalid field '{field}' for struct type '{te'.type}'"
+        else throw <| fail ⟨.mem (.struct name), .deref res.texpr⟩ pe
+      | none => throw <| Error.texpr res.texpr s!"Struct '{name}' is not defined"
     | _ => throw <| Error.expr exp <|
-      s!"Arrow operator expects a struct pointer not type '{e'.type}'"
+      s!"Arrow operator expects a struct pointer not type '{res.texpr.type}'"
 
   | .deref e           =>
-    let (calls, e') ← small <| expr ctx e
-    match e'.type with
+    let res ← small <| expr ctx P fail e
+    match res.texpr.type with
     | .mem (.pointer .any) => throw <| Error.expr e <|
       s!"Cannot dereference a null pointer"
-    | .mem (.pointer tau)  => return (calls, ⟨tau, .deref e'⟩)
-    | _ => throw <| Error.expr e <| s!"Cannot dereference a non-pointer type '{e'.type}'"
+    | .mem (.pointer tau)  =>
+      let e' := .deref res.texpr
+      if p : P e'
+      then return ⟨res.calls, res.strings, ⟨tau, e'⟩, .deref res.valid p⟩
+      else throw <| fail ⟨tau, e'⟩ p
+    | _ => throw <| Error.expr e <|
+      s!"Cannot dereference a non-pointer type '{res.texpr.type}'"
 
   | .index arr indx    =>
-    let (ca, arr') ← small_nonvoid <| expr ctx arr
-    let (ci, index') ← small_nonvoid <| expr ctx indx
-    let calls := ca.merge ci
-    match arr'.type, index'.type with
+    let resa ← small_nonvoid <| expr ctx P fail arr
+    let resi ← small_nonvoid <| expr ctx P fail indx
+    let calls   := resa.calls.merge resi.calls
+    let strings := resa.strings ∪ resi.strings
+    match resa.texpr.type, resi.texpr.type with
     | .mem (.array tau), .prim .int =>
-      return (calls, ⟨tau, .index arr' index'⟩)
+      let e' := .index resa.texpr resi.texpr
+      if p : P e'
+      then return ⟨calls, strings, ⟨tau, e'⟩, .index resa.valid resi.valid p⟩
+      else throw <| fail ⟨tau, e'⟩ p
     | .mem (.array _tau), _ => throw <| Error.expr exp <|
-      s!"Array indices must be type '{Typ.prim .int}' not type '{index'.type}'"
+      s!"Array indices must be type '{Typ.prim .int}' not type '{resi.texpr.type}'"
     | _, _ => throw <| Error.expr exp <|
-      s!"Array indexing must be on array types not type '{arr'.type}'"
+      s!"Array indexing must be on array types not type '{resa.texpr.type}'"
+  | .result           =>
+    if p : P .result then
+      match ctx.ret_type with
+      | .some tau => return ⟨ctx.calls, ctx.strings, ⟨tau, .result⟩, .result p⟩
+      | .none     => throw <| Error.expr exp <|
+        s!"Cannot use result when function's return type is void"
+    else throw <| fail ⟨.prim .int, .result⟩ p
+  | .length e         =>
+    let res ← small_nonvoid <| expr ctx P fail e
+    match res.texpr.type with
+    | .mem (.array _tau) =>
+      let e' := .length res.texpr
+      if p : P e' then
+        return ⟨res.calls, res.strings, ⟨.prim .int, e'⟩, .length res.valid p⟩
+      else throw <| fail ⟨.prim .int, e'⟩ p
+    | _                 => throw <| Error.expr exp <|
+      s!"Can only check the length of arrays not of type '{res.texpr.type}'"
 
 def exprs (ctx : FuncCtx)
+          (P : Tst.Expr → Bool)
+          (fail : (te : Typ.Typed Tst.Expr) → ¬P te.data → Error)
           (exps : List Ast.Expr)
-          : Except Error (Calls × List (Typ.Typed Tst.Expr)) := do
+          : Except Error (Result.List P) := do
   match exps with
-  | [] => return (ctx.calls, [])
+  | [] => return ⟨ctx.calls, ctx.strings, [], by simp⟩
   | e :: es =>
-    let (calls1, e') ← small_nonvoid <| expr ctx e
-    let (calls, es') ← exprs ctx es
-    return (calls1.merge calls, e' :: es')
+    let rese ← small_nonvoid <| expr ctx P fail e
+    let reses ← exprs ctx P fail es
+    let calls   := rese.calls.merge reses.calls
+    let strings := rese.strings ∪ reses.strings
+    return ⟨ calls
+           , strings
+           , rese.texpr :: reses.texprs
+           , by simp; exact And.intro rese.valid reses.valid
+           ⟩
 end
 termination_by
-  expr ctx e   => sizeOf e
-  exprs ctx es => sizeOf es
+  expr ctx _ _ e   => sizeOf e
+  exprs ctx _ _ es => sizeOf es
 
 end Synth.Expr
 
 namespace Synth.LValue
 
-def Result := Except Error (Calls × Typ.Typed Tst.LValue)
+def Result := Except Error (Tst.Calls × Typ.Typed Tst.LValue)
 deriving Inhabited
 
 def small (res : Result) : Result := do
@@ -608,18 +775,94 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue) : Result := do
 
   | .index arr indx =>
     let (ca, arr') ← lvalue ctx arr
-    let (ci, index') ← Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx indx
-    let calls := ca.merge ci
-    match arr'.type, index'.type with
+    let resi ← Synth.Expr.small_nonvoid <|
+      Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract indx
+    let calls := ca.merge resi.calls
+    match arr'.type, resi.texpr.type with
     | .mem (.array tau), .prim .int =>
-      return (calls, ⟨tau, .index arr' index'⟩)
+      let indx' := ⟨resi.texpr.type, ⟨resi.texpr.data, resi.valid⟩⟩
+      return (calls, ⟨tau, .index arr' indx'⟩)
     | .mem (.array _tau), _ => throw <| Error.lval lval <|
-      s!"Array indices must be type '{Typ.prim .int}' not type '{index'.type}'"
+      s!"Array indices must be type '{Typ.prim .int}' not type '{resi.texpr.type}'"
     | _, _ => throw <| Error.lval lval <|
       s!"Array indexing must be on array types not type '{arr'.type}'"
 
 end Synth.LValue
 
+namespace Synth.Anno
+
+def func (ctx : FuncCtx) (as : List Ast.Anno)
+    : Except Error (FuncCtx × List Tst.Anno.Function) := do
+  match as with
+  | []                  => return (ctx, [])
+  | .requires e :: rest =>
+    let res ← Synth.Expr.small_nonvoid <|
+      Synth.Expr.expr ctx Tst.Expr.no_result Error.no_result e
+    if res.texpr.type ≠ .prim .bool then
+      throw <| Error.expr e <|
+        s!"Requires must have type {Typ.prim .bool} not type '{res.texpr.type}'"
+    else
+      let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
+      let (ctx', rest') ← func {ctx with calls := calls'} rest
+      let e' := ⟨res.texpr.type, ⟨res.texpr.data, res.valid⟩⟩
+      return ⟨ctx', ⟨.requires e', by simp⟩ :: rest'⟩
+
+  | .ensures  e :: rest =>
+    let res ← Synth.Expr.small_nonvoid <|
+      Synth.Expr.expr ctx (fun _ => true) (fun _ np => by simp at np) e
+    if res.texpr.type ≠ .prim .bool then
+      throw <| Error.expr e <|
+        s!"Ensures must have type {Typ.prim .bool} not type '{res.texpr.type}'"
+    else
+      let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
+      let (ctx', rest') ← func {ctx with calls := calls'} rest
+      return ⟨ctx', ⟨.ensures res.texpr, by simp⟩ :: rest'⟩
+
+  | .loop_invar _ :: _ =>
+    throw <| Error.msg "Loop invariants can only precede loop bodies"
+  | .assert _ :: _ =>
+    throw <| Error.msg "Assert cannot annotate functions"
+
+def loop (ctx : FuncCtx) (as : List Ast.Anno)
+    : Except Error (FuncCtx × List Tst.Anno.Loop) := do
+  match as with
+  | []            => return (ctx, [])
+  | .requires _   :: _    => throw <| Error.msg "Requires can only annotate functions"
+  | .ensures  _   :: _    => throw <| Error.msg "Ensures can only annotate functions"
+  | .loop_invar e :: rest =>
+    let res ← Synth.Expr.small_nonvoid <|
+      Synth.Expr.expr ctx Tst.Expr.no_result Error.no_result e
+    if res.texpr.type ≠ .prim .bool then
+      throw <| Error.expr e <|
+        s!"Loop invariants must have type {Typ.prim .bool} not type '{res.texpr.type}'"
+    else
+      let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
+      let (ctx', rest') ← loop {ctx with calls := calls'} rest
+      let e' := ⟨res.texpr.type, ⟨res.texpr.data, res.valid⟩⟩
+      return (ctx', ⟨.loop_invar e', by simp⟩ :: rest')
+
+  | .assert _ :: _       => throw <| Error.msg "Assert cannot annotate loops"
+
+def free (ctx : FuncCtx) (a : Ast.Anno)
+    : Except Error (FuncCtx × Tst.Anno.Free) := do
+  match a with
+  | .requires _   => throw <| Error.msg "Requires can only annotate functions"
+  | .ensures  _   => throw <| Error.msg "Ensures can only annotate functions"
+  | .loop_invar _ =>
+    throw <| Error.msg "Loop invariants can only precede loop bodies"
+  | .assert e =>
+    let res ← Synth.Expr.small_nonvoid <|
+      Synth.Expr.expr ctx Tst.Expr.no_result Error.no_result e
+    if res.texpr.type ≠ .prim .bool then
+      throw <| Error.expr e <|
+        s!"Assert must have type {Typ.prim .bool} not type '{res.texpr.type}'"
+    else
+      let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
+      return ⟨{ctx with calls := calls'},
+        ⟨.assert ⟨res.texpr.type, ⟨res.texpr.data, res.valid⟩⟩, by simp⟩
+      ⟩
+
+end Synth.Anno
 
 namespace Stmt
 
@@ -633,9 +876,11 @@ def wrapError (stmt : Ast.Stmt)
 
 mutual
 def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
-  let handle := wrapError stm
-  let handleLV := wrapError stm
-  let throwS := throw ∘ Error.stmt stm
+  let handle      := wrapError stm
+  let handleLV    := wrapError stm
+  let handleAnno  := wrapError stm
+  let handleAnnos := wrapError stm
+  let throwS      := throw ∘ Error.stmt stm
 
   match stm with
   | .decl type name init body =>
@@ -648,31 +893,36 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
       then throwS s!"Declarations must have small types"
       else
         let ctx' ← Validate.var ctx name tau (init.isSome)
-        let (calls, init') ←
+        let (calls, strings, init') ←
           match init with
-          | none => pure (ctx.calls, none)
+          | none => pure (ctx.calls, ctx.strings, none)
           | some e =>
-            let (calls, e') ← handle <|
-              Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx e
+            let res ← handle <| Synth.Expr.small_nonvoid <|
+              Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
             -- types must be equivalent on both sides
-            if e'.type.equiv tau
-            then
-              let res := (calls, some e')
+            if res.texpr.type.equiv tau then
+              let init' : Typ.Typed Tst.Expr.NoContract :=
+                ⟨res.texpr.type, ⟨res.texpr.data, res.valid⟩⟩
+              let res_init :=
+                (res.calls, res.strings, some init')
               -- if we are assigning something to struct type, must be defined
-              match e'.type with
+              match res.texpr.type with
               | .mem (.struct sname) =>
                 match ctx.structs.find? sname with
                 | some status =>
                   if status.defined
-                  then pure res
+                  then pure res_init
                   else throw <| Error.stmt stm <|
-                    s!"Expression '{e'.data}' has undefined type '{e'.type}'"
+                    s!"Expression '{res.texpr.data}' has undefined type '{res.texpr.type}'"
                 | _ => throw <| Error.stmt stm <|
-                  s!"Expression '{e'.data}' has undefined/undeclared type '{e'.type}'"
-              | _ => pure res
+                  s!"Expression '{res.texpr.data}' has undefined/undeclared type '{res.texpr.type}'"
+              | _ => pure res_init
             else throw <| Error.stmt stm <|
-              s!"Variable '{name}' has mismatched types. Declaration expects '{tau}' but {e'.data} has type '{e'.type}'"
-        let (ctx'', body') ← stmts {ctx' with calls} body
+              s!"Variable '{name}' has mismatched types. Declaration expects '{tau}' but {res.texpr.data} has type '{res.texpr.type}'"
+        let (ctx'', body') ←
+          stmts {ctx' with calls := ctx.calls.merge calls
+                         , strings := strings ∪ ctx.strings
+                         } body
         let symbols' := -- restore old symbol status
           match ctx.symbols.find? name with
           | some status => ctx''.symbols.insert name status
@@ -692,65 +942,79 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
       | some status =>
         match status with
         | .var vstatus =>
-          let (calls, e') ←
-            handle <| Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx elab_e
-          let ctx := {ctx with calls}
-          if e'.type.equiv vstatus.type
+          let res ← handle <| Synth.Expr.small_nonvoid <|
+              Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract elab_e
+          let ctx := {ctx with calls := res.calls, strings := res.strings}
+          if res.texpr.type.equiv vstatus.type
           then
             let ctx' :=
               match vstatus.initialised with
               | true  => ctx
               | false =>
-                { ctx with
-                    symbols := ctx.symbols.insert var (.var ⟨vstatus.type, true⟩)
-                }
-            return (ctx', .assign ⟨e'.type, .var var⟩ none e')
-          else throwS s!"Assignment of '{var}' expects type '{vstatus.type}' but got '{e'.type}'"
+                let symbols' :=
+                  ctx.symbols.insert var (.var ⟨vstatus.type, true⟩)
+                { ctx with symbols := symbols' }
+            let e' := ⟨res.texpr.type, ⟨res.texpr.data, res.valid⟩⟩
+            return (ctx', .assign ⟨res.texpr.type, .var var⟩ none e')
+          else throwS s!"Assignment of '{var}' expects type '{vstatus.type}' but got '{res.texpr.type}'"
         | .func _  => throwS s!"Cannot assign to function '{var}'"
         | .alias _ => throwS s!"Cannot assign to type alias '{var}'"
 
     | _         =>
-      let (cl, l') ←
+      let ⟨cl, l'⟩ ←
         handleLV <| Synth.LValue.small <| Synth.LValue.lvalue ctx lv
-      let (cr, r') ←
-        handle <| Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx e
-      let ctx := {ctx with calls := cl.merge cr}
-      if l'.type.equiv r'.type
-      then
+      let resr ← handle <| Synth.Expr.small_nonvoid <|
+        Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
+      let ctx := { ctx with calls := cl.merge resr.calls
+                          , strings := resr.strings
+                 }
+      if l'.type.equiv resr.texpr.type then
+        let e' := ⟨resr.texpr.type, ⟨resr.texpr.data, resr.valid⟩⟩
         match op with
-        | .eq => return (ctx, .assign l' none r')
+        | .eq =>
+          return (ctx, .assign l' none e')
         | .aseq binop =>
-          if l'.type.equiv (.prim .int)
-          then return (ctx, .assign l' (some <| Trans.int_binop binop) r')
+          if l'.type.equiv (.prim .int) then
+            return (ctx, .assign l' (some (Trans.int_binop binop)) e')
           else throwS s!"Assignment with operations must have type '{Typ.prim .int}' not '{l'.type}'"
-      else throwS s!"Left side of assignment has type '{l'.type}' doesn't match the right side '{r'.type}'"
+      else throwS s!"Left side of assignment has type '{l'.type}' doesn't match the right side '{resr.texpr.type}'"
 
   | .ite cond tt ff =>
-    let (calls, cond') ←
-      handle <| Synth.Expr.small_nonvoid <|Synth.Expr.expr ctx cond
-    let ctx' := {ctx with calls}
-    match cond'.type with
+    let resc ← handle <| Synth.Expr.small_nonvoid <|
+      Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract cond
+    let ctx' := {ctx with calls := resc.calls, strings := resc.strings}
+    match resc.texpr.type with
     | .prim .bool =>
       let (ctx1, tt') ← stmts ctx' tt
       let (ctx2, ff') ← stmts ctx' ff
+      let cond' := ⟨resc.texpr.type, ⟨resc.texpr.data, resc.valid⟩⟩
       return (ctx1.join ctx2, .ite cond' tt' ff')
-    | _ => throwS s!"If condition must be of type '{Typ.prim .bool}' not '{cond'.type}'"
+    | _ => throwS s!"If condition must be of type '{Typ.prim .bool}' not '{resc.texpr.type}'"
 
-  | .while cond body =>
-    let (calls, cond') ←
-      handle <| Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx cond
-    let ctx' := {ctx with calls}
-    match cond'.type with
+  | .while cond annos body =>
+    let resc ← handle <| Synth.Expr.small_nonvoid <|
+      Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract cond
+    let (ctx', annos') ← handleAnnos <| Synth.Anno.loop ctx annos
+    match resc.texpr.type with
     | .prim .bool =>
-      let (ctx'', body') ← stmts ctx' body
-      return ({ctx' with calls := ctx''.calls}, .while cond' body')
-    | _ => throwS s!"Loop condition must be of type '{Typ.prim .bool}' not '{cond'.type}'"
+      let (ctx'', body') ←
+        stmts { ctx with calls := ctx'.calls.merge resc.calls
+                       , strings := ctx'.strings ∪ resc.strings
+              } body
+      let cond' := ⟨resc.texpr.type, ⟨resc.texpr.data, resc.valid⟩⟩
+      return (ctx'', .while cond' annos' body')
+    | _ => throwS s!"Loop condition must be of type '{Typ.prim .bool}' not '{resc.texpr.type}'"
 
   | .return eOpt =>
     let calls_eOpt' ←
-      eOpt.mapM (handle ∘ Synth.Expr.small_nonvoid ∘ Synth.Expr.expr ctx)
-    let eOpt' := calls_eOpt'.map (fun (_, e') => e')
-    let calls := calls_eOpt'.elim ctx.calls (fun (calls, _) => calls)
+      eOpt.mapM (
+        handle ∘ Synth.Expr.small_nonvoid
+               ∘ Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract
+      )
+    let eOpt' : Option (Typ.Typed Tst.Expr.NoContract) :=
+      calls_eOpt'.map (fun res => ⟨res.texpr.type, ⟨res.texpr.data, res.valid⟩⟩)
+    let calls   := calls_eOpt'.elim ctx.calls (·.calls)
+    let strings := calls_eOpt'.elim ctx.strings (·.strings)
     let () ←
       match eOpt', ctx.ret_type with
       | none, none => pure ()
@@ -771,19 +1035,59 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
         | .var vstatus => Status.Symbol.var {vstatus with initialised := true}
         | _ => status
       )
-    let ctx' := {ctx with symbols := symbols', calls, returns := true}
-    return (ctx', .«return» eOpt')
+    let ctx' := { ctx with symbols := symbols'
+                         , calls   := calls
+                         , strings := strings
+                         , returns := true
+                }
+    return (ctx', .return eOpt')
 
   | .assert e =>
-    let (calls, e') ←
-      handle <| Synth.Expr.small_nonvoid <| Synth.Expr.expr ctx e
-    match e'.type with
-    | .prim .bool => return ({ctx with calls}, .assert e')
-    | _ => throwS s!"Assert condition must be of type '{Typ.prim .bool}' not '{e'.type}'"
+    let res ← handle <| Synth.Expr.small_nonvoid <|
+      Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
+    match res.texpr.type with
+    | .prim .bool =>
+      let e'   := ⟨res.texpr.type, ⟨res.texpr.data, res.valid⟩⟩
+      let ctx' := { ctx with calls := res.calls, strings := res.strings }
+      return (ctx', .assert e')
+    | _ => throwS s!"Assert condition must be of type '{Typ.prim .bool}' not '{res.texpr.type}'"
+
+  | .error e =>
+    let res ← handle <| Synth.Expr.small_nonvoid <|
+      Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
+    match res.texpr.type with
+    | .prim .string =>
+      let e'   := ⟨res.texpr.type, ⟨res.texpr.data, res.valid⟩⟩
+
+      /- Sets all variables to initialised. `cc0` does not have the behaviour
+          but when outputing `c` code from `cc0`, `error` is elaborated to
+          `exit`. The C standard defines `exit` to never return, and `gcc` does
+          not warn about uninitialised variables after an `exit`, which
+          indicates to me that this should be the behaviour.
+      -/
+      let symbols' := ctx.symbols.mapVal (fun _ status =>
+        match status with
+        | .var vstatus => Status.Symbol.var {vstatus with initialised := true}
+        | _ => status
+      )
+      let ctx' := { ctx with symbols := symbols'
+                           , calls   := res.calls
+                           , strings := res.strings
+                           , returns := true
+                  }
+      return (ctx', .error e')
+    | _ => throwS s!"Error condition must be of type '{Typ.prim .string}' not '{res.texpr.type}'"
 
   | .exp e =>
-    let (calls, e') ← handle <| Synth.Expr.small <| Synth.Expr.expr ctx e
-    return ({ctx with calls}, .expr e')
+    let res ← handle <| Synth.Expr.small <|
+      Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
+    let e'   := ⟨res.texpr.type, ⟨res.texpr.data, res.valid⟩⟩
+    let ctx' := {ctx with calls := res.calls, strings := res.strings}
+    return (ctx', .expr e')
+
+  | .anno a =>
+    let (ctx', a') ← handleAnno <| Synth.Anno.free ctx a
+    return (ctx', .anno a')
 
 def stmts (ctx : FuncCtx)
           (body : List Ast.Stmt)
@@ -843,13 +1147,14 @@ def fdecl (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDecl) : Result := do
   else
     let (ctx', fctx, ret) ← func ctx extern false f.name f.type f.params
     let params ← Trans.params fctx f.params
-    let fdecl := .fdecl ⟨ret, f.name, params⟩
-    return (ctx', some fdecl)
+    let (fctx', annos) ← Synth.Anno.func fctx f.annos
+    let fdecl := .fdecl ⟨ret, f.name, params, annos⟩
+    return ({ctx' with calls := ctx'.calls.merge fctx'.calls}, some fdecl)
 
 def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef) : Result := do
   if extern
   then throw <| Error.func f.name <|
-    s!"Function definintions cannot be in headers"
+    s!"Function definitions cannot be in headers"
   else
     let (ctx', fctx, ret) ← func ctx extern true f.name f.type f.params
     let params : List (Typ.Typed Symbol) ← f.params.foldrM (fun p acc =>
@@ -858,11 +1163,12 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef) : Result := do
         | none => throw <| Error.func f.name <|
           s!"Function input must have non-void, declared type"
       ) []
-    let (fctx', body') ←
-      Stmt.stmts fctx f.body |>.tryCatch
+    let (fctx', annos) ← Synth.Anno.func fctx f.annos
+    let (fctx'', body') ←
+      Stmt.stmts fctx' f.body |>.tryCatch
         (fun err => throw {err with function := some f.name})
 
-    if ¬(ret.isNone || fctx'.returns)
+    if ¬(ret.isNone || fctx''.returns)
     then throw <| Error.func f.name <|
         s!"Function does not return on some paths"
 
@@ -871,11 +1177,12 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef) : Result := do
       then body'.append [.return none]
       else body'
 
-    let funcCalls := ctx'.funcCalls.insert f.name fctx'.calls
-    let calls := ctx'.calls.merge fctx'.calls
+    let funcCalls := ctx'.funcCalls.insert f.name fctx''.calls
+    let calls     := ctx'.calls.merge fctx''.calls
+    let strings   := ctx'.strings ∪ fctx''.strings
 
-    let fdef := .fdef ⟨ret, f.name, params, body''⟩
-    return ({ctx' with calls, funcCalls}, some fdef)
+    let fdef := .fdef ⟨ret, f.name, params, annos, body''⟩
+    return ({ctx' with calls, funcCalls, strings}, some fdef)
 
 def tydef (ctx : GlobalCtx) (t : Ast.TyDef) : Result := do
   let tau' ←
@@ -917,16 +1224,14 @@ def gdec (extern : Bool) (ctx : GlobalCtx) (g : Ast.GDecl) : Result := do
 
 end Global
 
--- todo: add logic for headers also called functions
--- todo: preserve function call information (mostly for purity checks)
 def typecheck (prog : Ast.Prog) : Except Error Tst.Prog := do
   let main_info := .func ⟨⟨some (.prim .int), []⟩, false⟩
   let main_sym := Symbol.main
 
   let init_symbols := Std.HashMap.empty.insert main_sym main_info
-  let init_calls := Std.HashMap.empty.insert main_sym ()
+  let init_calls := Std.HashMap.empty.insert main_sym false
   let init_context : GlobalCtx :=
-    ⟨init_symbols, Std.HashMap.empty, init_calls, Std.HashMap.empty⟩
+    ⟨init_symbols, Std.HashMap.empty, init_calls, Std.HashMap.empty, []⟩
 
   let checkDec := fun extern (ctx, prog) g => do
     -- run through the program, carrying the global context
@@ -939,10 +1244,9 @@ def typecheck (prog : Ast.Prog) : Except Error Tst.Prog := do
   |>.bind (fun (ctx, hres) => do
     let (ctx', bres) ←
       prog.program.foldlM (m := Except Error) (checkDec false) (ctx, [])
-    pure (ctx', hres, bres)
-  ) |>.bind (fun (ctx, hres, bres) => do
+    pure (ctx', hres, bres))
+  |>.bind (fun (ctx, hres, bres) => do
     -- check the all called functions are defined
     let () ← Validate.callsDefined ctx main_sym
     -- program is reversed so flip it back
-    return ⟨hres.reverse, bres.reverse⟩
-  )
+    return ⟨hres.reverse, bres.reverse, ctx.calls, ctx.strings⟩)

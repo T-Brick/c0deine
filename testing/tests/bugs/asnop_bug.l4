@@ -1,0 +1,8 @@
+//test memerror
+
+// Reference compiler produces a FPE, should be a memory error.
+int main() {
+  int[] x = alloc_array(int, 0);
+  x[0] += 1 / 0;
+  return 0;
+}

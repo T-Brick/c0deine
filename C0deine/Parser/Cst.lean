@@ -9,6 +9,8 @@ deriving ToString, Repr
 inductive Typ
 | int
 | bool
+| char
+| string
 | void
 | tydef (name : Ident)
 | ptr : Typ → Typ
@@ -54,7 +56,9 @@ inductive PostOp
 deriving Repr
 
 inductive Expr
-| num (v : Int32)
+| num  (v : Int32)
+| char (c : Char)
+| str  (s : String)
 | «true» | «false»
 | null
 | unop (op : UnOp) (e : Expr)
@@ -68,6 +72,8 @@ inductive Expr
 | arrow (e : Expr) (field : Ident)
 | deref (e : Expr)
 | index (e : Expr) (index : Expr)
+| result
+| length (e : Expr)
 deriving Repr, Inhabited
 
 inductive LValue
@@ -84,6 +90,16 @@ def LValue.toExpr : LValue → Expr
 | .deref lv => .deref lv.toExpr
 | .index lv idx => .index lv.toExpr idx
 
+inductive Spec
+| requires   : Expr → Spec
+| ensures    : Expr → Spec
+| loop_invar : Expr → Spec
+| assert     : Expr → Spec
+
+inductive Anno
+| line  : List Spec → Anno
+| block : List Spec → Anno
+
 mutual
 inductive Control
 | ite (cond : Expr) (tt : Stmt) (ff : Stmt)
@@ -91,6 +107,7 @@ inductive Control
 | «for» (init : Option Simp) (cond : Expr) (step : Option Simp) (body : Stmt)
 | «return» (e : Option Expr)
 | assert (e : Expr)
+| error (e : Expr)
 
 inductive Simp
 | assn (lv : LValue) (op : AsnOp) (v : Expr)
@@ -99,9 +116,10 @@ inductive Simp
 | exp (e : Expr)
 
 inductive Stmt
-| simp : Simp → Stmt
-| ctrl : Control → Stmt
-| block : List Stmt → Stmt
+| simp  : Simp → Stmt
+| ctrl  : Control → Stmt
+| block : List Stmt → List Anno → Stmt
+| anno  : Anno → Stmt → Stmt
 end
 
 structure Field where
@@ -127,9 +145,14 @@ structure FDecl where
   type : Typ
   name : Ident
   params : List Param
+  annos : List Anno
 
 structure FDef extends FDecl where
   body : Stmt
+
+inductive Directive
+| use_lib : String → Directive
+| use_str : String → Directive
 
 inductive GDecl
 | fdecl : FDecl → GDecl
@@ -137,13 +160,23 @@ inductive GDecl
 | tydef : TyDef → GDecl
 | sdecl : SDecl → GDecl
 | sdef  : SDef  → GDecl
+| cdir  : Directive → GDecl
 
 def Prog := List GDecl
 
+-- directives must appear at the start of file so we can fetch them first
+def splitDirectives : Prog → List Directive × Prog
+  | [] => ([], [])
+  | (.cdir d) :: rest =>
+    let (dirs, prog) := splitDirectives rest
+    (d::dirs, prog)
+  | prog => ([], prog)
 
 def Typ.toString : Typ → String
   | .int => "int"
   | .bool => "bool"
+  | .char => "char"
+  | .string => "string"
   | .void => "'void"
   | .tydef (name : Ident) => s!"alias {name}"
   | .ptr ty => s!"{ty.toString}*"
@@ -214,21 +247,25 @@ instance : ToString PostOp where toString := PostOp.toString
 
 mutual
 partial def Expr.toString : Expr → String
-  | num v => s!"{v}"
-  | «true» => "true"
-  | «false» => "false"
-  | null => "NULL"
-  | unop op e => s!"{op}({e.toString})"
-  | binop op l r => s!"({l.toString}) {op} ({r.toString})"
-  | ternop c tt ff => s!"({c.toString}) ? ({tt.toString}) : ({ff.toString})"
-  | app f args => s!"{f}({Expr.argsToString args})"
-  | alloc ty => s!"alloc({ty})"
-  | alloc_array ty e => s!"alloc_array({ty}, {e.toString})"
-  | var name => s!"{name}"
-  | dot e field => s!"({e.toString}).{field}"
-  | arrow e field => s!"({e.toString})->{field}"
-  | deref e => s!"*({e.toString})"
-  | index e i => s!"({e.toString})[{i.toString}]"
+  | .num v  => s!"{v}"
+  | .char c => s!"'{c}'"
+  | .str s  => s!"\"{s}\""
+  | .true   => "true"
+  | .false  => "false"
+  | .null   => "NULL"
+  | .unop op e => s!"{op}({e.toString})"
+  | .binop op l r => s!"({l.toString}) {op} ({r.toString})"
+  | .ternop c tt ff => s!"({c.toString}) ? ({tt.toString}) : ({ff.toString})"
+  | .app f args => s!"{f}({Expr.argsToString args})"
+  | .alloc ty => s!"alloc({ty})"
+  | .alloc_array ty e => s!"alloc_array({ty}, {e.toString})"
+  | .var name => s!"{name}"
+  | .dot e field => s!"({e.toString}).{field}"
+  | .arrow e field => s!"({e.toString})->{field}"
+  | .deref e => s!"*({e.toString})"
+  | .index e i => s!"({e.toString})[{i.toString}]"
+  | .result => "\\result"
+  | .length e => s!"\\length({e.toString})"
 
 partial def Expr.argsToString : List Expr → String
   | [] => ""
@@ -239,31 +276,51 @@ instance : ToString Expr where toString := Expr.toString
 
 
 def LValue.toString : LValue → String
-  | var name => s!"{name}"
-  | dot e field => s!"({e.toString}).{field}"
-  | arrow e field => s!"({e.toString})->{field}"
-  | deref e => s!"*({e.toString})"
-  | index e i => s!"({e.toString})[{i.toString}]"
+  | .var name      => s!"{name}"
+  | .dot e field   => s!"({e.toString}).{field}"
+  | .arrow e field => s!"({e.toString})->{field}"
+  | .deref e       => s!"*({e.toString})"
+  | .index e i     => s!"({e.toString})[{i.toString}]"
 instance : ToString LValue where toString := LValue.toString
+
+def Spec.toString : Spec → String
+  | .requires e   => s!"requires {e.toString};"
+  | .ensures e    => s!"ensures {e.toString};"
+  | .loop_invar e => s!"loop_invariant {e.toString};"
+  | .assert e     => s!"assert {e.toString};"
+instance : ToString Spec := ⟨Spec.toString⟩
+
+def Anno.toString : Anno → String
+  | .line s  => s!"//@ {String.intercalate " " (s.map Spec.toString)}\n"
+  | .block s => s!"/*@ {String.intercalate " " (s.map Spec.toString)} @*/"
+instance : ToString Anno := ⟨Anno.toString⟩
 
 mutual
 partial def Stmt.toString (s : Stmt) : String :=
   match s with
-  | .simp s => Simp.toString s
-  | .ctrl c => Control.toString c
-  | .block b =>
-    "{\n\t".append (Stmt.listToString b)
+  | .simp s    => Simp.toString s
+  | .ctrl c    => Control.toString c
+  | .block b a =>
+    let sb := Stmt.listToString b |>.replace "\n" "\n  "
+    let sa := String.intercalate "\n  " (a.map Anno.toString)
+    "{\n  " ++ sb ++ "\n  " ++ sa ++ "\n}"
+  | .anno a s  => Anno.toString a ++ "\n" ++ Stmt.toString s
 
 partial def Stmt.listToString (stmts : List Stmt) : String :=
   match stmts with
-  | [] => "\n}"
-  | stmt :: stmts =>
-    s!"\n\t{Stmt.toString stmt}" |>.append (Stmt.listToString stmts)
+  | []            => ""
+  | stmt::[]      => Stmt.toString stmt
+  | stmt :: stmts => s!"{Stmt.toString stmt}\n{Stmt.listToString stmts}"
 
 partial def Control.toString (c : Control) : String :=
   match c with
-  | .ite cond tt ff => s!"if({cond})\n{Stmt.toString tt}\n{Stmt.toString ff}"
-  | .while cond body => s!"while({cond})\n{Stmt.toString body}"
+  | .ite cond tt ff =>
+    let stt := Stmt.toString tt |>.replace "\n" "\n  "
+    let sff := Stmt.toString ff |>.replace "\n" "\n  "
+    s!"if({cond})\n  {stt}\n  {sff}\n"
+  | .while cond body =>
+    let sbody := Stmt.toString body |>.replace "\n" "\n  "
+    s!"while({cond})\n  {sbody}\n"
   | .«for» init cond step body =>
     let initStr :=
       match init with
@@ -273,10 +330,12 @@ partial def Control.toString (c : Control) : String :=
       match step with
       | none => ""
       | some s => Simp.toString s
-    s!"for({initStr};{cond};{stepStr})\n{Stmt.toString body}"
+    let sbody := Stmt.toString body |>.replace "\n" "\n  "
+    s!"for({initStr}; {cond}; {stepStr})\n  {sbody}\n"
   | .«return» (.none) => "return;"
   | .«return» (.some e) => s!"return {e};"
   | .assert e => s!"assert({e});"
+  | .error e  => s!"error({e});"
 
 partial def Simp.toString (s : Simp) : String :=
   match s with
@@ -309,9 +368,16 @@ instance : ToString Param where toString p := s!"{p.type} {p.name}"
 instance : ToString (List Param) where
   toString ps := String.intercalate ", " (ps.map (fun p => s!"{p}"))
 
-instance : ToString FDecl where toString f := s!"{f.type} {f.name}({f.params})"
+instance : ToString FDecl where toString f :=
+  let sa := String.intercalate "\n  " (f.annos.map Anno.toString)
+  s!"{f.type} {f.name}({f.params})\n  {sa}"
 instance : ToString FDef where
   toString f := s!"{f.type} {f.name}({f.params}) {f.body}"
+
+def Directive.toString : Directive → String
+  | .use_lib s => s!"#use <{s}>"
+  | .use_str s => s!"#use \"{s}\""
+instance : ToString Directive := ⟨Directive.toString⟩
 
 def GDecl.toString : GDecl → String
   | .fdecl f => s!"{f}"
@@ -319,6 +385,7 @@ def GDecl.toString : GDecl → String
   | .tydef t => s!"{t}"
   | .sdecl s => s!"{s}"
   | .sdef  s => s!"{s}"
+  | .cdir  d => s!"{d}"
 instance : ToString GDecl where toString := GDecl.toString
 
 instance : ToString Prog where

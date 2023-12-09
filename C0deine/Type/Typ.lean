@@ -5,6 +5,8 @@ namespace C0deine
 inductive Typ.Primitive
 | int
 | bool
+| char
+| string
 deriving DecidableEq, Inhabited, Hashable
 
 mutual
@@ -24,8 +26,10 @@ end
 namespace Typ
 
 def Primitive.toString : Typ.Primitive → String
-  | .int  => "int"
-  | .bool => "bool"
+  | .int    => "int"
+  | .bool   => "bool"
+  | .char   => "char"
+  | .string => "string"
 instance : ToString Primitive where toString := Primitive.toString
 
 mutual
@@ -106,6 +110,7 @@ end
 def isScalar : Typ → Bool
   | .prim .int => true
   | .prim .bool => true
+  | .prim .char => true
   | _ => false
 
 def isSmall : Typ → Bool
@@ -116,6 +121,8 @@ def sizeof : Typ → Option Nat
   | .any              => none
   | .prim .int        => some 4
   | .prim .bool       => some 1
+  | .prim .char       => some 1
+  | .prim .string     => some 8
   | .mem (.pointer _) => some 8
   | .mem (.array _)   => some 8
   | .mem (.struct _)  => none
@@ -124,6 +131,8 @@ def sizeof! : Typ → Nat
   | .any              => 8
   | .prim .int        => 4
   | .prim .bool       => 1
+  | .prim .char       => 1
+  | .prim .string     => 8
   | .mem (.pointer _) => 8
   | .mem (.array _)   => 8
   | .mem (.struct _)  => 8

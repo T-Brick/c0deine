@@ -1,0 +1,14 @@
+//test return 123
+
+// cc0 rejects this program, but since 'error' ends the controlflow path
+//    it stands to reason that y doesn't need to be initialised.
+
+int main() {
+  int y;
+  if(false) {
+    error("oh no :(");
+    return y;
+  } else {
+    return 123;
+  }
+}

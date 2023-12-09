@@ -1,0 +1,20 @@
+//test return 0
+
+int main(){
+  char c0;
+  char c1  = ' ' ;
+  char c2  = '!' ;
+  char c3  = '\n';
+  char c4  = '\t';
+  char c5  = '\v';
+  char c6  = '\b'; // not sure why the LSP flags this
+  char c7  = '\r';
+  char c8  = '\f';
+  char c9  = '\a';
+  char c10 = '\\';
+  char c11 = '\'';
+  char c12 = '\"';
+  char c13 = '"';
+  char c14 = '\0';
+  return 0;
+}

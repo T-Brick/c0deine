@@ -20,5 +20,5 @@ require numbers from git "https://github.com/T-Brick/Numbers" @ "main"
 require controlflow from git "https://github.com/T-Brick/ControlFlow" @ "main"
 require wasm from git "https://github.com/T-Brick/lean-wasm" @ "main"
 -- Megaparsec is not updated with recent lean4 version + apparently unmaintained
-require Megaparsec from git
-  "https://github.com/lurk-lab/Megaparsec.lean" @ "main"
+-- require Megaparsec from git
+  -- "https://github.com/lurk-lab/Megaparsec.lean" @ "main"

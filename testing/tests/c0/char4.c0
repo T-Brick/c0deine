@@ -1,0 +1,7 @@
+//test return 1
+
+int main(){
+  char c = '5';
+  if(c <= c) return 1;
+  return 0;
+}

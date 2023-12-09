@@ -1,0 +1,6 @@
+//test error
+
+int main(){
+  char c = 'sfd';
+  return 0;
+}
