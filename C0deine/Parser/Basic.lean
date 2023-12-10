@@ -75,7 +75,7 @@ def chrlit : C0Parser s Char := do
     (do char '"'; return '"')
     <|> (withBacktracking do return ←esc_seq)
     <|> (do char '\\'; char '0'; return Char.ofNat 0x00)
-    <|> (do return ←charMatching (fun c => 32 ≤ c.val && c.val < 127 && c ≠ '\'' )) -- nchar
+    <|> (do return ←charMatching (fun c => 32 ≤ c.val && c.val < 127)) -- nchar
   char '\''
   return c
 

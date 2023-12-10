@@ -1,0 +1,24 @@
+//test error
+
+/*
+This should be rejected because the `store_int` function is not pure, which
+is required for function used in contracts.
+*/
+
+bool store_int(int *p, int n) {
+  *p = n;
+  return true;
+}
+
+int get_length(int[] A) {
+  int *p = alloc(int);
+  //@assert store_int(p, \length(A));
+  return *p;
+}
+
+int main() {
+  int[] A = alloc_array(int, 10);
+  int n = get_length(A);
+
+  return n;
+}

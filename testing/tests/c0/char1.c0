@@ -1,6 +1,6 @@
-//test error
+//test return 0
 
 int main() {
-  char c0 = ''';
+  char c0 = '''; // the language server has an error but shouldnt.
   return 0;
 }

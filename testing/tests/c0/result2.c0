@@ -1,0 +1,13 @@
+//test error
+
+void useless(int x, int y)
+//@ensures \result == x + y;
+{
+  x + y;
+  return;
+}
+
+int main() {
+  useless(1,2);
+  return 0;
+}

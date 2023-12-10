@@ -54,6 +54,9 @@ def stemp : SizedTemp → Module.Index :=
   .name ∘ Temp.toWasmIdent ∘ SizedTemp.temp
 def label : Label     → Module.Index := .name ∘ Label.toWasmIdent
 
+def c0deine : Name :=
+  ⟨"c0deine", by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+
 /- We pass the signal numbers we want into the abort function
     (nb. div-by-zero is already a wasm exception)
 -/
@@ -63,9 +66,9 @@ def Error.arith  : Instr := i32_const 8     -- SIGFPE
 
 /- todo move into proper std libraries -/
 def result_id : Ident := ⟨"result", sorry, sorry⟩
-def result : Module.Field := .imports
-  ⟨ ⟨"c0deine", sorry⟩
-  , ⟨"result" , sorry⟩
+def result_import : Module.Field := .imports
+  ⟨ c0deine
+  , ⟨"result" , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
   , .func (.some result_id) (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
@@ -101,8 +104,8 @@ def calloc_func : Module.Field := .funcs
     ]
   }
 def calloc_import : Module.Field := .imports
-  ⟨ ⟨"c0deine", sorry⟩
-  , ⟨"calloc" , sorry⟩
+  ⟨ c0deine
+  , ⟨"calloc" , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
   , .func (.some Label.calloc.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
@@ -118,32 +121,39 @@ def abort_func : Module.Field := .funcs
     ]
   }
 def abort_import : Module.Field := .imports
-  ⟨ ⟨"c0deine", sorry⟩
-  , ⟨"abort"  , sorry⟩
+  ⟨ c0deine
+  , ⟨"abort"  , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
   , .func (.some Label.abort.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [])
+  ⟩
+
+def error_import : Module.Field := .imports
+  ⟨ c0deine
+  , ⟨"error"  , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  , .func (.some Label.error.toWasmIdent)
+          (.elab_param_res [(.none, .num .i32)] [])
+  ⟩
+
+def memory_import : Module.Field := .imports
+  ⟨ c0deine
+  , ⟨"memory" , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  , .mem .none ⟨1, .none⟩
   ⟩
 
 def start  : Module.Field := .start ⟨.name Label.main.toWasmIdent⟩
 
 def main_import : Module.Field := .imports
-  ⟨ ⟨"c0deine", sorry⟩
-  , ⟨"main"   , sorry⟩
+  ⟨ ⟨"c0deine", by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  , ⟨"main"   , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
   , .func (.some Label.main.toWasmIdent) (.elab_param_res [] [])
   ⟩
 
 def main (config : Wasm.Config) : List Module.Field :=
-  let main_body := (
-    if config.import_calloc then [] else
-      [ (i32_const 0)               -- store pointer to next free seg at 0
-      , (i32_const 4)
-      , (i32_mem (.store ⟨0, 4⟩))
-      ]
-    ).append [Plain.call (.name ⟨"_c0_main", sorry, sorry⟩)]
+  let main_body := [Plain.call (.name ⟨"_c0_main", sorry, sorry⟩)]
   match config.main with
   | .import =>
     [ .exports
-        ⟨ ⟨"_c0_main", sorry⟩
+        ⟨ ⟨"_c0_main", by simp [String.length, Wasm.Vec.max_length]; linarith⟩
         , .func (.name ⟨"_c0_main", sorry, sorry⟩)
         ⟩
     ]
@@ -160,23 +170,26 @@ def main (config : Wasm.Config) : List Module.Field :=
     , body    := main_body
     }]
 
-def memory : Module.Field := .mems ⟨.none, ⟨1, .none⟩⟩
-
 def mkImports (config : Wasm.Config) : List (Module.Field) :=
-  [ .some result
-  , if config.import_abort then .some abort_import else .none
+  [ .some memory_import
+  , .some result_import
+  , .some error_import
+  , if config.import_abort  then .some abort_import  else .none
   , if config.import_calloc then .some calloc_import else .none
   , match config.main with | .import => .some main_import | _ => .none
   ].filterMap (·)
 
-def mkModule (config : Wasm.Config) (funcs : List Module.Function) : Module :=
+def mkModule (config : Wasm.Config)
+             (funcs : List Module.Function)
+             (data : Module.Data)
+             : Module :=
   let c0_funcs := funcs.map .funcs
   ⟨ .none
   , mkImports config
-    ++ [ .some memory
-       , if config.import_abort then .none else .some abort_func
+    ++ [ if config.import_abort then .none else .some abort_func
        , if config.import_calloc then .none else .some calloc_func
        ].filterMap (·)
+    ++ [.datas data]
     ++ (main config)
     ++ c0_funcs
   ⟩

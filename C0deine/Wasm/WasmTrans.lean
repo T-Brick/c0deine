@@ -211,10 +211,12 @@ def stmt : IrTree.Stmt → List Instr
 
 @[inline] def exit (bexit : IrTree.BlockExit) : List Instr :=
   match bexit with
-  | .jump l => []
-  | .cjump t hotpath tt ff => []
+  | .jump _l => []
+  | .cjump _t _hotpath _tt _ff => []
   | .return .none => [Plain.wasm_return]
   | .return (.some te) => texpr te |>.append [Plain.wasm_return]
+  | .error te =>
+    texpr te |>.append [Plain.call (label Label.error), Plain.unreachable]
 
 -- todo clean this up with helpers and such!
 partial def func_body
@@ -302,7 +304,7 @@ where
       error s!"WASM Trans: Shape multi, {shape}, missing branch!"
     | _, _, _, .none | _, _, _, .some _ =>
       error s!"WASM Trans: Shape multi, {shape}, doesn't have condition to branch: {priorExit}!"
-  | .illegal lbls => error s!"WASM Trans: Illegal shape {shape}!"
+  | .illegal _ => error s!"WASM Trans: Illegal shape {shape}!"
 
 
 -- todo: temp just to get things working
@@ -342,4 +344,9 @@ def func (f : IrTree.Func) (shape : ControlFlow.Relooper.Shape) : Module.Functio
 def prog (prog : IrTree.Prog)
          (shapes : List (ControlFlow.Relooper.Shape))
          : List Module.Function :=
-  List.zip prog shapes |>.map (fun (f, s) => func f s)
+  List.zip prog.funcs shapes |>.map (fun (f, s) => func f s)
+
+def data (prog : IrTree.Prog) : Module.Data :=
+  let free_seg := prog.str_size.toBytes
+  let str_data := prog.str_map.bind (·.1.data.map (·.toUInt8 sorry) ++ [0])
+  ⟨.none, ⟨free_seg ++ str_data, sorry⟩, .active (.num 0) [i32_const 0]⟩

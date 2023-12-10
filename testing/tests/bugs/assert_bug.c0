@@ -1,6 +1,6 @@
 //test error
 
-// the language reference implies that this shoudl be a valid program
+// the language reference implies that this should be a valid program
 //  it is unclear what the semantics would be though
 
 int exp (int k, int n)

@@ -1249,4 +1249,4 @@ def typecheck (prog : Ast.Prog) : Except Error Tst.Prog := do
     -- check the all called functions are defined
     let () ← Validate.callsDefined ctx main_sym
     -- program is reversed so flip it back
-    return ⟨hres.reverse, bres.reverse, ctx.calls, ctx.strings⟩)
+    return ⟨hres.reverse, bres.reverse, ctx.calls, ctx.strings.reverse⟩)

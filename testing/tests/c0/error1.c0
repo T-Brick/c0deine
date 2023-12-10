@@ -1,0 +1,10 @@
+//test abort
+
+int main() {
+  int[] arr = alloc_array(int, 100);
+  for(int i = 0; i < 100; i++) {
+    arr[i] = i + 1;
+  }
+  error("the array allocation above should not smash this text : )");
+  return 0;
+}

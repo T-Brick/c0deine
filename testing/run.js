@@ -1,3 +1,6 @@
+/* Functional-Programming-pilled woman tries to write javascript
+    Viewer discretion is advised xd :')
+ */
 const fs = require("fs");
 const { exec } = require('child_process');
 const path = require('path');
@@ -9,9 +12,30 @@ var quiet = 0;
 var failed = 0;
 var success = 0;
 
+const memory = new WebAssembly.Memory({ initial: 1 });
+
+const c0_parse_str = function(address) {
+  const bytes = new Uint8Array(memory.buffer.slice(address | 0));
+  var i = 0;
+  var msg = "";
+  while(i < bytes.length && bytes[i] !== undefined && bytes[i] !== 0) {
+    msg += String.fromCharCode(bytes[i])
+    i += 1;
+  }
+  return msg;
+}
+
+const log_c0_error = function(str) {
+  var msg = c0_parse_str(str);
+  msg = "error:  " + msg;
+  console.log(msg);
+}
+
 const print_imports = {c0deine: {
-  result: res => { console.log((res | 0))},
-  abort: sig => { console.log("abort: " + (sig | 0))},
+  memory: memory,
+  result: res => { console.log((res | 0)) },
+  abort:  sig => { console.log("abort: " + (sig | 0)) },
+  error:  log_c0_error,
 }};
 
 const buildLazyList = function(list) {
@@ -91,6 +115,17 @@ const abort = function(filename, expect) {
   };
 }
 
+const error = function(filename, expect) {
+  return got => {
+    if(expect["abort"] !== undefined) {
+      passTest(filename, "abort", c0_parse_str(got));
+      return;
+    }
+    failTest(filename, resultToString(expect), "error:  " + c0_parse_str(got));
+    return;
+  }
+}
+
 const parseExpectedResult = function(filename, k, next) {
   fs.readFile(filename, (err, data) => {
     var str = (data + "").split("\n", 2)[0].trim();
@@ -159,6 +194,7 @@ const run = function(filename, imports, expect, k) {
   } catch(e) {
     if(expect === undefined) {
       console.log(e + "");
+      return;
     }
 
     if(e instanceof WebAssembly.RuntimeError && expect["div-by-zero"]) {
@@ -179,8 +215,10 @@ const evalTest = function(filename, k) {
         return passTest(filename, "Typechecked", "Typechecked")
       }
       const check_imports = {c0deine: {
+        memory: memory,
         result: result(filename, res),
-        abort: abort(filename, res),
+        abort:  abort(filename, res),
+        error:  error(filename, res),
       }};
       run(filename, check_imports, res, k);
     }, k);
@@ -233,5 +271,10 @@ const main = function() {
 }
 
 main();
+
+/* Uncomment if you'd rather run one specific test without passing through
+    the testing framework. Useful for debugging specific WAT files that you
+    can manually modify.
+*/
 // run("../test", print_imports, undefined, () => {});
 

@@ -34,7 +34,8 @@ from [2.10.1](http://reports-archive.adm.cs.cmu.edu/anon/2010/CMU-CS-10-145.pdf)
 > - No floating point datatypes or literals
 > - No complex types
 > - No unsigned or other integral types besides int
-> - Structure types may not be declared as local variables or used as return types for functions
+> - Structure types may not be declared as local variables or used as return
+>   types for functions
 > - No comma separated expressions
 > - No explicit memory deallocation
 > - Allocation is done using types not a size in bytes.
@@ -111,21 +112,22 @@ defined above as well as some behaviour clarifications:
   It is unclear what the intended semantics of this would be, so C0deine rejects
   this program (as does `cc0`).
 
-- The grammar allows for `'''` to be parsed as a valid `char`. Since C0 is
-  intended to roughly be a subset of C, C0deine rejects this (as does `cc0`).
+- The grammar allows for `'''` to be parsed as a valid `char`. C0deine accepts
+  this (as does `cc0`) even if C compilers do not.
 
 
-## Target Languages
-### WASM
+## Wasm Target
 
-By default C0deine requires importing two functions `result` and `abort`:
+By default C0deine requires the following imports:
 
-```wat
-(import "c0deine" "result" (func $result (param i32) ))
-(import "c0deine" "abort" (func $abort (param i32) ))
+```wasm
+(import "c0deine" "memory" (memory  1)                )
+(import "c0deine" "result" (func $result (param i32)) )
+(import "c0deine" "abort"  (func $abort  (param i32)) )
+(import "c0deine" "error"  (func $error  (param i32)) )
 ```
 
-The result function is called with the result of the `main` function defined
+The `result` function is called with the result of the `main` function defined
 by the user.
 
 If the program executes a divide by zero, this error will be handled through
@@ -136,3 +138,15 @@ signal of the error that occured:
     as `INT_MIN % -1` which is not considered an error in WASM.
 - Assertion failure: SIGABRT (6)
 - Memory error: SIGUSR2 (12)
+An unreachable statement will be executed if the `abort` function returns.
+
+The `error` function is called with index of a null terminated string in wasm's
+memory. An unreachable state will be executed if this function returns.
+
+### Pointers, Arrays, and Strings
+
+The current WASM spec has a 32-bit memory. While there are proposals to extend
+this to 64-bits, C0deine uses the 32-bit spec. Due to this all pointers, when
+compiling to WASM, are represented by a `u32` address. That being said, when
+using anything represented as a pointer in `struct`'s or `array`'s will be
+allocated 8-bytes and struct alignment will take account of this.

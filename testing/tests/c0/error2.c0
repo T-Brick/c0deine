@@ -1,0 +1,26 @@
+//test abort
+// should be "error"
+
+int main() {
+  string s1  = "this";
+  string s2  = "is";
+  string s3  = "a";
+  string s4  = "bunch";
+  string s5  = "of";
+  string s6  = "strings";
+  string s7  = "the";
+  string s8  = "error";
+  string s9  = "output";
+  string s10 = "should";
+  string s11 = "only";
+  string s12 = "print";
+  string s13 = "one";
+  string s14 = "of";
+  string s15 = "them";
+  string s16 = "!";
+  error(s8); // error
+  error(s6);
+  error(s3);
+  error(s15);
+  return 0;
+}

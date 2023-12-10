@@ -54,6 +54,7 @@ inductive BlockExit
     -- hotpath = some true => tt will be most likely jump
 | cjump (t : Temp) (hotpath : Option Bool) (tt : Label) (ff : Label)
 | «return» (e : Option (Typed Expr))
+| error (e : Typed Expr)
 instance : Inhabited BlockExit := ⟨.return .none⟩
 
 def Block := ControlFlow.Block Stmt BlockExit
@@ -73,6 +74,7 @@ def Block.succ_labels (f : Func) (b : Block) : Option (List Label) :=
       | .cjump _ (.some false) tt ff => [ff, tt]
       | .cjump _ _ tt ff => [tt, ff]
       | .«return» _      => []
+      | .error _         => []
     )
   )
 
@@ -101,9 +103,12 @@ def Func.to_cfg (f : Func) : ControlFlow.C0_CFG Stmt BlockExit :=
   | .some b => b.after_loop
   | _       => false
 
-def Prog := List Func
+structure Prog where
+  funcs    : List Func
+  str_map  : List (String × UInt64)
+  str_size : UInt64
 
-def Prog.to_cfgs (prog : Prog) := prog.map (Func.to_cfg ·)
+def Prog.to_cfgs (prog : Prog) := prog.funcs.map (Func.to_cfg ·)
 
 def PureBinop.toString : PureBinop → String
   | add      => "+"
@@ -167,11 +172,12 @@ def BlockExit.toString : BlockExit → String
     s!"cjump {t} {tt} [{ff}]"
   | «return» (.none) => "return"
   | «return» (.some e) => s!"return {e}"
+  | error e => s!"error {e}"
 instance : ToString BlockExit where toString := BlockExit.toString
 
 def Block.toString (b : Block) :=
-  let body := b.body.map (fun stmt => s!"\t{stmt}\n") |> String.join
-  s!"{b.label}:\t\t{b.type}\n{body}\t{b.exit}"
+  let body := b.body.map (fun stmt => s!"  {stmt}\n") |> String.join
+  s!"{b.label}:    # {b.type}\n{body}  {b.exit}"
 instance : ToString Block where toString := Block.toString
 
 def Func.toString (f : Func) :=
@@ -180,9 +186,9 @@ def Func.toString (f : Func) :=
     match f.result_size with
     | .some s => s!" -> {s}"
     | .none => ""
-  s!"{f.name}: ({f.args}){res}\n\tjump {f.enter}\n{blocks}"
+  s!"{f.name}: ({f.args}){res}\n  jump {f.enter}\n{blocks}"
 instance : ToString Func where toString := Func.toString
 
 def Prog.toString (prog : Prog) :=
-  prog.map (fun f => s!"{f}\n\n") |> String.join
+  prog.funcs.map (fun f => s!"{f}\n\n") |> String.join
 instance : ToString Prog where toString := Prog.toString

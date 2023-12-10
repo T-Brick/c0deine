@@ -1,0 +1,6 @@
+//test abort
+
+int main() {
+  error("hello world!");
+  return 0;
+}

@@ -57,12 +57,13 @@ def String.toInt32! (s : String) : Int32 :=
   | some v => v
   | none   => panic "Int32 expected"
 
-#eval "-0x80000000".toInt32?
-#eval "-0x7FFFFFFF".toInt32?
-#eval 0x80000000
-
 def UInt64.max (n m : UInt64) : UInt64 :=
   if n > m then n else m
+
+def UInt64.toBytes (v : UInt64) : List UInt8 :=
+  aux v 8
+where aux (v : UInt64) (n : Nat) : List UInt8 :=
+  if n = 0 then [] else (v % 256).toUInt8 :: aux (v / 256) (n - 1)
 
 @[simp] theorem UInt32.toNat_ofUInt8 : UInt32.toNat (UInt8.toUInt32 x) = x.val := by
   cases x; case mk val =>

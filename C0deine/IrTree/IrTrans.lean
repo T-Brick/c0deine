@@ -24,17 +24,20 @@ instance : Inhabited StructInfo where default := ⟨0, 0, Std.HashMap.empty⟩
 namespace Env
 
 structure Prog.State : Type where
-  config : Config
-  vars : Symbol.Map SizedTemp
+  config    : Config
+  vars      : Symbol.Map SizedTemp
   functions : Symbol.Map Label
-  structs : Symbol.Map StructInfo
+  structs   : Symbol.Map StructInfo
+  str_map   : List (String × UInt64)
 
 
-def Prog.State.new (config : Config) : Env.Prog.State where
-  config := config
-  vars := Std.HashMap.empty
+def Prog.State.new (config : Config) (str_map : List (String × UInt64))
+                   : Env.Prog.State where
+  config    := config
+  vars      := Std.HashMap.empty
   functions := Std.HashMap.empty
-  structs := Std.HashMap.empty
+  structs   := Std.HashMap.empty
+  str_map   := str_map
 
 def Prog := StateT Env.Prog.State Context
 instance : Monad Env.Prog := show Monad (StateT _ _) from inferInstance
@@ -90,14 +93,23 @@ def Prog.addStruct (name : Symbol) (struct : StructInfo) : Prog (Unit) :=
   fun env =>
     return ⟨(), {env with structs := env.structs.insert name struct}⟩
 
+def Prog.string_offset (s : String) : Prog UInt64 :=
+  fun env =>
+    match env.str_map.find? (fun (s', _) => s = s') with
+    | .some (_, offset) => return ⟨offset, env⟩
+    | .none             =>
+      return ⟨panic! s!"Couldn't find String {s} offset", env⟩
 
 structure Func.State extends Env.Prog.State where
   blocks : Label.Map Block         -- finished blocks
   curBlockLabel : Label
   curBlockType : BlockType
 
-def Func.State.new (config : Config) (label : Label) : Func.State :=
-  { Prog.State.new config
+def Func.State.new (config : Config)
+                   (label : Label)
+                   (str_map : List (String × UInt64))
+                   : Func.State :=
+  { Prog.State.new config str_map
     with blocks := Std.HashMap.empty
        , curBlockLabel := label
        , curBlockType := .funcEntry
@@ -123,6 +135,10 @@ def Prog.toFunc (f : Prog α) : Func α :=
     return (res, {env with toState := penv'})
 
 def Func.unsafe : Func Bool := Prog.toFunc Prog.config |>.map (¬·.safe)
+def Func.dynCheckContracts : Func Bool :=
+  Prog.toFunc Prog.config |>.map (·.dynCheckContracts)
+def Func.checkAssertsWhenUnsafe : Func Bool :=
+  Prog.toFunc Prog.config |>.map (·.checkAssertsWhenUnsafe)
 def Func.new_var (size : ValueSize) (v : Symbol) : Func SizedTemp :=
   Prog.toFunc (Prog.new_var size v)
 def Func.var (v : Symbol) : Func SizedTemp := Prog.toFunc (Prog.var v)
@@ -132,6 +148,8 @@ def Func.freshLabel : Func Label := Prog.toFunc Prog.freshLabel
 def Func.namedLabel (name : String) : Func Label :=
   Prog.toFunc (Prog.namedLabel name)
 def Func.structs : Func (Symbol.Map StructInfo) := Prog.toFunc Prog.structs
+def Func.string_offset : String → Func UInt64 :=
+  Prog.toFunc ∘ Prog.string_offset
 
 def Func.curBlockLabel : Env.Func Label :=
   fun env => return (env.curBlockLabel, env)
@@ -150,6 +168,15 @@ def Func.addBlock (block : Block)
                 })
 
 end Env
+
+def String.mapping (strings : List String)
+    : UInt64 × List (String × UInt64) :=
+  let (size, res) := strings.foldl (fun (offset, acc) s =>
+      ( offset + (UInt64.ofNat s.length) + 1 -- add 1 for null terminator
+      , (s, offset) :: acc
+      )
+    ) ((8 : UInt64), []) -- start 8-bytes to avoid NULL
+  (size + (8 - size) % 8, res.reverse) -- 8-byte align the size.
 
 namespace MkTyped
 
@@ -274,7 +301,7 @@ def expr (tau : Typ)
   match exp with
   | .num v     => return (acc, .const v)
   | .char c    => return (acc, .byte (c.toUInt8 sorry))
-  | .str s     => sorry
+  | .str s     => return (acc, .memory ((← Env.Func.string_offset s).toNat))
   | .var name  => return (acc, .temp (← Env.Func.var name))
   | .«true»    => return (acc, .byte 1)
   | .«false»   => return (acc, .byte 0)
@@ -340,7 +367,7 @@ def expr (tau : Typ)
     | some size =>
       let dest ← Env.Func.freshTemp
       let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
-      return (.alloc dest (MkTyped.int (.memory size.toNat)) :: acc
+      return ( .alloc dest (MkTyped.int (.memory size.toNat)) :: acc
              , .temp sdest)
     | none => panic! "IR Trans: Alloc type size not known"
 
@@ -666,28 +693,44 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt)
     return []
 
   | .assert e =>
-    let after ← Env.Func.freshLabel
-    let assertLbl := Label.abort
+    if ¬(←Env.Func.unsafe) || (←Env.Func.checkAssertsWhenUnsafe) then
+      let after ← Env.Func.freshLabel
+      let assertLbl := Label.abort
 
-    let (stms, e') ← texpr past ⟨e.type, e.data.val⟩
-    let cond_temp ← Env.Func.freshTemp
-    let scond_temp := ⟨← Env.Prog.toFunc (Typ.tempSize e.type), cond_temp⟩
-    let condT := .move scond_temp e'
+      let (stms, e') ← texpr past ⟨e.type, e.data.val⟩
+      let cond_temp  ← Env.Func.freshTemp
+      let scond_temp := ⟨← Env.Prog.toFunc (Typ.tempSize e.type), cond_temp⟩
+      let condT := .move scond_temp e'
 
-    let exit := .cjump cond_temp (some true) after assertLbl
-    let curLabel ← Env.Func.curBlockLabel
-    let curType ← Env.Func.curBlockType
-    let block := ⟨curLabel, curType, (condT :: stms).reverse, exit⟩
-    let () ← Env.Func.addBlock block after curType
-    return []
+      let exit := .cjump cond_temp (some true) after assertLbl
+      let curLabel ← Env.Func.curBlockLabel
+      let curType  ← Env.Func.curBlockType
+      let block := ⟨curLabel, curType, (condT :: stms).reverse, exit⟩
+      let () ← Env.Func.addBlock block after curType
+      return []
+    else return past
 
-  | .error e => sorry
+  | .error e =>
+    if ¬(←Env.Func.unsafe) || (←Env.Func.checkAssertsWhenUnsafe) then
+      let after ← Env.Func.freshLabel
+
+      let (stms, e') ← texpr past ⟨e.type, e.data.val⟩
+      let exit := .error e'
+      let curLabel ← Env.Func.curBlockLabel
+      let curType  ← Env.Func.curBlockType
+      let block := ⟨curLabel, curType, stms.reverse, exit⟩
+      let () ← Env.Func.addBlock block after curType
+      return []
+    else return past
 
   | .expr e =>
     let (stms, _) ← texpr past ⟨e.type, e.data.val⟩ -- drop pure expression
     return stms
 
-  | .anno a => sorry
+  | .anno a =>
+    if ← Env.Func.dynCheckContracts
+    then sorry
+    else return past
 
 def stmts (past : List IrTree.Stmt)
           (stms : List Tst.Stmt)
@@ -760,7 +803,8 @@ def gdecl (header : Bool) (glbl : Tst.GDecl) : Env.Prog (Option Func) := do
     return none
 
 def prog (config : Config) (tst : Tst.Prog) : Context IrTree.Prog := do
-  let initState := Env.Prog.State.new config
+  let (str_size, str_map) := String.mapping tst.strings
+  let initState := Env.Prog.State.new config str_map
   let transOne := fun header (state, acc) gd => do
       let (fOpt, state') ← gdecl header gd state
       match fOpt with
@@ -769,4 +813,4 @@ def prog (config : Config) (tst : Tst.Prog) : Context IrTree.Prog := do
   let (_state, funcsR) ←
     tst.header.foldlM (transOne true) (initState, [])
     |>.bind (tst.body.foldlM (transOne false))
-  return funcsR.reverse
+  return ⟨funcsR.reverse, str_map, str_size⟩

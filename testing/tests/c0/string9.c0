@@ -1,0 +1,6 @@
+//test return 0
+
+int main(){
+  string s = "aaa";
+  return 0;
+}

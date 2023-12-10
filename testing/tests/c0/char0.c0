@@ -7,7 +7,7 @@ int main(){
   char c3  = '\n';
   char c4  = '\t';
   char c5  = '\v';
-  char c6  = '\b'; // not sure why the LSP flags this
+  char c6  = '\b'; // not sure why the Language Server flags this
   char c7  = '\r';
   char c8  = '\f';
   char c9  = '\a';

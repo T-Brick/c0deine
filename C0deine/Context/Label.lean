@@ -24,8 +24,9 @@ def calloc : Label := ⟨1, "calloc"⟩
 def abort  : Label := ⟨2, "abort"⟩
 def fpe    : Label := ⟨3, "sigfpe"⟩
 def memerr : Label := ⟨4, "sigusr2"⟩
+def error  : Label := ⟨5, "error"⟩
 
-def startId := 5
+def startId := 6
 
 @[reducible] def Map (α : Type) := Std.HashMap Label α
 
