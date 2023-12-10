@@ -87,7 +87,9 @@ where aux : C0Parser s (List Char) := do
   <|> (do let c ← esc_seq
           let cs ← aux
           return c :: cs)
-  <|> (do let c ← charMatching (fun | '"' => false | c => 32 ≤ c.val && c.val < 127)
+  <|> (do let c ← charMatching (fun | '"'  => false
+                                    | '\n' => false
+                                    | c    => 32 ≤ c.val && c.val < 127)
           let cs ← aux
           return c :: cs)
 
@@ -96,7 +98,9 @@ partial def liblit : C0Parser s String := do
   return String.mk (← aux)
 where aux : C0Parser s (List Char) := do
   (do char '>'; return [])
-  <|> (do let c ← charMatching (fun | '>' => false | c => 32 ≤ c.val && c.val < 127)
+  <|> (do let c ← charMatching (fun | '>'  => false
+                                    | '\n' => false
+                                    | c    => 32 ≤ c.val && c.val < 127)
           let cs ← aux
           return c :: cs)
   <|> (do let c ← esc_seq
@@ -169,6 +173,7 @@ def kw_length       : C0Parser s Unit := keyword "\\length"
 def kw_requires     : C0Parser s Unit := keyword "requires"
 def kw_ensures      : C0Parser s Unit := keyword "ensures"
 def kw_loop_invar   : C0Parser s Unit := keyword "loop_invariant"
+def kw_use          : C0Parser s Unit := keyword "use"
 
 def anyKeyword : C0Parser s Unit :=
   first [
@@ -198,6 +203,7 @@ def anyKeyword : C0Parser s Unit :=
   , kw_requires
   , kw_ensures
   , kw_loop_invar
+  , kw_use
   ]
 
 variable (tydefs : Std.RBSet Symbol Ord.compare)
@@ -639,6 +645,20 @@ def fdef (sig : FDecl) : C0Parser s FDef :=
   let body ← block tydefs
   return {sig with body}
 
+def cdir : C0Parser s Directive :=
+  withContext "<directive>" do
+  char '#'
+  (do kw_use; ws_no_newline
+      let l ← liblit; ws_no_newline
+      char '\n'
+      return .use_lib l)
+  <|> (do kw_use; ws_no_newline
+          let l ← strlit; ws_no_newline
+          char '\n'
+          return .use_str l)
+  <|> (do dropMany (do let _ ← charMatching (· ≠ '\n'))
+          return .unknown)
+
 def gdecl : C0Parser s GDecl :=
   first
   [ do return .tydef (← tydef tydefs)
@@ -648,6 +668,7 @@ def gdecl : C0Parser s GDecl :=
     let sig ← signature tydefs
     (return .fdecl (← fdecl sig))
     <|> (return .fdef (← fdef tydefs sig))
+  , do return .cdir (← cdir)
   ]
 
 partial def prog (tydefs : Std.RBSet Symbol compare := .empty) : C0Parser s (Prog × Std.RBSet Symbol compare) := do
@@ -661,3 +682,12 @@ where aux tydefs acc :=
     ws
     let tydefs := match g with | .tydef ⟨_, i⟩ => tydefs.insert i | _ => tydefs
     aux tydefs (acc.push g))
+
+partial def directives : C0Parser s (List Directive) := do
+  ws
+  let cds ← aux #[]
+  return cds.toList
+where aux acc :=
+  (do eof; return acc)
+  <|> (do let cd ← cdir; ws; aux (acc.push cd))
+  <|> (return acc)

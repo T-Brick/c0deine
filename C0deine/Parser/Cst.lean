@@ -153,6 +153,7 @@ structure FDef extends FDecl where
 inductive Directive
 | use_lib : String → Directive
 | use_str : String → Directive
+| unknown : Directive
 
 inductive GDecl
 | fdecl : FDecl → GDecl
@@ -377,6 +378,7 @@ instance : ToString FDef where
 def Directive.toString : Directive → String
   | .use_lib s => s!"#use <{s}>"
   | .use_str s => s!"#use \"{s}\""
+  | .unknown   => s!"#unknown compiler directive!"
 instance : ToString Directive := ⟨Directive.toString⟩
 
 def GDecl.toString : GDecl → String

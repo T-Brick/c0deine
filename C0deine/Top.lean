@@ -67,6 +67,7 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     return 1
   | ((.ok (cst,_), _), ctx) =>
 
+  let (directives, cst) := Cst.splitDirectives cst
 
 
   -- vprintln cst
