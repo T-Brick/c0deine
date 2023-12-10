@@ -47,6 +47,7 @@ inductive Stmt
 | alloc (dest : Temp) (size : Typed Expr)
 | load (dest : SizedTemp) (addr : Address)
 | store (addr : Address) (source : Typed Expr)
+| copy (dest : Address) (source : Address) (len : Nat)
 | check (c : Check)
 
 inductive BlockExit
@@ -159,6 +160,7 @@ def Stmt.toString : Stmt → String
   | alloc dest size => s!"{dest} <-- alloc({size})"
   | load dest addr => s!"{dest} <-- {addr}"
   | store addr source => s!"{addr} <-- {source}"
+  | copy dest source len => s!"{dest} <-- [{source}:+{len}]"
   | check c => s!"{c}"
 instance : ToString Stmt where toString := Stmt.toString
 

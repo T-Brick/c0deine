@@ -204,8 +204,13 @@ def stmt : IrTree.Stmt → List Instr
         -- i64_mem (.store8 ⟨0, Unsigned.ofNat source.type.sizeof!⟩)
       -- | (.prim .int)   =>
         -- i64_mem (.store32 ⟨0, Unsigned.ofNat source.type.sizeof!⟩)
-
     addr' ++ source' ++ [store']
+
+  | .copy dest src len      =>
+    let dest' := addr dest
+    let src'  := addr src
+    let len'  := i32_const (Unsigned.ofNat len)
+    dest' ++ src' ++ [len', Plain.memory .copy]
 
   | .check ch               => check ch
 

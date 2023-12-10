@@ -998,11 +998,13 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Result := do
     match resc.texpr.type with
     | .prim .bool =>
       let (ctx'', body') ←
-        stmts { ctx with calls := ctx'.calls.merge resc.calls
-                       , strings := ctx'.strings ∪ resc.strings
-              } body
+        stmts ctx' body
       let cond' := ⟨resc.texpr.type, ⟨resc.texpr.data, resc.valid⟩⟩
-      return (ctx'', .while cond' annos' body')
+      let ctx''' :=
+        { ctx with calls   := ctx''.calls.merge resc.calls
+                 , strings := ctx''.strings ∪ resc.strings
+        }
+      return (ctx''', .while cond' annos' body')
     | _ => throwS s!"Loop condition must be of type '{Typ.prim .bool}' not '{resc.texpr.type}'"
 
   | .return eOpt =>

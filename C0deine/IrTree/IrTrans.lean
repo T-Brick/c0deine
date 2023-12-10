@@ -301,7 +301,19 @@ def expr (tau : Typ)
   match exp with
   | .num v     => return (acc, .const v)
   | .char c    => return (acc, .byte (c.toUInt8 sorry))
-  | .str s     => return (acc, .memory ((← Env.Func.string_offset s).toNat))
+  | .str s     =>
+    let src ← Env.Func.string_offset s
+    let len := s.length + 1
+
+    let res ← Env.Func.freshTemp
+    let sres := ⟨.quad, res⟩
+    let tres := ⟨.prim .string, .temp sres⟩
+    let tsrc := ⟨.prim .string, .memory src.toNat⟩
+
+    let alloc := .alloc res ⟨.prim .int, .const len⟩
+    let copy  := .copy ⟨tres, 0, .none, 1⟩ ⟨tsrc, 0, .none, 1⟩ len
+
+    return (copy :: alloc :: acc, .temp sres)
   | .var name  => return (acc, .temp (← Env.Func.var name))
   | .«true»    => return (acc, .byte 1)
   | .«false»   => return (acc, .byte 0)
@@ -584,7 +596,7 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt)
       | some i =>
         let (stmts, res) ← texpr past ⟨i.type, i.data.val⟩
         pure (.move t res :: stmts)
-      | none => pure []
+      | none => pure past
     stmts init_stmts body
   | .assign tlv oop rhs =>
     match tlv.data, oop with
