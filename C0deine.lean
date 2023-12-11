@@ -11,9 +11,10 @@ import C0deine.Context.Symbol
 import C0deine.Context.Temp
 
 import C0deine.Parser.Cst
-import C0deine.Parser.Ast
 import C0deine.Parser.Basic
-import C0deine.Parser.Abstractor
+
+import C0deine.Ast.Ast
+import C0deine.Ast.Abstractor
 
 import C0deine.Type.Typ
 import C0deine.Type.Tst

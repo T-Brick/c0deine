@@ -1,5 +1,5 @@
 import C0deine.AuxDefs
-import C0deine.Parser.Ast
+import C0deine.Ast.Ast
 
 namespace C0deine.Statics
 

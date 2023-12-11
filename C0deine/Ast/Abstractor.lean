@@ -1,6 +1,6 @@
 import Std
 import C0deine.Parser.Cst
-import C0deine.Parser.Ast
+import C0deine.Ast.Ast
 import C0deine.Type.Typ
 import C0deine.Type.Tst
 import C0deine.Context.Context
