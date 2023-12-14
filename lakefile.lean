@@ -14,6 +14,22 @@ lean_exe c0deine {
   root := `Main
 }
 
+lean_exe wasm_builder {
+  root := `BuildWasm
+}
+
+script js (args : List String) do
+  let out ← IO.Process.output {
+    stdin  := .piped
+    stdout := .piped
+    stderr := .piped
+    cmd    := "node"
+    args   := (".lake/build/wasm/main.js" :: args).toArray
+  }
+  IO.print out.stdout
+  IO.print out.stderr
+  return out.exitCode
+
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4" @ "v4.4.0-rc1"
 require Cli from git "https://github.com/mhuisi/lean4-cli" @ "nightly"

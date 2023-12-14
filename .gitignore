@@ -5,3 +5,4 @@
 *.wat
 *.wasm
 /.lake
+/toolchains
