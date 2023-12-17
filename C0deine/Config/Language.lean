@@ -10,7 +10,8 @@ inductive Language
 | l4    -- memory
 | c0    -- strings, chars, contracts
 | c1    -- casts, function pointers, generic pointers
-deriving Inhabited, Repr
+deriving Repr
+instance : Inhabited Language where default := .c0
 
 namespace Language
 
@@ -23,7 +24,8 @@ def toString : Language → String
   | c1 => "c1"
 instance : ToString Language where toString := Language.toString
 
-def fromString : String → Option Language
+def ofString (l : String) : Option Language :=
+  match l.toLower with
   | "l1" => some l1
   | "l2" => some l2
   | "l3" => some l3
@@ -53,4 +55,3 @@ def under (s2 s1 : Language) : Bool :=
     | .l1 | .l2 | .l3 | .l4 => true
     | _ => false
   | .c1 => false
-

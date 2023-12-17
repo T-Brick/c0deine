@@ -5,6 +5,7 @@ import C0deine.Config.Targets
 import Wasm.Text.Instr
 import Wasm.Text.Index
 import Wasm.Text.Module
+import Wasm.Binary.Module
 
 namespace C0deine.Target.Wasm
 
@@ -79,7 +80,7 @@ def calloc_func : Module.Field := .funcs
   , body    :=
     [ locl (.get (.num 0))            -- get arg (ie. sizeOf type)
     , i32_const 0
-    , i32_mem (.load ⟨0, 4⟩)          -- 0 address has ptr to next free seg
+    , i32_mem (.load ⟨0, 2⟩)          -- 0 address has ptr to next free seg
     , i32_bin .add                    -- get next free pointer after alloc
     , locl (.set (temp Temp.general))
     , block .no_label
@@ -96,10 +97,10 @@ def calloc_func : Module.Field := .funcs
         ]
       ]
     , i32_const 0
-    , i32_mem (.load ⟨0, 4⟩)          -- pointer we want to return
+    , i32_mem (.load ⟨0, 2⟩)          -- pointer we want to return
     , i32_const 0
     , locl (.get (temp Temp.general))
-    , i32_mem (.store ⟨0, 4⟩)         -- update free pointer
+    , i32_mem (.store ⟨0, 2⟩)         -- update free pointer
     , Plain.wasm_return
     ]
   }
@@ -107,6 +108,13 @@ def calloc_import : Module.Field := .imports
   ⟨ c0deine
   , ⟨"calloc" , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
   , .func (.some Label.calloc.toWasmIdent)
+          (.elab_param_res [(.none, .num .i32)] [])
+  ⟩
+
+def free_import : Module.Field := .imports
+  ⟨ c0deine
+  , ⟨"free" , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  , .func (.some Label.free.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
@@ -176,6 +184,7 @@ def mkImports (config : Wasm.Config) : List (Module.Field) :=
   , .some error_import
   , if config.import_abort  then .some abort_import  else .none
   , if config.import_calloc then .some calloc_import else .none
+  , if config.import_calloc then .some free_import   else .none
   , match config.main with | .import => .some main_import | _ => .none
   ].filterMap (·)
 

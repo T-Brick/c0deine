@@ -143,10 +143,33 @@ An unreachable statement will be executed if the `abort` function returns.
 The `error` function is called with index of a null terminated string in wasm's
 memory. An unreachable state will be executed if this function returns.
 
-### Pointers, Arrays, and Strings
+### Pointers, Arrays, Strings, and Memory
 
 The current WASM spec has a 32-bit memory. While there are proposals to extend
 this to 64-bits, C0deine uses the 32-bit spec. Due to this all pointers, when
 compiling to WASM, are represented by a `u32` address. That being said, when
 using anything represented as a pointer in `struct`'s or `array`'s will be
 allocated 8-bytes and struct alignment will take account of this.
+
+C0deine implements its own memory allocation scheme but by using the
+`wasm-import-calloc` flag the following imports will be added allowing for a
+custom implementation:
+
+```wasm
+(import "c0deine" "calloc" (func $calloc (param i32) (result i32)) )
+(import "c0deine" "free"   (func $free   (param i32)             ) )
+```
+
+On initialisation, C0deine formats the memory as such:
+- The first eight-bytes are reserved (used to point to a free section).
+- An eight-byte aligned section is reserved for text.
+- The rest of memory is free for the program to use.
+
+Custom implementations of `calloc` should follow these invariants:
+- Only return a pointer to `NULL` (`0`) upon some sort of memory failure.
+- Only return pointers to free memory that are zero'd out.
+- The text section should never be altered.
+- Any live memory should never be altered.
+
+Likewise, `free` should never deallocate live memory and will only be called
+when C0deine has identified that the memory is dead.

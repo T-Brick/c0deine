@@ -4,9 +4,47 @@ import Wasm.Text.Module
 namespace C0deine
 
 inductive Target
-| wasm
-| x86
+| wasm  -- web assembly binary format
+| wat   -- web assembly text format
+| x64
 | c
+| c0bc  -- c0 bytecode
+deriving Repr
+instance : Inhabited Target where default := .wat
+
+def Target.toString : Target → String
+  | .wasm => "wasm"
+  | .wat  => "wat"
+  | .x64  => "x86-64"
+  | .c    => "c"
+  | .c0bc => "c0bc"
+instance : ToString Target := ⟨Target.toString⟩
+
+def Target.ofString (t : String) : Option Target :=
+  match t.toLower with
+  | "x86" | "x64" | "x86-64" | "x86_64" | "amd64" | "intel64"
+           => some .x64
+  | "wasm" => some .wasm
+  | "wat"  => some .wat
+  | "c"    => some .c
+  | "c0bc" => some .c0bc
+  | _      => none
+
+def Target.supported : List Target := [wasm, wat]
+def Target.supported_str : String :=
+  s!"Supported targets: '{"', '".intercalate (supported.map toString)}'"
+
+def Target.isBinaryFormat : Target → Bool
+  | .wasm => true
+  | .wat  => false
+  | .x64  => false
+  | .c    => false
+  | .c0bc => true -- is this correct?
+
+def Target.isWasmFormat : Target → Bool
+  | .wasm
+  | .wat  => true
+  | _     => false
 
 namespace Wasm
 

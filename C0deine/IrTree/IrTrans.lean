@@ -370,7 +370,7 @@ def expr (tau : Typ)
     let func_lbl ← Env.Func.func f
     let dest ← Env.Func.freshTemp
     let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
-    let call := .call sdest func_lbl args'
+    let call := .call ⟨tau, sdest⟩ func_lbl args'
     let size ← Env.Prog.toFunc (Typ.tempSize tau)
     return (call :: stmts, .temp ⟨size, dest⟩)
 

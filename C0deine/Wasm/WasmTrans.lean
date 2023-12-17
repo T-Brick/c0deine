@@ -131,7 +131,7 @@ def check (check : IrTree.Check) : List Instr :=
         [ locl (.tee (temp Temp.general))
         , i32_const (-8)
         , i32_bin .add                 -- &length(arr)
-        , i32_mem (.load ⟨0, 4⟩)
+        , i32_mem (.load ⟨0, 2⟩)
         , locl (.get (temp Temp.index))
         , i32_rel (.le .s)             -- index >= length(arr)
         , Plain.br_if (.num 0)         -- abort
@@ -174,7 +174,10 @@ def stmt : IrTree.Stmt → List Instr
 
   | .call dest name args    =>
     let args' := args.map texpr
-    args'.join.append [Plain.call (label name), locl (.set (stemp dest))]
+    args'.join.append [Plain.call (label name)] ++ (
+      if let .any := dest.type then []
+      else [locl (.set (stemp dest.data))]
+    )
 
   | .alloc dest asize        =>
     let size' := texpr asize
@@ -184,19 +187,19 @@ def stmt : IrTree.Stmt → List Instr
   | .load dest a            =>
     let addr' := addr a
     let load' :=
-      i32_mem (.load ⟨0, 4⟩)
+      i32_mem (.load ⟨0, 2⟩)
       -- match dest.size with
       -- | .byte   =>
-        -- i64_mem (.load8 .u ⟨0, Unsigned.ofNat dest.size.bytes⟩)
-      -- | .word   => i64_mem (.load16 .u ⟨0, Unsigned.ofNat dest.size.bytes⟩)
-      -- | .double => i64_mem (.load32 .u ⟨0, Unsigned.ofNat dest.size.bytes⟩)
-      -- | .quad   => i64_mem (.load ⟨0, Unsigned.ofNat dest.size.bytes⟩)
+        -- i64_mem (.load8 .u ⟨0, Unsigned.ofNat dest.size.bytes / 2⟩)
+      -- | .word   => i64_mem (.load16 .u ⟨0, Unsigned.ofNat dest.size.bytes / 2⟩)
+      -- | .double => i64_mem (.load32 .u ⟨0, Unsigned.ofNat dest.size.bytes / 2⟩)
+      -- | .quad   => i64_mem (.load ⟨0, Unsigned.ofNat dest.size.bytes / 2⟩)
     addr' ++ [load', locl (.set (stemp dest))]
 
   | .store a source         =>
     let source' := texpr source
     let addr'   := addr a
-    let store'  := i32_mem (.store ⟨0, 4⟩)
+    let store'  := i32_mem (.store ⟨0, 2⟩)
       -- match source.type with
       -- | .any | (.mem _) =>
         -- i64_mem (.store ⟨0, Unsigned.ofNat source.type.sizeof!⟩)

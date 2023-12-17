@@ -25,8 +25,9 @@ def abort  : Label := ⟨2, "abort"⟩
 def fpe    : Label := ⟨3, "sigfpe"⟩
 def memerr : Label := ⟨4, "sigusr2"⟩
 def error  : Label := ⟨5, "error"⟩
+def free   : Label := ⟨6, "free"⟩
 
-def startId := 6
+def startId := 7
 
 @[reducible] def Map (α : Type) := Std.HashMap Label α
 

@@ -276,5 +276,5 @@ main();
     the testing framework. Useful for debugging specific WAT files that you
     can manually modify.
 */
-// run("../test", print_imports, undefined, () => {});
+// run("tests/c0/reference", print_imports, undefined, () => {});
 

@@ -43,7 +43,7 @@ inductive Check
 inductive Stmt
 | move (dest : SizedTemp) (te : Typed Expr)
 | effect (dest : SizedTemp) (op : EffectBinop) (lhs rhs : Typed Expr)
-| call (dest : SizedTemp) (name : Label) (args : List (Typed Expr))
+| call (dest : Typed SizedTemp) (name : Label) (args : List (Typed Expr))
 | alloc (dest : Temp) (size : Typed Expr)
 | load (dest : SizedTemp) (addr : Address)
 | store (addr : Address) (source : Typed Expr)

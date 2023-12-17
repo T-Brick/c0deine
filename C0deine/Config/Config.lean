@@ -10,9 +10,12 @@ inductive Config.Setting
 | error
 
 structure Config where
-  lang : Language
-  emit : Target
-  optimisation : Nat
+  verbose       : Bool
+  lang          : Language
+  emit          : Target
+  typecheckOnly : Bool
+  output        : Option System.FilePath
+  optimisation  : Nat
   -- WIP: if false then don't check array bounds, shifts, etc.
   safe : Bool
   -- WIP: whether asserts should be checked while in unsafe mode
@@ -66,11 +69,14 @@ structure Config where
   uselessAllocs : Config.Setting
 
 instance : Inhabited Config where default :=
-  { lang                   := .l4
-  , emit                   := .wasm
+  { verbose                := false
+  , lang                   := default
+  , emit                   := default
+  , typecheckOnly          := false
+  , output                 := none
   , optimisation           := 0
   , safe                   := true
-  , checkAssertsWhenUnsafe := true
+  , checkAssertsWhenUnsafe := false
   , dynCheckContracts      := false
   , contractPurity         := true
   , cDeclScope             := false
