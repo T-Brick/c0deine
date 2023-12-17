@@ -1,5 +1,4 @@
 #!/bin/bash
-NODE=${NODE:=$(which node)}
 TEST=$1
 shift
 

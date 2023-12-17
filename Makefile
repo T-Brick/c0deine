@@ -2,7 +2,7 @@
 default: lab4
 
 lab%: # don't really care about the lab numbers so we just throw that out
-	lake build
+	lake exe cache get && lake build
 
 clean:
-	lake clean && testing/clean.sh
+	lake clean && testing/clean.sh && rm -r toolchains
