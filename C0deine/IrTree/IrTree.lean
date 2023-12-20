@@ -1,3 +1,7 @@
+/- C0deine - IrTree
+   Representation of the Quad Abstract-Assembly of the program
+   - Thea Brick
+ -/
 import C0deine.AuxDefs
 import C0deine.Type.Typ
 import C0deine.Context.Temp

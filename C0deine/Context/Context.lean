@@ -1,3 +1,9 @@
+/- C0deine - Context
+   A standardised context that can be used when fresh labels/symbols/temps need
+   to be generated.
+   - Thea Brick
+   - James Gallicchio
+ -/
 import Std
 import C0deine.Context.Temp
 import C0deine.Context.Label

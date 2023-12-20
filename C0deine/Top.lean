@@ -1,3 +1,9 @@
+/- C0deine - Top
+   Parsing CLI args as well as weaving all the different phases/translations
+   together.
+   - Thea Brick
+   - James Gallicchio
+-/
 import C0deine
 import Cli
 

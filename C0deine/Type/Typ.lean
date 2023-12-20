@@ -1,3 +1,7 @@
+/- C0deine - Typ
+   Representation of C0 types that can be used across IRs.
+   - Thea Brick
+ -/
 import C0deine.Context.Symbol
 
 namespace C0deine

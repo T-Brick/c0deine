@@ -1,3 +1,7 @@
+/- C0deine - Targets
+   Target languages for c0deine as well as config settings for them.
+   - Thea Brick
+ -/
 import C0deine.X86.X86
 import Wasm.Text.Module
 

@@ -1,3 +1,9 @@
+/- C0deine - CST
+   Representation for the Concrete Syntax Tree which is what the Parser directly
+   parses into. This representation is the closest to the source code.
+   - James Gallicchio
+   - Thea Brick
+ -/
 import Numbers
 import C0deine.Context.Symbol
 

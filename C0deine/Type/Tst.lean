@@ -1,6 +1,7 @@
-/-
-  A Typed Syntax Tree, which is similar to the AST, but with expressions
-  having typed annotations. Types are dealiased in this representation.
+/- C0deine - TST
+   A Typed Syntax Tree, which is similar to the AST, but with expressions
+   having typed annotations. Types are dealiased in this representation.
+   - Thea Brick
  -/
 import Numbers
 import C0deine.Type.Typ
@@ -8,6 +9,17 @@ import C0deine.Context.Symbol
 import C0deine.Utils.Comparison
 
 namespace C0deine.Tst
+
+/- Todo: We should "lean-ify" this representation. Currently the implementation
+   is fairly representative of an implementation in Ocaml/SML but written in
+   Lean.
+
+   Namely we should apply restrictions to what subexpressions can be used. For
+   instance, `.binop (.int .add) l r` currently allows `l` and `r` to be any
+   type (but we verify that they must be `int`s). We should rewrite this such
+   that `l` and `r` being anything except for `int`s is entirely
+   unrepresentatable.
+ -/
 
 open Typ
 
@@ -52,6 +64,7 @@ inductive Expr
 | length (e : Typed Expr)
 deriving Inhabited
 
+/- Assert that some predicate P applies to every subexpression -/
 inductive Expr.All (P : Expr → Bool) : Expr → Prop
 | num     : P (.num  v) → All P (.num  v)
 | char    : P (.char c) → All P (.char c)

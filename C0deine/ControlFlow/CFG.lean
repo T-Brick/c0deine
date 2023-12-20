@@ -1,3 +1,8 @@
+/- C0deine - CFG
+   Expands on the ControlFlow CFG implementation by keeping track of block
+   information so that we can just use labels as the node representation.
+   - Thea Brick
+ -/
 import C0deine.Context.Label
 import ControlFlow.Graphs.FuncGraph
 import ControlFlow.Graphs.CFG

@@ -1,6 +1,7 @@
-
--- This defines the source languages that we support
-
+/- C0deine - Language
+   Source languages that c0deine can use
+   - Thea Brick
+ -/
 namespace C0deine
 
 inductive Language

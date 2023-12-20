@@ -1,15 +1,20 @@
-/-
-  We use the "Relooper Algorithm" to reconstruct more structured control-flow
-  from our less structured basic blocks. While it might be simpler to go from
-  a language that represent's C0 control-flow better (like the TST), this would
-  make it hard to do many optimisations and run other checks that C0 requires.
+/- C0deine - Relooper
+   We use the "Relooper Algorithm" to reconstruct more structured control-flow
+   from our less structured basic blocks. While it might be simpler to go from
+   a language that represent's C0 control-flow better (like the TST), this would
+   make it hard to do many optimisations and run other checks that C0 requires.
 
-  In theory, the code generated via this algorithm shouldn't be too inefficient
-  since C0 doesn't have strange control-flow (like goto).
+   In theory, the code generated via this algorithm shouldn't be too inefficient
+   since C0 doesn't have strange control-flow (like goto).
 
-  https://github.com/emscripten-core/emscripten/blob/main/docs/paper.pdf
+   https://github.com/emscripten-core/emscripten/blob/main/docs/paper.pdf
+
+  In future, we should be able to not use this algorithm by using dominators to
+  identify forward and backward edges, which immediately identifies the loop
+  structure in the graph. For now this works.
+
+  - Thea Brick
 -/
-
 import C0deine.Context.Label
 import C0deine.ControlFlow.CFG
 import ControlFlow.FindPath
@@ -20,15 +25,21 @@ open ControlFlow
 open ControlFlow.Digraph
 open ControlFlow.Path.Find
 
-/- `simple` represents block with only one exit
- - `loop` represents a block body and the block after the loop
- - `multi` represents branching and then the block after they merge -/
+/- The Shape is what is outputted by relooper and is the identified structure
+ -   of the control flow graph.
+ - `simple` represents block with only one exit
+ - `loop`   represents a block body and the block after the loop
+ - `multi`  represents branching and then the block after they merge
+ -/
 inductive Shape where
 | simple : Label → Option Shape → Shape
 | loop   : (inner next : Option Shape) → Shape
 | multi  : (left right next : Option Shape) → Shape
 | illegal : List Label → Shape
 
+/- These functions are useful for when trying to build the WASM output given
+   the shape.
+ -/
 def Shape.getLabels : Shape → List Label
   | .simple lbl _         => [lbl]
   | .loop .none _         => []
@@ -83,6 +94,9 @@ instance : ToString Shape := ⟨Shape.toString⟩
 instance : ToString (Option Shape) where
   toString := fun | .none => "-" | .some s => s.toString
 
+/- This is the primary implement of the Relooper algorithm. There are certainly
+   inefficiencies in this implementation but it is *good enough* for now
+ -/
 mutual
 partial def reloop'
     (fuel : Nat)
@@ -90,7 +104,7 @@ partial def reloop'
     (entries : List Label)
     (labels : List Label)
     : Option Shape :=
-  let reach :=
+  let reach := -- calculate for each entry what we can reach
     labels.map (fun l => (l,
         find_reachable_skipping cfg.digraph l (· ∉ labels)
         |>.fst |>.map (·.node)
@@ -108,6 +122,8 @@ private partial def simple
   match entries with
   | [] => .none
   | l :: [] =>
+    -- if you have a single entry and cannot return to it, then you have a
+    -- simple block!
     if reach.find? (l = ·.fst) |>.bind (·.snd.find? (· = l)) |>.isNone then
       let entries' := succ cfg.digraph l |>.inter (reach.map (·.fst))
       let reach' :=
@@ -123,6 +139,7 @@ private partial def complex
     (entries : List Label)
     (reach : List (Label × List Label))
     : Option Shape :=
+  -- if all entries are reachable then create a loop block
   if entries.all (fun l =>
     reach.find? (fun (l', rs) => l = l' && rs.elem l) |>.isSome)
   then -- can return to all entries
@@ -132,8 +149,11 @@ private partial def complex
   else
     match entries with
     | [] => .none
-    | l :: [] => mk_loop entries reach l
+    | l :: [] => mk_loop entries reach l -- branch needs more than one block
     | l₁ :: l₂ :: ls =>
+      /- Try creating a multi block. In C0 this can at most be two so we take
+         two entries and try to find all labels that can be reached by one but
+         not the other (and vice-versa). -/
       let independ_opt : Option (List Label × List Label) :=
         match reach.find? (·.fst = l₁), reach.find? (·.fst = l₂) with
         | .some (_, rs₁), .some (_, rs₂) =>
@@ -143,6 +163,9 @@ private partial def complex
         | .none, .none => .none
       match independ_opt with
       | .some (r₁, r₂) =>
+        /- We did find unreachable labels! The handled blocks (blocks that we
+           are branching to) are these labels that cannot be reached from one
+           another (they are entries). -/
         let handle := fun l rs =>
             reloop' fuel cfg [l] (reach.filterMap (fun (l', _) =>
               if rs.elem l' then .some l' else .none
@@ -155,6 +178,8 @@ private partial def complex
           (res₁.map Shape.getAllLabels |>.getD []).union
           (res₂.map Shape.getAllLabels |>.getD [])
         let valid_succs := reach.map (·.fst) |>.diff handled_labels
+        /- The next block is all the labels we could reach from both. The
+           entries are the blocks that have an edge from the handled blocks -/
         let next_e :=
           handled_labels
           |>.bind (succ cfg.digraph · |>.inter valid_succs)
@@ -165,6 +190,9 @@ private partial def complex
           )
         .some (.multi res₁ res₂ (reloop' fuel cfg next_e next_r))
       | .none => .some (.illegal entries)
+        /- in theory we should try and loop this but since C0 should have
+           structured controlflow, we should never reach this case so it is
+           more useful to error out here for debugging purposes. -/
           -- mk_loop entries reach l₁
 where mk_loop (entries : List Label)
               (reach : List (Label × List Label))

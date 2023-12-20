@@ -1,3 +1,9 @@
+/- C0deine - Wasm
+   Some utilities for creating WASM instructions more easily. Also contains the
+   necessary module fields for generating a complete module when given the
+   compile C0 code.
+   - Thea Brick
+ -/
 import Numbers
 import C0deine.Context.Label
 import C0deine.Context.Temp
@@ -55,9 +61,6 @@ def stemp : SizedTemp → Module.Index :=
   .name ∘ Temp.toWasmIdent ∘ SizedTemp.temp
 def label : Label     → Module.Index := .name ∘ Label.toWasmIdent
 
-def c0deine : Name :=
-  ⟨"c0deine", by simp [String.length, Wasm.Vec.max_length]; linarith⟩
-
 /- We pass the signal numbers we want into the abort function
     (nb. div-by-zero is already a wasm exception)
 -/
@@ -65,7 +68,12 @@ def Error.mem    : Instr := i32_const 12    -- SIGUSR2
 def Error.assert : Instr := i32_const 6     -- SIGABRT
 def Error.arith  : Instr := i32_const 8     -- SIGFPE
 
-/- todo move into proper std libraries -/
+
+/- Module Field implementations/utils for a compiled C0 program. -/
+
+def c0deine : Name :=
+  ⟨"c0deine", by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+
 def result_id : Ident := ⟨"result", sorry, sorry⟩
 def result_import : Module.Field := .imports
   ⟨ c0deine

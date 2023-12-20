@@ -1,8 +1,8 @@
-import C0deine.Utils.ValueSize
-
-/-
-  Registers and utilities for x86-64 assembly.
+/- C0deine - Registers
+   Represntation of x86-64 registers that can be used throughout IRs.
+   - Thea Brick
  -/
+import C0deine.Utils.ValueSize
 
 namespace C0deine
 
@@ -135,4 +135,3 @@ def toString (sreg : SizedRegister) : String :=
 instance : ToString (SizedRegister) where toString := SizedRegister.toString
 
 end SizedRegister
-

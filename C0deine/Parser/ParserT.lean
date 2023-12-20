@@ -1,3 +1,7 @@
+/- C0deine - ParserT
+   Definition of what a parser is as well as utility functions for parsing
+   - James Gallicchio
+ -/
 import C0deine.AuxDefs
 import C0deine.Utils.CliFormat
 

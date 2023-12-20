@@ -1,3 +1,9 @@
+/- C0deine - Dynamics
+   An encoding of the dynamic semantics of C0 programs (in the AST). Importantly
+   in our current model, contracts are not ran, so there is no rules defining
+   their execution.
+   - Thea Brick
+ -/
 import C0deine.AuxDefs
 import C0deine.Ast.Ast
 import C0deine.Ast.Statics

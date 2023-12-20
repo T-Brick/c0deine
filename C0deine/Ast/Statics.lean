@@ -1,3 +1,8 @@
+/- C0deine - Statics
+   An encoding of the static semantics of C0 programs (in the AST).
+   - James Gallicchio
+   - Thea Brick
+ -/
 import C0deine.AuxDefs
 import C0deine.Ast.Ast
 

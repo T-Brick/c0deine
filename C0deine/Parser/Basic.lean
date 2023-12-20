@@ -1,3 +1,8 @@
+/- C0deine - Basic
+   Recursive decent parsing for C0 programs
+   - James Gallicchio
+   - Thea Brick
+ -/
 import Std
 import Numbers
 

@@ -1,3 +1,8 @@
+/- C0deine - IrTrans
+   Translates the Typed Syntax Tree into the IRTree (quad). Most optimisations
+   are intended to be performed on this representation.
+   - Thea Brick
+ -/
 import Numbers
 import C0deine.IrTree.IrTree
 import C0deine.Type.Tst

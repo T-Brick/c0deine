@@ -1,7 +1,7 @@
-/-
-  Outputted x86-64 assembly that should be executed by a linker.
-
-  Should be generated from the 2-address abstract assembly.
+/- C0deine - X86
+   Outputted x86-64 assembly that should be executed by a linker. Should be
+   generated from the 2-address abstract assembly.
+   - Thea Brick
 -/
 import C0deine.Context.Label
 import C0deine.Utils.Register

@@ -1,3 +1,7 @@
+/- C0deine - Symbol
+   Utilities for creating fresh symbols.
+   - James Gallicchio
+ -/
 import Std
 
 namespace C0deine

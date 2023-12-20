@@ -1,3 +1,7 @@
+/- C0deine - Label
+   Utilities for generating fresh labels.
+   - Thea Brick
+ -/
 import Std
 import Wasm.Text.Ident
 

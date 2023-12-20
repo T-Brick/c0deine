@@ -1,5 +1,6 @@
-/-
-  Basic comparisons that are used throughout the compiler.
+/- C0deine - Comparision
+   Basic comparison operators that are used in numerous IRs.
+   - Thea Brick
  -/
 namespace C0deine
 

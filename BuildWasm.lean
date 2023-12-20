@@ -90,7 +90,7 @@ def main : IO UInt32 := do
         , "-fwasm-exceptions"
         , "-pthread"
         , "-flto"
-        , "-Oz"    -- takes much longer to compile but optimises for size
+        -- , "-Oz"    -- takes much longer to compile but optimises for size
         ]
     }
 

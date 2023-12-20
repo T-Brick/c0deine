@@ -1,6 +1,7 @@
-/-
-  An abstract assembly that only supports 2-addresses, this makes
-  it quiet similar to x86-64 but without some of the extra details.
+/- C0deine - AbsAsm2
+   An abstract assembly that only supports 2-addresses, this makes it quiet
+   similar to x86-64 but without some of the extra details.
+   - Thea Brick
 -/
 import C0deine.Context.Temp
 import C0deine.Context.Label

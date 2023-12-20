@@ -1,4 +1,9 @@
-
+/- C0deine - WasmTrans
+   Translates the IR Tree (quad assembly) into the WASM CST. For now, WASM is
+   32-bit, so some of our size annotations are ignored for now (although this
+   will be changed when/if wasm64 is made standard).
+   - Thea Brick
+ -/
 import C0deine.IrTree.IrTree
 import C0deine.Type.Typ
 import C0deine.Context.Context
@@ -217,6 +222,15 @@ def stmt : IrTree.Stmt → List Instr
 
   | .check ch               => check ch
 
+/- TODO: This implementation is buggy and wasn't the most thought out.
+   Essentially we need to take the Shape information from the Relooper algorithm
+   to convert the CFG of the IR Tree into the stack-machine based WASM.
+
+   Currently a bug exists here when inside of a if-statement inside of a loop.
+   If the block of the if-statement branch directly to the start of the loop
+   we get errors because of how the loops/blocks are labeled in WASM.
+ -/
+
 @[inline] def exit (bexit : IrTree.BlockExit) : List Instr :=
   match bexit with
   | .jump _l => []
@@ -354,6 +368,7 @@ def prog (prog : IrTree.Prog)
          : List Module.Function :=
   List.zip prog.funcs shapes |>.map (fun (f, s) => func f s)
 
+/- Computes the data section of the WASM module, as described in `langs.md`. -/
 def data (prog : IrTree.Prog) : Module.Data :=
   let free_seg := prog.str_size.toBytes
   let str_data := prog.str_map.bind (·.1.data.map (·.toUInt8 sorry) ++ [0])

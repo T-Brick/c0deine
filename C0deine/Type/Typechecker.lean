@@ -1,3 +1,8 @@
+/- C0deine - Typechecker
+   Converts the AST to the TST by dealiasing and annotating expressions with
+   types. Any NWT programs are rejected.
+   - Thea Brick
+ -/
 import Std
 import C0deine.Ast.Ast
 import C0deine.Type.Typ

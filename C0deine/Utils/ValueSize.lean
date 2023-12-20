@@ -1,3 +1,8 @@
+/- C0deine - ValueSize
+   Annotation for indicating what the size of some register/temp/variable should
+   be.
+   - Thea Brick
+ -/
 import Wasm.Syntax.Typ
 
 namespace C0deine

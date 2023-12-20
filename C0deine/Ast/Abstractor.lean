@@ -1,3 +1,8 @@
+/- C0deine - Abstractor
+   Converts the CST into the AST. If the source language is not C0, then
+   programs that use features not in the source language are rejected here.
+   - Thea Brick
+ -/
 import Std
 import C0deine.Parser.Cst
 import C0deine.Ast.Ast

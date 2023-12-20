@@ -1,3 +1,10 @@
+/- C0deine - AST
+   The Abstract Syntax Tree alters the CST by removing for-loops and requiring
+   that all statments in scope of a declaration be nested inside that
+   declaration.
+   - James Gallicchio
+   - Thea Brick
+ -/
 import Numbers
 import C0deine.Context.Symbol
 import C0deine.Utils.Comparison

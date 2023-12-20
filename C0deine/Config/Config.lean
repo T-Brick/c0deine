@@ -1,4 +1,7 @@
-
+/- C0deine - Config
+   Settings for how the compiler should run that apply to all targets.
+   - Thea Brick
+ -/
 import C0deine.Config.Language
 import C0deine.Config.Targets
 

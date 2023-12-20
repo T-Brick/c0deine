@@ -1,3 +1,7 @@
+/- C0deine - Temp
+   Utilities for creating fresh temps.
+   - Thea Brick
+ -/
 import Std
 import C0deine.Utils.ValueSize
 import Wasm.Text.Ident

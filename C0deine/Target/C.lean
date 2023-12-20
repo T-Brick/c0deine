@@ -1,7 +1,7 @@
-/-
-  C language to be compiled with gcc/clang.
-
-  Intended to be generated from a high-level IR tree.
+/- C0deine - C
+   C language to be compiled with gcc/clang. Intended to be generated from a
+   high-level IR tree.
+   - James Gallicchio
 -/
 import C0deine.Context.Symbol
 import C0deine.Context.Label
