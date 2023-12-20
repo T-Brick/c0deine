@@ -190,7 +190,7 @@ private partial def complex
           )
         .some (.multi res₁ res₂ (reloop' fuel cfg next_e next_r))
       | .none => .some (.illegal entries)
-        /- in theory we should try and loop this but since C0 should have
+        /- In theory we should try and loop this but since C0 should have
            structured controlflow, we should never reach this case so it is
            more useful to error out here for debugging purposes. -/
           -- mk_loop entries reach l₁
