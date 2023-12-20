@@ -1,6 +1,6 @@
 import C0deine.AuxDefs
 import C0deine.Ast.Ast
-import C0deine.Type.Statics
+import C0deine.Ast.Statics
 
 namespace C0deine.Ast.Dynamics
 
@@ -18,7 +18,9 @@ inductive Address
 deriving Inhabited, Repr
 
 inductive Value
-| num : Int32 → Value
+| num  : Int32 → Value
+| char : Char → Value
+| str  : String → Value
 | «true» | «false»
 | nothing
 | addr : Address → Value
@@ -31,9 +33,11 @@ inductive BinOp
 | cmp (op : Comparator)
 
 inductive TypeValue : Value → Statics.Typ → Prop
-| num     : TypeValue (.num i) .int
-| «true»  : TypeValue .true .bool
-| «false» : TypeValue .false .bool
+| num     : TypeValue (.num  i) .int
+| char    : TypeValue (.char c) .char
+| string  : TypeValue (.str  s) .string
+| «true»  : TypeValue .true     .bool
+| «false» : TypeValue .false    .bool
 | ptr     : TypeValue (.addr a) (.ptr ty) -- todo is this right?
 | arr     : TypeValue (.addr a) (.arr τ)  --      should check heap?
 -- todo finish
@@ -52,7 +56,7 @@ inductive IsExtern
   → (params : List Param)
   → Prop
 where
-| extern : (GDecl.fdecl ⟨type, f, params⟩) ∈ Prog.program p
+| extern : (GDecl.fdecl ⟨type, f, params, annos⟩) ∈ Prog.program p
          → IsExtern Δ type f params
 
 inductive FindFDef
@@ -63,7 +67,7 @@ inductive FindFDef
   → (body : List Stmt)
   → Prop
 where
-| body : (GDecl.fdef ⟨⟨type, f, params⟩, body⟩) ∈ Prog.program p
+| body : (GDecl.fdef ⟨⟨type, f, params, annos⟩, body⟩) ∈ Prog.program p
        → FindFDef Δ type f params body
 
 -- continuation frames can result in a value or an address
@@ -202,8 +206,14 @@ local notation:50 Δ:51 " ; " H:51 " ; " S:51 " ; " η:51 " |= " r:51 =>
 
 inductive Step : State p → State p → Prop
 | num
-  : Step (Δ; H; S; η |= (.eval (.num c) K))
-         (Δ; H; S; η |= (.val  (.num c) K))
+  : Step (Δ; H; S; η |= (.eval (.num  c) K))
+         (Δ; H; S; η |= (.val  (.num  c) K))
+| char
+  : Step (Δ; H; S; η |= (.eval (.char c) K))
+         (Δ; H; S; η |= (.val  (.char c) K))
+| str
+  : Step (Δ; H; S; η |= (.eval (.str  s) K))
+         (Δ; H; S; η |= (.val  (.str  s) K))
 | «true»
   : Step (Δ; H; S; η |= (.eval .true K))
          (Δ; H; S; η |= (.val  .true K))
@@ -378,6 +388,8 @@ inductive Step : State p → State p → Prop
   : H.find a = .inr exn
   → Step (Δ; H; S; η |= (.val i (.index₂ a K)))
          (Δ; H; S; η |= (.exn exn))
+/- Result/Length not implemented here since we don't not execute that code
+    in our current model. -/
 /- STATEMENTS -/
 | decl_none
   : Step (Δ; H; S; η |= (.exec (.decl τ x .none body) K))
@@ -424,8 +436,8 @@ inductive Step : State p → State p → Prop
   : Step (Δ; H; S; η |= (.val .false (.ite tt ff K)))
          (Δ; H; S; η |= (.exec_seq ff K))
 | while
-  : Step (Δ; H; S; η |= (.exec (.while e body) K))
-         (Δ; H; S; η |= (.exec (.ite e (body.append [.while e body]) []) K))
+  : Step (Δ; H; S; η |= (.exec (.while e annos body) K))
+         (Δ; H; S; η |= (.exec (.ite e (body.append [.while e annos body]) []) K))
 | return_val₁
   : Step (Δ; H; S; η |= (.exec (.return (.some e)) K))
          (Δ; H; S; η |= (.eval e .return))
