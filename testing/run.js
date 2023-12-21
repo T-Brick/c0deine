@@ -67,7 +67,7 @@ const failTest = function(filename, expect, got) {
 
 const resultToString = function(result) {
   if(result["return"] !== undefined) {
-    return "return " + (result["return"] | 0);
+    return (result["return"] | 0);
   } else if(result["div-by-zero"] !== undefined) {
     return "div-by-zero"
   } else if(result["abort"] !== undefined) {
@@ -90,9 +90,9 @@ const result = function(filename, expect) {
       failTest(filename, resultToString(expect), got);
     } else {
       if(expect["return"] === (got | 0)) {
-        passTest(filename, resultToString(expect["return"]), (got | 0));
+        passTest(filename, resultToString(expect), (got | 0));
       } else {
-        failTest(filename, resultToString(expect["return"]), (got | 0));
+        failTest(filename, resultToString(expect), (got | 0));
       }
     }
     return;
@@ -212,7 +212,8 @@ const evalTest = function(filename, k) {
   parseExpectedResult(filename, res => {
     compile(filename, res, () => {
       if(res["typecheck"]) {
-        return passTest(filename, "Typechecked", "Typechecked")
+        passTest(filename, "Typechecked", "Typechecked")
+        return k();
       }
       const check_imports = {c0deine: {
         memory: memory,
