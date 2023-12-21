@@ -222,45 +222,54 @@ def stmt : IrTree.Stmt → List Instr
 
   | .check ch               => check ch
 
-/- TODO: This implementation is buggy and wasn't the most thought out.
-   Essentially we need to take the Shape information from the Relooper algorithm
-   to convert the CFG of the IR Tree into the stack-machine based WASM.
 
-   Currently a bug exists here when inside of a if-statement inside of a loop.
-   If the block of the if-statement branch directly to the start of the loop
-   we get errors because of how the loops/blocks are labeled in WASM.
- -/
-
-@[inline] def exit (bexit : IrTree.BlockExit) : List Instr :=
+/- Converting shapes into WASM -/
+@[inline] def exit (bexit : IrTree.BlockExit)
+                   (loopBreak : Label → Option Label) : List Instr :=
   match bexit with
-  | .jump _l => []
-  | .cjump _t _hotpath _tt _ff => []
+  | .jump l =>
+    if let some lb := loopBreak l
+    then [Plain.br (.name lb.toWasmLoopBreak)]
+    else []
+  | .cjump t _hotpath tt ff =>
+    if let some lb := loopBreak tt
+    then [locl (.get (temp t)), Plain.br_if (.name lb.toWasmLoopBreak)]
+    else if let some lb := loopBreak ff
+    then [locl (.get (temp t)), i32_eqz, Plain.br_if (.name lb.toWasmLoopBreak)]
+    else []
   | .return .none => [Plain.wasm_return]
   | .return (.some te) => texpr te |>.append [Plain.wasm_return]
   | .error te =>
     texpr te |>.append [Plain.call (label Label.error), Plain.unreachable]
 
--- todo clean this up with helpers and such!
+partial def find_cjump
+    (f : IrTree.Func) : Option IrTree.BlockExit → Option (Temp × Label × Label)
+  | .none => .none
+  | .some (.jump l) => find_cjump f (f.blocks.find? l |>.map (·.exit))
+  | .some (.cjump t _ tt ff) => .some (t, tt, ff)
+  | _ => .none
+
 partial def func_body
     (f : IrTree.Func)
     (shape : ControlFlow.Relooper.Shape)
     : List Instr :=
-  (traverse shape .none).fst ++ [.plain .unreachable]
+  (traverse shape .none (fun _ => .none)).fst ++ [.plain .unreachable]
 where
   error (msg : String) : List Instr × Option IrTree.BlockExit :=
       ([.comment msg], .none)
   traverse (shape : ControlFlow.Relooper.Shape)
            (priorExit : Option IrTree.BlockExit)
+           (loopBreak : Label → Option Label)
            : List Instr × Option IrTree.BlockExit :=
   match shape with
   | .simple l next =>
     match f.blocks.find? l with
     | .some block =>
       let body_instr := block.body.bind stmt
-      let exit_instr := exit block.exit
+      let exit_instr := exit block.exit loopBreak
       let (next_instr, next_exit) :=
         match next with
-        | .some n => traverse n (.some block.exit)
+        | .some n => traverse n (.some block.exit) loopBreak
         | .none   => ([], .none)
 
       ( body_instr ++ exit_instr ++ next_instr
@@ -268,40 +277,54 @@ where
       )
     | .none =>
       error s!"WASM Trans: Could not find block labeled {l}, in shape {shape} in {f}!"
+
   | .loop inner next =>
+    let break_lbls := ControlFlow.Relooper.Shape.getNext shape
     let lbls := ControlFlow.Relooper.Shape.getLabels shape
     match inner, lbls with
     | .some i, [i_lbl] =>
-      let (i_instr, body_exit) := traverse i .none
+      let loopBreak' := fun l =>
+        if l ∈ break_lbls then .some i_lbl else loopBreak l
+      let (i_instr, body_exit) := traverse i .none loopBreak'
       let (n_instr, next_exit) :=
         match next with
-        | .some n => traverse n body_exit
+        | .some n => traverse n body_exit loopBreak
         | .none   => ([], .none)
 
-      match body_exit with
-      | .some (.cjump t _ _ _) =>
-        ( loop (.name i_lbl.toWasmIdent)
-            ( i_instr
-              ++ [locl (.get (temp t)), plain <|.br_if (label i_lbl)]
-            ) :: n_instr
-        , next_exit
-        )
-      | _ =>
-        error s!"WASM Trans Error: Shape loop, {shape}, body has improper exit {body_exit}!"
+      let i_br :=
+        match body_exit with
+        | .some (.cjump t _ i_lbl? _) =>
+          locl (.get (temp t))
+          :: (if i_lbl = i_lbl? then [] else [i32_eqz])
+          ++ [plain <|.br_if (label i_lbl)]
+        | .some (.jump i_lbl?) =>
+          if i_lbl = i_lbl? then [Plain.br (label i_lbl)] else []
+        | _ =>
+          error s!"WASM Trans Error: Shape loop, {shape}, body has improper exit {body_exit}!"
+            |>.fst
+
+      ( ( block (.name i_lbl.toWasmLoopBreak) [
+            loop (.name i_lbl.toWasmIdent) (i_instr ++ i_br)
+          ]
+        ) :: n_instr
+      , next_exit
+      )
+
     | .some _, _ =>
       error s!"WASM Trans: Shape loop, {shape}, has too many/few successors: {lbls}!"
     | .none, _ =>
       error s!"WASM Trans: Shape loop, {shape}, missing loop body!"
+
   | .multi left right next =>
     let lbls := ControlFlow.Relooper.Shape.getLabels shape
-    match left, right, lbls, priorExit with
-    | .some l, .some r, [l_lbl, r_lbl], .some (.cjump ct _hotpath tt ff) =>
+    match left, right, lbls, find_cjump f priorExit with
+    | .some l, .some r, [l_lbl, r_lbl], .some (ct, tt, ff) =>
       let c_flip := if ff = l_lbl then [i32_eqz] else []
-      let (l_instr, l_exit) := traverse l .none
-      let (r_instr, r_exit) := traverse r .none
+      let (l_instr, l_exit) := traverse l .none loopBreak
+      let (r_instr, r_exit) := traverse r .none loopBreak
       let (n_instr, next_exit) :=
         match next with -- l_exit == r_exit
-        | .some n => traverse n r_exit
+        | .some n => traverse n r_exit loopBreak
         | .none   => ([], .none)
 
       let cond :=
@@ -322,12 +345,10 @@ where
           .none
 
       (l_block :: n_instr, next_exit)
-    | _, _, _, .some (.cjump _ _ _ _) =>
-      error s!"WASM Trans: Shape multi, {shape}, missing branch!"
-    | _, _, _, .none | _, _, _, .some _ =>
+    | _, _, _, _ =>
       error s!"WASM Trans: Shape multi, {shape}, doesn't have condition to branch: {priorExit}!"
-  | .illegal _ => error s!"WASM Trans: Illegal shape {shape}!"
 
+  | .illegal _ => error s!"WASM Trans: Illegal shape {shape}!"
 
 -- todo: temp just to get things working
 partial def find_used_temps (instrs : List Instr) : List Ident :=

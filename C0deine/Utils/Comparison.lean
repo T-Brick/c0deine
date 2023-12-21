@@ -11,6 +11,7 @@ inductive Comparator
 | not_equal
 | less_equal
 | greater_equal
+deriving Repr, DecidableEq
 
 def Comparator.toString : Comparator → String
   | less => "<"

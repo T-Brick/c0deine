@@ -1,0 +1,13 @@
+//test return 2
+
+int main () {
+  int i = 1;
+  bool done = false;
+
+  while (!done && i < 100) {
+    done = true;
+    i++;
+  }
+
+  return i;
+}

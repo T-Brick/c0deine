@@ -18,13 +18,13 @@ inductive Typ
 | any
 | prim (p : Typ.Primitive)
 | mem (m : Typ.Memory)
-deriving Inhabited, Hashable
+deriving DecidableEq, Inhabited, Hashable
 
 inductive Typ.Memory
 | pointer (typ : Typ)
 | array (typ : Typ)
 | struct (sym : Symbol)
-deriving Inhabited, Hashable
+deriving DecidableEq, Inhabited, Hashable
 end
 
 namespace Typ
@@ -143,7 +143,7 @@ def sizeof! : Typ → Nat
 
 inductive Typed (α : Type) where
 | mk : (type : Typ) → (data : α) → Typed α
-deriving Inhabited
+deriving Inhabited, DecidableEq
 
 @[reducible, simp] def Typed.data : Typed α → α   | .mk _ data => data
 @[reducible, simp] def Typed.type : Typed α → Typ | .mk type _ => type

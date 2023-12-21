@@ -17,9 +17,11 @@ open Typ
 inductive PureBinop
 | add | sub | mul | and | xor | or
 | comp : Comparator → PureBinop
+deriving Repr, DecidableEq
 
 inductive EffectBinop
 | div | mod | lsh | rsh
+deriving Repr, DecidableEq
 
 inductive Expr
 | byte : UInt8 → Expr

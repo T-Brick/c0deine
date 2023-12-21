@@ -1,0 +1,10 @@
+//test div-by-zero
+
+int main () {
+  int m = 1;
+  for (int b = 1; b > 0; b++) {
+    m *= 10;
+    if (m < 0) return 1/0;
+  }
+  return m;
+}

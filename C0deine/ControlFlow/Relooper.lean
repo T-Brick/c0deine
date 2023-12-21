@@ -205,9 +205,10 @@ where mk_loop (entries : List Label)
   let next  := reach.filter (¬ ·.snd.elem l)
   let inner_lbls := inner.map (·.fst)
   let inner_entry := l :: entries.filter (inner_lbls.elem ·)
-  let next_entry := next.filter (fun (n, _) => inner.all (·.snd.elem n))
+  let next_entry := (l::inner_lbls).bind (succ cfg.digraph)
+    |>.filter (· ∉ l::inner_lbls)
   let inner_shape := reloop' fuel cfg inner_entry inner_lbls
-  let next_shape  := reloop' fuel cfg (next_entry.map (·.fst)) (next |>.map (·.fst))
+  let next_shape  := reloop' fuel cfg (next_entry) (next |>.map (·.fst))
   .some (.loop inner_shape next_shape)
 
 end
@@ -251,10 +252,30 @@ def test2_cfg : C0_CFG Nat Nat :=
   , blocks := Std.HashMap.empty
   }
 
+def test3_cfg : C0_CFG Nat Nat :=
+  { toCFG :=
+    { digraph :=
+        (ControlFlow.Digraph.empty : FuncGraphType Label)
+        |>.add_edge ⟨l 8, l 9⟩
+        |>.add_edge ⟨l 8, l 10⟩
+        |>.add_edge ⟨l 12, l 13⟩
+        |>.add_edge ⟨l 9, l 11⟩
+        |>.add_edge ⟨l 9, l 12⟩
+        |>.add_edge ⟨l 13, l 9⟩
+        |>.add_edge ⟨l 13, l 10⟩
+        |>.add_edge ⟨l 14, l 13⟩
+    , start := ⟨l 8, sorry⟩
+    , reachable := sorry
+    }
+  , name := ⟨0, .some "main"⟩
+  , blocks := Std.HashMap.empty
+  }
+
 #eval test1_cfg
 #eval test2_cfg
 #eval Id.run IO.println (reloop test1_cfg)
 #eval Id.run IO.println (reloop test2_cfg)
+#eval Id.run IO.println (reloop test3_cfg)
 #eval (reloop test1_cfg).map Shape.getLabels
 #eval (.multi (.some <| .simple (l 0) .none)
               (.some <| .simple (l 1) .none)

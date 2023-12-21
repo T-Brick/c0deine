@@ -18,6 +18,7 @@ namespace Block
 inductive BlockType
 | unknown
 | loop
+| loopguard
 | funcEntry
 | funcExit
 | thenClause
@@ -33,7 +34,7 @@ instance : Inhabited BlockType := ⟨.unknown⟩
 def BlockType.toString : BlockType → String
   | .unknown => "unknown"
   | .loop => "loop"
-  -- | .loopguard => "loop-guard"
+  | .loopguard => "loop-guard"
   | .funcEntry => "func-entry"
   | .funcExit => "func-exit"
   | .thenClause => "then-clause"

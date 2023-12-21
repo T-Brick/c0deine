@@ -667,11 +667,17 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt)
     return []
 
   | .while cond _annos body =>
-    -- elaborate to a `do while` which saves jumps
+    let loopGuard ← Env.Func.freshLabel
     let loopBody  ← Env.Func.freshLabel
     let afterLoop ← Env.Func.freshLabel
 
-    let (cstms, cond') ← texpr past ⟨cond.type, cond.data.val⟩
+    let exit := .jump loopGuard
+    let curLabel ← Env.Func.curBlockLabel
+    let curType ← Env.Func.curBlockType
+    let block := ⟨curLabel, curType, past.reverse, exit⟩
+    let () ← Env.Func.addBlock block loopGuard .loopguard
+
+    let (cstms, cond') ← texpr [] ⟨cond.type, cond.data.val⟩
     let cond_temp ← Env.Func.freshTemp
     let scond_temp := ⟨← Env.Prog.toFunc (Typ.tempSize cond.type), cond_temp⟩
     let condT := .move scond_temp cond'
@@ -683,10 +689,10 @@ def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt)
     let () ← Env.Func.addBlock block loopBody .loop
 
     let body' ← stmts [] body
-    let exit := .cjump cond_temp (some true) loopBody afterLoop
+    let exit := .jump loopGuard
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
-    let block := ⟨curLabel, curType, (condT :: body').reverse, exit⟩
+    let block := ⟨curLabel, curType, body'.reverse, exit⟩
     let () ← Env.Func.addBlock block afterLoop .afterLoop
     return []
 
