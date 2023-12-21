@@ -385,7 +385,7 @@ def binop_type
       throw <| Error.expr expr <|
         s!"Binary operator '{op}' expects both sides to have type '{expect₁}' but they both have type '{ty}'"
   match lhs, rhs with
-  | .prim .int, .prim .int    => check (.prim .int)
+  | .prim .int , .prim .int   => check (.prim .int)
   | .prim .bool, .prim .bool  => check (.prim .bool)
   | .prim .char, .prim .char  => check (.prim .char)
   | .any, .any                => pure expect₁
@@ -484,19 +484,19 @@ def expr (ctx : FuncCtx)
       | .int .or
       | .int .lsh
       | .int .rsh           =>
-        binop_type (.prim .int) .none exp op resl.texpr.type resl.texpr.type
+        binop_type (.prim .int) .none exp op resl.texpr.type resr.texpr.type
 
       | .cmp .less
       | .cmp .greater
       | .cmp .less_equal
       | .cmp .greater_equal =>
         let _ ← binop_type (.prim .int) (.some (.prim .char)) exp op
-            resl.texpr.type resl.texpr.type
+            resl.texpr.type resr.texpr.type
         pure (.prim .bool)
 
       | .bool .and
       | .bool .or           =>
-        binop_type (.prim .bool) .none exp op resl.texpr.type resl.texpr.type
+        binop_type (.prim .bool) .none exp op resl.texpr.type resr.texpr.type
 
       | .cmp .equal
       | .cmp .not_equal     =>
