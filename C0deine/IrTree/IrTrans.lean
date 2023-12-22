@@ -292,7 +292,7 @@ termination_by
 theorem lt_one_nat_max_left (cc tt ff : Nat) : tt < 1 + cc + max tt ff := by
   have := Nat.le_max_left tt ff |> (Nat.le_iff_lt_or_eq).mp
   apply Or.elim this <;> intro h
-  . simp [Nat.add_comm, Nat.lt_add_right _ _ (cc + 1) h]
+  . simp [Nat.add_comm, Nat.lt_add_right _ h]
   . simp [←h]
 
 theorem lt_one_nat_max_right (cc tt ff : Nat) : ff < 1 + cc + max tt ff := by
