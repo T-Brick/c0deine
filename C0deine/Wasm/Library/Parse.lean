@@ -26,75 +26,75 @@ def parse_bool : Module.Field := .funcs
   , body    :=
     [ block .no_label
       [ block .no_label
-        [ locl (.get (.num 0))
+        [ locl (.get 0)
         , i32_mem (.load8 .u ⟨0, 0⟩)
         , i32_const (Unsigned.ofNat 't'.toNat)
         , i32_rel .ne
-        , Plain.br_if (.num 0) -- try parsing false
-        , locl (.get (.num 0))
+        , Plain.br_if 0 -- try parsing false
+        , locl (.get 0)
         , i32_mem (.load8 .u ⟨1, 0⟩)
         , i32_const (Unsigned.ofNat 'r'.toNat)
         , i32_rel .ne
-        , Plain.br_if (.num 1)
-        , locl (.get (.num 0))
+        , Plain.br_if 1
+        , locl (.get 0)
         , i32_mem (.load8 .u ⟨2, 0⟩)
         , i32_const (Unsigned.ofNat 'u'.toNat)
         , i32_rel .ne
-        , Plain.br_if (.num 1)
-        , locl (.get (.num 0))
+        , Plain.br_if 1
+        , locl (.get 0)
         , i32_mem (.load8 .u ⟨3, 0⟩)
         , i32_const (Unsigned.ofNat 'e'.toNat)
         , i32_rel .ne
-        , Plain.br_if (.num 1)
-        , locl (.get (.num 0))
+        , Plain.br_if 1
+        , locl (.get 0)
         , i32_mem (.load8 .u ⟨4, 0⟩)
         , i32_const 0
         , i32_rel .ne
-        , Plain.br_if (.num 1)
+        , Plain.br_if 1
         , i32_const 1
-        , Plain.call (.name Label.calloc.toWasmIdent)
-        , locl (.tee (.num 0))
+        , Plain.call Label.calloc.toWasmIdent
+        , locl (.tee 0)
         , i32_const 1
         , i32_mem (.store8 ⟨0, 0⟩)
-        , locl (.get (.num 0))
+        , locl (.get 0)
         , Plain.wasm_return
         ]
-      , locl (.get (.num 0))
+      , locl (.get 0)
       , i32_mem (.load8 .u ⟨0, 0⟩)
       , i32_const (Unsigned.ofNat 'f'.toNat)
       , i32_rel .ne
-      , Plain.br_if (.num 0) -- not a bool
-      , locl (.get (.num 0))
+      , Plain.br_if 0 -- not a bool
+      , locl (.get 0)
       , i32_mem (.load8 .u ⟨1, 0⟩)
       , i32_const (Unsigned.ofNat 'a'.toNat)
       , i32_rel .ne
-      , Plain.br_if (.num 0)
-      , locl (.get (.num 0))
+      , Plain.br_if 0
+      , locl (.get 0)
       , i32_mem (.load8 .u ⟨2, 0⟩)
       , i32_const (Unsigned.ofNat 'l'.toNat)
       , i32_rel .ne
-      , Plain.br_if (.num 0)
-      , locl (.get (.num 0))
+      , Plain.br_if 0
+      , locl (.get 0)
       , i32_mem (.load8 .u ⟨3, 0⟩)
       , i32_const (Unsigned.ofNat 's'.toNat)
       , i32_rel .ne
-      , Plain.br_if (.num 0)
-      , locl (.get (.num 0))
+      , Plain.br_if 0
+      , locl (.get 0)
       , i32_mem (.load8 .u ⟨4, 0⟩)
       , i32_const (Unsigned.ofNat 'e'.toNat)
       , i32_rel .ne
-      , Plain.br_if (.num 0)
-      , locl (.get (.num 0))
+      , Plain.br_if 0
+      , locl (.get 0)
       , i32_mem (.load8 .u ⟨5, 0⟩)
       , i32_const 0
       , i32_rel .ne
-      , Plain.br_if (.num 0)
+      , Plain.br_if 0
       , i32_const 1
-      , Plain.call (.name Label.calloc.toWasmIdent)
-      , locl (.tee (.num 0))
+      , Plain.call Label.calloc.toWasmIdent
+      , locl (.tee 0)
       , i32_const 0
       , i32_mem (.store8 ⟨0, 0⟩)
-      , locl (.get (.num 0))
+      , locl (.get 0)
       , Plain.wasm_return
       ]
     , i32_const 0
@@ -112,6 +112,8 @@ def parse_int : Module.Field := .funcs
   , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
   , body    :=
     [ .comment "todo impl"
+    , i32_const 0
+    , Plain.wasm_return
     ]
   }
 
@@ -122,6 +124,8 @@ def num_tokens : Module.Field := .funcs
   , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
   , body    :=
     [ .comment "todo impl"
+    , i32_const 0
+    , Plain.wasm_return
     ]
   }
 
@@ -132,6 +136,8 @@ def int_tokens : Module.Field := .funcs
   , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
   , body    :=
     [ .comment "todo impl"
+    , i32_const 0
+    , Plain.wasm_return
     ]
   }
 
@@ -142,6 +148,8 @@ def parse_tokens : Module.Field := .funcs
   , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
   , body    :=
     [ .comment "todo impl"
+    , i32_const 0
+    , Plain.wasm_return
     ]
   }
 
@@ -152,6 +160,8 @@ def parse_ints : Module.Field := .funcs
   , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
   , body    :=
     [ .comment "todo impl"
+    , i32_const 0
+    , Plain.wasm_return
     ]
   }
 

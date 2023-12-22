@@ -49,8 +49,8 @@ def printint : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32)] []
   , locals  := []
   , body    := Util.string_fromint ++
-    [ locl (.get (.num 0))
-    , Plain.call (.name print_id)
+    [ locl (.get 0)
+    , Plain.call print_id
     , Plain.wasm_return
     ]
   }
@@ -61,8 +61,8 @@ def printbool : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32)] []
   , locals  := []
   , body    := Util.string_frombool ++
-    [ locl (.get (.num 0))
-    , Plain.call (.name print_id)
+    [ locl (.get 0)
+    , Plain.call print_id
     , Plain.wasm_return
     ]
   }
@@ -73,8 +73,8 @@ def printchar : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32)] []
   , locals  := [⟨.none, .num .i32⟩]
   , body    := Util.string_fromchar ++
-    [ locl (.get (.num 1))
-    , Plain.call (.name print_id)
+    [ locl (.get 1)
+    , Plain.call print_id
     ]
   }
 

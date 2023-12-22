@@ -76,7 +76,7 @@
   {"url": "https://github.com/T-Brick/lean-wasm",
    "type": "git",
    "subDir": null,
-   "rev": "ceaf141936d10e4acb942d4a919c6f69fc0644e9",
+   "rev": "15b1b9831986277dd958c01c18430252aa7ad9bd",
    "name": "wasm",
    "manifestFile": "lake-manifest.json",
    "inputRev": "main",

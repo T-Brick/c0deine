@@ -57,14 +57,14 @@ partial def texpr (te : Typ.Typed IrTree.Expr) : List Instr :=
     let r' := texpr r
     l'.append [block .no_label (
       [ i32_eqz
-      , Plain.br_if (.num 0) -- short-circuit if false
+      , Plain.br_if 0 -- short-circuit if false
       ] |>.append r'
     )]
   | .or l r =>
     let l' := texpr l
     let r' := texpr r
     l'.append [block .no_label (
-      [ .plain <|.br_if (.num 0) -- short-circuit if true
+      [ .plain <|.br_if 0 -- short-circuit if true
       ] |>.append r'
     )]
 
@@ -76,7 +76,7 @@ def check (check : IrTree.Check) : List Instr :=
     let te' := texpr te
     let comment := .comment s!"Null check on {te}"
     let block := block .no_label <| te'.append
-      [ Plain.br_if (.num 0)
+      [ Plain.br_if 0
       , Error.mem
       , Plain.call (label Label.abort)
       , Plain.unreachable
@@ -91,12 +91,12 @@ def check (check : IrTree.Check) : List Instr :=
         [ locl (.tee (temp Temp.general))
         , i32_const 0
         , i32_rel (.lt .s)            -- 0 > te
-        , Plain.br_if (.num 0)        -- abort
+        , Plain.br_if 0        -- abort
         , locl (.get (temp Temp.general))
         , i32_const 31
         , i32_rel (.gt .s)            -- 31 < te
-        , Plain.br_if (.num 0)        -- abort
-        , Plain.br (.num 1)           -- success
+        , Plain.br_if 0        -- abort
+        , Plain.br 1           -- success
         ]
       , Error.arith
       , Plain.call (label Label.abort)
@@ -111,10 +111,10 @@ def check (check : IrTree.Check) : List Instr :=
     let block := block .no_label <| (l'.append r').append
       [ i32_const (-1)
       , i32_rel .ne
-      , Plain.br_if (.num 0)
+      , Plain.br_if 0
       , i32_const Signed.MIN_VALUE
       , i32_rel .ne
-      , Plain.br_if (.num 0)
+      , Plain.br_if 0
       , Error.arith
       , Plain.call (label Label.abort)
       , Plain.unreachable
@@ -131,16 +131,16 @@ def check (check : IrTree.Check) : List Instr :=
         [ locl (.tee (temp Temp.index))
         , i32_const 0
         , i32_rel (.lt .s)             -- 0 > te
-        , Plain.br_if (.num 0)         -- abort
+        , Plain.br_if 0         -- abort
         ] |>.append source' |>.append
         [ locl (.tee (temp Temp.general))
         , i32_const (-8)
         , i32_bin .add                 -- &length(arr)
-        , i32_mem (.load ⟨0, 2⟩)
+        , i32_mem (.load ⟨0, 0⟩)
         , locl (.get (temp Temp.index))
         , i32_rel (.le .s)             -- index >= length(arr)
-        , Plain.br_if (.num 0)         -- abort
-        , Plain.br (.num 1)            -- success
+        , Plain.br_if 0         -- abort
+        , Plain.br 1            -- success
         ]
       , Error.mem
       , Plain.call (label Label.abort)
@@ -227,13 +227,13 @@ def stmt : IrTree.Stmt → List Instr
   match bexit with
   | .jump l =>
     if let some lb := loopBreak l
-    then [Plain.br (.name lb.toWasmLoopBreak)]
+    then [Plain.br lb.toWasmLoopBreak]
     else []
   | .cjump t _hotpath tt ff =>
     if let some lb := loopBreak tt
-    then [locl (.get (temp t)), Plain.br_if (.name lb.toWasmLoopBreak)]
+    then [locl (.get (temp t)), Plain.br_if lb.toWasmLoopBreak]
     else if let some lb := loopBreak ff
-    then [locl (.get (temp t)), i32_eqz, Plain.br_if (.name lb.toWasmLoopBreak)]
+    then [locl (.get (temp t)), i32_eqz, Plain.br_if lb.toWasmLoopBreak]
     else []
   | .return .none => [Plain.wasm_return]
   | .return (.some te) => texpr te |>.append [Plain.wasm_return]
@@ -301,9 +301,7 @@ where
           error s!"WASM Trans Error: Shape loop, {shape}, body has improper exit {body_exit}!"
             |>.fst
 
-      ( ( block (.name i_lbl.toWasmLoopBreak) [
-            loop (.name i_lbl.toWasmIdent) (i_instr ++ i_br)
-          ]
+      ( ( block i_lbl.toWasmLoopBreak [loop i_lbl.toWasmIdent (i_instr ++ i_br)]
         ) :: n_instr
       , next_exit
       )
@@ -330,13 +328,13 @@ where
         ++ c_flip
         ++ [.plain <|.br_if (label r_lbl)]
       let r_block := Instr.block <|
-        .block (.name r_lbl.toWasmIdent)
+        .block r_lbl.toWasmIdent
           (.typeuse (.elab_param_res [] []))
           (cond ++ r_instr ++ [.plain <|.br (label l_lbl)])
           .wasm_end
           .none
       let l_block := Instr.block <|
-        .block (.name l_lbl.toWasmIdent)
+        .block l_lbl.toWasmIdent
           (.typeuse (.elab_param_res [] []))
           (r_block :: l_instr)
           .wasm_end
@@ -391,4 +389,4 @@ def prog (prog : IrTree.Prog)
 def data (prog : IrTree.Prog) : Module.Data :=
   let free_seg := prog.str_size.toBytes
   let str_data := prog.str_map.bind (·.1.data.map (·.toUInt8 sorry) ++ [0])
-  ⟨.none, ⟨free_seg ++ str_data, sorry⟩, .active (.num 0) [i32_const 0]⟩
+  ⟨.none, ⟨free_seg ++ str_data, sorry⟩, .active 0 [i32_const 0]⟩
