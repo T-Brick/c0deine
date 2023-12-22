@@ -1,0 +1,13 @@
+//test error
+
+
+int foo(int k, int n)
+  //@requires n
+        >= 0;
+{
+  return 0;
+}
+
+int main() {
+  return 0;
+}

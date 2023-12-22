@@ -108,9 +108,10 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   let (header, headerTydefs, ctx) ← do
     match header with
     | none =>
-      pure (none, .empty, .new)
+      pure (none, .empty, .new (¬config.lang.under .c0))
     | some h =>
-      match Parser.C0Parser.prog.run h.toUTF8 .new with
+      let new_ctx := .new (¬config.lang.under .c0)
+      match Parser.C0Parser.prog.run h.toUTF8 new_ctx with
       | ((.error e, state), _) =>
         IO.println s!"{e () |>.formatPretty state}"
         return 1

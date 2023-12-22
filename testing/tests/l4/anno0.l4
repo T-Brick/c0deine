@@ -1,0 +1,14 @@
+//test return 10
+
+// L4 should not care about annotations
+
+int add(int x, int y)
+//@ensures \result == x + y;
+{
+  /*@assert 1==1; @*/
+  return x + y;
+}
+
+int main() {
+  return add(8, 2);
+}

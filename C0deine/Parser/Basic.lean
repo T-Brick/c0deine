@@ -115,14 +115,13 @@ where aux : C0Parser s (List Char) := do
 def lineComment : C0Parser s Unit :=
   withBacktracking do
   wholeString "//"
-  let c ← charMatching (· ≠ '@')
-  if c = '\n' then return ()
+  if ← Context.allowAnno then notFollowedBy (char '@')
   dropMany (do let _ ← charMatching (· ≠ '\n'))
 
 partial def blockComment : C0Parser s Unit :=
   withBacktracking do
   wholeString "/*"
-  notFollowedBy (char '@')
+  if ← Context.allowAnno then notFollowedBy (char '@')
   dropMany (
         (do let _ ← charMatching (¬ · ∈ ['/', '*']))
     <|> (withBacktracking do char '*'; notFollowedBy (char '/'))
@@ -138,7 +137,8 @@ def ws_no_newline : C0Parser s Unit :=
     <|> lineComment
     <|> blockComment)
 
-def ws : C0Parser s Unit :=
+def ws : C0Parser s Unit := do
+  if ←Context.inLineAnno then ws_no_newline else
   withContext "ws" <|
   dropMany (
     (first [  char ' ', char '\n', char '\t', char '\r'
@@ -508,7 +508,7 @@ partial def lvalue : C0Parser s LValue :=
 end
 
 def spec : C0Parser s Spec :=
-  withContext "<spec>" <|
+  withContext "<spec>" do
   first [
       (do kw_requires  ; ws; let e ← expr tydefs; ws; char ';'; return .requires e  )
     , (do kw_ensures   ; ws; let e ← expr tydefs; ws; char ';'; return .ensures e   )
@@ -520,7 +520,9 @@ def anno : C0Parser s Anno :=
   withContext "<anno>" <|
       (do wholeString "//@"
           ws_no_newline
+          Context.setInLineAnno true
           let specs ← sepBy ws_no_newline (spec tydefs)
+          Context.setInLineAnno false
           ws_no_newline; char '\n'
           return .line specs.toList)
   <|> (do wholeString "/*@"

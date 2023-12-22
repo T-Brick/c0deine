@@ -1,0 +1,14 @@
+//test return 10
+
+// L4 should not care about annotations
+
+int add(int x, int y)
+//@asdfasdfasd faasgasdg blah
+{
+  /*@ aodfkghasodigbnasod jklgnmasdkfgasdof */
+  return x + y;
+}
+
+int main() {
+  return add(8, 2);
+}

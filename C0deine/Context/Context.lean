@@ -12,20 +12,30 @@ import C0deine.Context.Symbol
 namespace C0deine
 
 structure Context.State where
-  nextTemp : Temp
-  nextLabel : Label
+  nextTemp     : Temp
+  nextLabel    : Label
   nextSymbolId : UInt64
-  symbolCache : Std.HashMap String Symbol
+  inLineAnno   : Option Bool -- none if annotations aren't allow
+  symbolCache  : Std.HashMap String Symbol
 
-def Context.State.new : Context.State where
-  nextTemp := (Temp.startId:)
-  nextLabel := ⟨Label.startId, none⟩
+def Context.State.new (annotations : Bool) : Context.State where
+  nextTemp     := (Temp.startId:)
+  nextLabel    := ⟨Label.startId, none⟩
   nextSymbolId := 1
-  symbolCache := Std.HashMap.empty.insert Symbol.main.name Symbol.main
+  inLineAnno   := if annotations then .some false else .none
+  symbolCache  := Std.HashMap.empty.insert Symbol.main.name Symbol.main
 
 def Context := StateM Context.State
 
 instance : Monad Context := show Monad (StateM _) from inferInstance
+
+def Context.allowAnno : Context Bool :=
+  fun s => (s.inLineAnno.isSome, s)
+def Context.inLineAnno : Context Bool :=
+  fun s => (s.inLineAnno.getD false, s)
+def Context.setInLineAnno (b : Bool) : Context Unit :=
+  fun s =>
+    ((), if s.inLineAnno.isNone then s else { s with inLineAnno := .some b })
 
 namespace Temp
 

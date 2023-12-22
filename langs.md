@@ -92,8 +92,8 @@ defined above as well as some behaviour clarifications:
         >= 0;
   // rest of program omitted...
   ```
-  The grammar indicates that this is a valid program. Currently, C0deine accepts
-  such programs (but this may be changed later).
+  The grammar indicates that this is a valid program. C0deine (as does `cc0`)
+  choose to reject this program.
 
 - In the semantics for annotations an "`@assert` cannot annotate functions"
   (C0.25). This is the only comment made about `@assert`, implying that they
