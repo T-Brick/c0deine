@@ -122,7 +122,7 @@ def lineComment : C0Parser s Unit :=
 partial def blockComment : C0Parser s Unit :=
   withBacktracking do
   wholeString "/*"
-  let _ ← charMatching (· ≠ '@')
+  notFollowedBy (char '@')
   dropMany (
         (do let _ ← charMatching (¬ · ∈ ['/', '*']))
     <|> (withBacktracking do char '*'; notFollowedBy (char '/'))

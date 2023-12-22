@@ -168,7 +168,7 @@ const compile = function(filename, result, exe, next) {
         return exe();
       }
 
-      if (error !== null && result["error"]) {
+      if (error !== null && result["error"] !== undefined) {
         passTest(filename, "Compile error", "Compile error")
         return next();
       }

@@ -270,22 +270,20 @@ def Trans.spec (lang : Language)
   match specs with
   | []      => return []
   | s :: ss => do
-    if lang.under .c0
-    then unsupported lang "contracts"
-    else
-      let s' ← (
-          match s with
-          | .requires e   => return .requires   (← Trans.expr lang e)
-          | .ensures e    => return .ensures    (← Trans.expr lang e)
-          | .loop_invar e => return .loop_invar (← Trans.expr lang e)
-          | .assert e     => return .assert     (← Trans.expr lang e)
-        )
-      let ss' ← Trans.spec lang ss
-      return s' :: ss'
+    let s' ← (
+        match s with
+        | .requires e   => return .requires   (← Trans.expr lang e)
+        | .ensures e    => return .ensures    (← Trans.expr lang e)
+        | .loop_invar e => return .loop_invar (← Trans.expr lang e)
+        | .assert e     => return .assert     (← Trans.expr lang e)
+      )
+    let ss' ← Trans.spec lang ss
+    return s' :: ss'
 
 def Trans.anno (lang : Language)
                (annos : List Cst.Anno)
                : Except String (List Ast.Anno) := do
+  if lang.under .c0 then return [] else -- remove annotations if not c0
   match annos with
   | [] => return []
   | .line s  :: as
