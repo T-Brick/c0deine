@@ -170,13 +170,13 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   vprintln "wasm translation..."
   let wasm := Target.Wasm.Trans.prog irtree (relooped.filterMap (·))
   let data := Target.Wasm.Trans.data irtree
-  let wasm_module_cst := Target.Wasm.mkModule default wasm data
+  let wasm_module_cst := Target.Wasm.mkModule default [] wasm data
   vprintln "wasm!"
-  vprintln wasm_module_cst
 
   if let .wat := config.emit then
     outputText config wasm_module_cst.toString
   if let .wasm := config.emit then
+    vprintln wasm_module_cst
     match (Wasm.Text.Module.trans wasm_module_cst).run ⟨{}, []⟩ with
     | (.error e, _state) =>
       IO.println "Internal WASM translation error!"

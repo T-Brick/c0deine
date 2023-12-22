@@ -183,28 +183,3 @@ def main (config : Wasm.Config) : List Module.Field :=
     , locals  := []
     , body    := main_body
     }]
-
-def mkImports (config : Wasm.Config) : List (Module.Field) :=
-  [ .some memory_import
-  , .some result_import
-  , .some error_import
-  , if config.import_abort  then .some abort_import  else .none
-  , if config.import_calloc then .some calloc_import else .none
-  , if config.import_calloc then .some free_import   else .none
-  , match config.main with | .import => .some main_import | _ => .none
-  ].filterMap (·)
-
-def mkModule (config : Wasm.Config)
-             (funcs : List Module.Function)
-             (data : Module.Data)
-             : Module :=
-  let c0_funcs := funcs.map .funcs
-  ⟨ .none
-  , mkImports config
-    ++ [ if config.import_abort then .none else .some abort_func
-       , if config.import_calloc then .none else .some calloc_func
-       ].filterMap (·)
-    ++ [.datas data]
-    ++ (main config)
-    ++ c0_funcs
-  ⟩
