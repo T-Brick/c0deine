@@ -111,7 +111,7 @@ def parse_int : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32)] [.num .i32]
   , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 
@@ -121,7 +121,7 @@ def num_tokens : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
   , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 
@@ -131,7 +131,7 @@ def int_tokens : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32)] [.num .i32]
   , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 
@@ -141,7 +141,7 @@ def parse_tokens : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
   , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 
@@ -151,7 +151,7 @@ def parse_ints : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
   , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 

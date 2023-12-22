@@ -18,7 +18,7 @@ namespace Library.Util
 -- todo should these just be a functions?
 
 def string_fromint : List Instr :=
-  [ sorry ]
+  [ .comment "todo impl" ]
 
 /- takes a bool in the zeroth local returns string in same local -/
 def string_frombool : List Instr :=

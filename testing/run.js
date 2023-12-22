@@ -215,12 +215,21 @@ const evalTest = function(filename, k) {
         passTest(filename, "Typechecked", "Typechecked")
         return k();
       }
-      const check_imports = {c0deine: {
-        memory: memory,
-        result: result(filename, res),
-        abort:  abort(filename, res),
-        error:  error(filename, res),
-      }};
+      const check_imports = {
+        c0deine: {
+          memory: memory,
+          result: result(filename, res),
+          abort:  abort(filename, res),
+          error:  error(filename, res),
+        },
+        conio: {
+          print:    str => { process.stdout.write(c0_parse_str(str)); },
+          println:  str => { process.stdout.write(c0_parse_str(str) + "\n"); },
+          flush:    ()  => { process.stdout.flush(); },
+          eof:      ()  => { console.log("TODO: eof unimplemented!"); },
+          readline: ()  => { console.log("TODO: readline unimplemented!"); },
+        },
+      };
       run(filename, check_imports, res, k);
     }, k);
   }, k);

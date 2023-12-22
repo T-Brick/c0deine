@@ -93,7 +93,7 @@ def string_join : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 
@@ -103,7 +103,7 @@ def string_sub : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32), (.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 
@@ -113,7 +113,7 @@ def string_equal : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 
@@ -123,7 +123,7 @@ def string_compare : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 
@@ -166,7 +166,7 @@ def string_tolower : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 
@@ -178,7 +178,7 @@ def string_terminated : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 
@@ -188,7 +188,7 @@ def string_to_chararray : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 
@@ -198,7 +198,7 @@ def string_from_chararray : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 
@@ -230,7 +230,7 @@ def format : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
-    [ sorry
+    [ .comment "todo impl"
     ]
   }
 

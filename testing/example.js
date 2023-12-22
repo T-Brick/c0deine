@@ -11,7 +11,7 @@ const compile_cmd = "sh compile.sh"
 const memory = new WebAssembly.Memory({ initial: 1 });
 
 
-/* Utilities from parsing strings out of C0's memory */
+/* Utility for parsing strings out of C0's memory */
 const c0_parse_str = function(address) {
   const bytes = new Uint8Array(memory.buffer.slice(address | 0));
   var i = 0;
@@ -23,20 +23,21 @@ const c0_parse_str = function(address) {
   return msg;
 }
 
-const log_c0_error = function(str) {
-  var msg = c0_parse_str(str);
-  msg = "error:  " + msg;
-  console.log(msg);
-}
-
 
 /* Required imports */
-const print_imports = {
+const imports = {
   c0deine: {
     memory: memory,
     result: res => { console.log((res | 0)) },
     abort:  sig => { console.log("abort: " + (sig | 0)) },
-    error:  log_c0_error,
+    error:  str => { console.log("error:  " + c0_parse_str(str)); },
+  },
+  conio: {
+    print:    str => { process.stdout.write(c0_parse_str(str)); },
+    println:  str => { process.stdout.write(c0_parse_str(str) + "\n"); },
+    flush:    ()  => { process.stdout.flush(); },
+    eof:      ()  => { console.log("TODO: eof unimplemented!"); },
+    readline: ()  => { console.log("TODO: readline unimplemented!"); },
   }
 };
 
@@ -73,7 +74,7 @@ if(!fs.existsSync(args[0])) {
 } else if(fs.lstatSync(args[0]).isFile()) {
   const filename = args[0];
   compile(filename,
-    () => { run(filename, print_imports); },
+    () => { run(filename, imports); },
     () => { console.log("Compilation failed."); }
   );
 }
