@@ -192,26 +192,24 @@ def stmt : IrTree.Stmt → List Instr
   | .load dest a            =>
     let addr' := addr a
     let load' :=
-      i32_mem (.load ⟨0, 2⟩)
-      -- match dest.size with
-      -- | .byte   =>
-        -- i64_mem (.load8 .u ⟨0, Unsigned.ofNat dest.size.bytes / 2⟩)
-      -- | .word   => i64_mem (.load16 .u ⟨0, Unsigned.ofNat dest.size.bytes / 2⟩)
-      -- | .double => i64_mem (.load32 .u ⟨0, Unsigned.ofNat dest.size.bytes / 2⟩)
-      -- | .quad   => i64_mem (.load ⟨0, Unsigned.ofNat dest.size.bytes / 2⟩)
+      match dest.size with
+      | .byte   => i32_mem (.load8 .u ⟨0, 0⟩)
+      | .word   => i32_mem (.load16 .u ⟨0, 0⟩)
+      | .double => i32_mem (.load ⟨0, 0⟩)  -- 64bit pointers are unrepresentable
+      | .quad   => i32_mem (.load ⟨0, 0⟩)  -- so make them 32
     addr' ++ [load', locl (.set (stemp dest))]
 
   | .store a source         =>
     let source' := texpr source
     let addr'   := addr a
-    let store'  := i32_mem (.store ⟨0, 2⟩)
-      -- match source.type with
-      -- | .any | (.mem _) =>
-        -- i64_mem (.store ⟨0, Unsigned.ofNat source.type.sizeof!⟩)
-      -- | (.prim .bool) =>
-        -- i64_mem (.store8 ⟨0, Unsigned.ofNat source.type.sizeof!⟩)
-      -- | (.prim .int)   =>
-        -- i64_mem (.store32 ⟨0, Unsigned.ofNat source.type.sizeof!⟩)
+    let store'  :=
+      match source.type with
+      | .any | (.mem _) | (.prim .string) =>
+        i32_mem (.store ⟨0, 0⟩)
+      | (.prim .bool) | (.prim .char) =>
+        i32_mem (.store8 ⟨0, 0⟩)
+      | (.prim .int) =>
+        i32_mem (.store ⟨0, 0⟩)
     addr' ++ source' ++ [store']
 
   | .copy dest src len      =>

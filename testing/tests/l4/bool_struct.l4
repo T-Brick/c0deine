@@ -1,0 +1,25 @@
+//test return 12
+
+struct bools {
+  bool a;
+  bool b;
+  bool c;
+  bool d;
+  bool e;
+};
+
+typedef struct bools bools_t;
+
+int main() {
+  bools_t *x = alloc(bools_t);
+  x->a = true;
+  x->b = true;
+  x->c = true;
+  x->d = true;
+
+  x->b = false; // should not override other elements of the struct
+  if(x->a && !(x->b) && x->c && x->d) {
+    return 12;
+  }
+  return 0;
+}

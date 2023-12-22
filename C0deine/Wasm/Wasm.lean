@@ -8,8 +8,6 @@ import Numbers
 import C0deine.Context.Label
 import C0deine.Context.Temp
 import C0deine.Config.Targets
-import Wasm.Text.Instr
-import Wasm.Text.Index
 import Wasm.Text.Module
 import Wasm.Binary.Module
 
