@@ -4,6 +4,7 @@
    - Thea Brick
  -/
 import C0deine.Wasm.Wasm
+import C0deine.Config.Language
 import C0deine.Wasm.Library.Conio
 import C0deine.Wasm.Library.Parse
 import C0deine.Wasm.Library.String
@@ -13,14 +14,15 @@ namespace C0deine.Target.Wasm
 open Wasm.Text
 
 open Library in
-def std_libraries : List Library :=
-  [ Conio
-  -- , File
-  -- , Args
-  , Parse
-  , String
-  -- , Img
-  ]
+def _root_.C0deine.Language.StdLib.toWasmLib : Language.StdLib → Library
+  | .conio  => Conio
+  | .file   => sorry
+  | .args   => sorry
+  | .parse  => Parse
+  | .string => String
+  | .img    => sorry
+  | .rand   => sorry
+  | .util   => sorry
 
 def mkImports (config : Wasm.Config)
               (libs : List Library)

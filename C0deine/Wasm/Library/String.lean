@@ -10,22 +10,22 @@ namespace C0deine.Target.Wasm.Library.String
 open Numbers C0deine.Target.Wasm Wasm.Text Wasm.Text.Instr
   Wasm.Syntax.Instr.Numeric Wasm.Syntax.Instr.Memory
 
-def string_length_id         : Ident := ⟨"_c0_string_length"        , sorry, sorry⟩
-def string_charat_id         : Ident := ⟨"_c0_string_charat"        , sorry, sorry⟩
-def string_join_id           : Ident := ⟨"_c0_string_join"          , sorry, sorry⟩
-def string_sub_id            : Ident := ⟨"_c0_string_sub"           , sorry, sorry⟩
-def string_equal_id          : Ident := ⟨"_c0_string_equal"         , sorry, sorry⟩
-def string_compare_id        : Ident := ⟨"_c0_string_compare"       , sorry, sorry⟩
-def string_fromint_id        : Ident := ⟨"_c0_string_fromint"       , sorry, sorry⟩
-def string_frombool_id       : Ident := ⟨"_c0_string_frombool"      , sorry, sorry⟩
-def string_fromchar_id       : Ident := ⟨"_c0_string_fromchar"      , sorry, sorry⟩
-def string_tolower_id        : Ident := ⟨"_c0_string_tolower"       , sorry, sorry⟩
-def string_terminated_id     : Ident := ⟨"_c0_string_terminated"    , sorry, sorry⟩
-def string_to_chararray_id   : Ident := ⟨"_c0_string_to_chararray"  , sorry, sorry⟩
-def string_from_chararray_id : Ident := ⟨"_c0_string_from_chararray", sorry, sorry⟩
-def char_ord_id              : Ident := ⟨"_c0_char_ord"             , sorry, sorry⟩
-def char_chr_id              : Ident := ⟨"_c0_char_chr"             , sorry, sorry⟩
-def format_id                : Ident := ⟨"_c0_format"               , sorry, sorry⟩
+def string_length_id         : Ident := ⟨"string_length"        , sorry, sorry⟩
+def string_charat_id         : Ident := ⟨"string_charat"        , sorry, sorry⟩
+def string_join_id           : Ident := ⟨"string_join"          , sorry, sorry⟩
+def string_sub_id            : Ident := ⟨"string_sub"           , sorry, sorry⟩
+def string_equal_id          : Ident := ⟨"string_equal"         , sorry, sorry⟩
+def string_compare_id        : Ident := ⟨"string_compare"       , sorry, sorry⟩
+def string_fromint_id        : Ident := ⟨"string_fromint"       , sorry, sorry⟩
+def string_frombool_id       : Ident := ⟨"string_frombool"      , sorry, sorry⟩
+def string_fromchar_id       : Ident := ⟨"string_fromchar"      , sorry, sorry⟩
+def string_tolower_id        : Ident := ⟨"string_tolower"       , sorry, sorry⟩
+def string_terminated_id     : Ident := ⟨"string_terminated"    , sorry, sorry⟩
+def string_to_chararray_id   : Ident := ⟨"string_to_chararray"  , sorry, sorry⟩
+def string_from_chararray_id : Ident := ⟨"string_from_chararray", sorry, sorry⟩
+def char_ord_id              : Ident := ⟨"char_ord"             , sorry, sorry⟩
+def char_chr_id              : Ident := ⟨"char_chr"             , sorry, sorry⟩
+def format_id                : Ident := ⟨"format"               , sorry, sorry⟩
 
 /- string_length : string → int -/
 def string_length : Module.Field := .funcs

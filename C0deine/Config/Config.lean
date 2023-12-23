@@ -12,12 +12,30 @@ inductive Config.Setting
 | warning
 | error
 
+inductive Config.Library
+| std  : Language.StdLib → (h : System.FilePath) → Library
+| src  : System.FilePath → Library
+| head : System.FilePath → Library
+deriving Repr, Inhabited, DecidableEq
+
+def Config.Library.toPath : Config.Library → System.FilePath
+  | .std _ h => h
+  | .src f   => f
+  | .head h  => h
+
+def Config.Library.ofPath (p : System.FilePath) : Option Config.Library :=
+  p.extension.map (fun ext =>
+    if ext.startsWith "h" then .head p else .src p
+  )
+
 structure Config where
   verbose       : Bool
   lang          : Language
   emit          : Target
-  typecheckOnly : Bool
   output        : Option System.FilePath
+  libSearchDirs : List System.FilePath
+  stdLibs       : List Language.StdLib
+  typecheckOnly : Bool
   optimisation  : Nat
   -- WIP: if false then don't check array bounds, shifts, etc.
   safe : Bool
@@ -75,8 +93,10 @@ instance : Inhabited Config where default :=
   { verbose                := false
   , lang                   := default
   , emit                   := default
-  , typecheckOnly          := false
   , output                 := none
+  , libSearchDirs          := []
+  , stdLibs                := []
+  , typecheckOnly          := false
   , optimisation           := 0
   , safe                   := true
   , checkAssertsWhenUnsafe := false

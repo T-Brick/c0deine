@@ -3,7 +3,7 @@ TEST=$1
 MODE="wasm"
 shift
 
-../.lake/build/bin/c0deine -e $MODE -o $TEST.$MODE $@ $TEST && (
+../.lake/build/bin/c0deine -e $MODE -o $TEST.$MODE -L ../libs $@ $TEST && (
   if test "$MODE" = "wat"
   then
     wat2wasm --output=$TEST.wasm $TEST.wat

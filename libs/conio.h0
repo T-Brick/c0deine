@@ -1,0 +1,16 @@
+/* Reproduced from: https://bitbucket.org/c0-lang/c0/src/master/cc0/libs/conio/conio.h0 */
+
+/* Library conio */
+/* Functions for basic console input and output */
+
+void print(string s);       /* print s to standard output */
+void println(string s);     /* print s with trailing newline */
+void printint(int i);       /* print i to standard output */
+void printbool(bool b);     /* print b to standard output */
+void printchar(char c);     /* print c to standard output */
+void flush();               /* flush standard output */
+
+bool eof();                 /* test end-of-file on standard input  */
+
+string readline()           /* read a line from standard input */
+  /*@requires !eof(); @*/ ; /* do not include the trailing newline */

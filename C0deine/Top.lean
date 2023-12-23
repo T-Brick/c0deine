@@ -13,7 +13,10 @@ def version := "0.0.1"
 
 open Cli
 
-def mkConfig (p : Parsed) (input : System.FilePath) : Config :=
+def mkConfig (p : Parsed)
+             (libSearchDirs : List System.FilePath)
+             (input : System.FilePath)
+             : Config :=
   let dconfig : Config := default
 
   let lang :=
@@ -50,8 +53,9 @@ def mkConfig (p : Parsed) (input : System.FilePath) : Config :=
       verbose                := p.hasFlag "verbose"
       lang                   := lang
       emit                   := emit
-      typecheckOnly          := p.hasFlag "only-typecheck"
       output                 := output
+      libSearchDirs          := libSearchDirs
+      typecheckOnly          := p.hasFlag "only-typecheck"
       safe                   := ¬p.hasFlag "unsafe"
       checkAssertsWhenUnsafe := p.hasFlag "unsafe-assert-check"
       dynCheckContracts      := p.hasFlag "dyn-check"
@@ -68,6 +72,114 @@ def outputBinary (config : Config) (data : ByteArray) : IO Unit :=
   | .none   => panic! "Cannot write binary to stdout"
   | .some f => IO.FS.writeBinFile f data
 
+def searchDirs (dirs : List System.FilePath)
+               (file : String) : IO (Option System.FilePath) :=
+  match dirs with
+  | [] => return .none
+  | d :: rest => do
+    if (← (d / file).pathExists)
+    then return .some (d / file)
+    else searchDirs rest file
+
+def find_lib (config : Config) (s : String) : IO (List Config.Library) := do
+  match Language.StdLib.ofString s with
+  | .some l =>
+    let path? ← searchDirs config.libSearchDirs (l.toHeaderString)
+    match path? with
+    | .some path => return [.std l path]
+    | .none      => panic s!"Could not find Standard Library header: {l}"
+  | .none   =>
+    let srcName  :=
+      System.FilePath.withExtension s (config.lang.toString) |>.toString
+    let headName :=
+      System.FilePath.withExtension s (config.lang.toHeaderString) |>.toString
+
+    let src_path? ← searchDirs config.libSearchDirs srcName
+    let head_path? ← searchDirs config.libSearchDirs headName
+
+    match src_path?, head_path? with
+    | .some src_path, .some head_path =>
+      return [.head head_path, .src src_path]
+    | .some src_path, .none  => return [.src src_path]
+    | .none, .some head_path => return [.head head_path]
+    | .none, .none           => panic s!"Could not find library: {s}"
+
+
+def find_use_file (config : Config) : Cst.Directive → IO (List Config.Library)
+  | .use_lib s => find_lib config s
+  | .use_str s => do
+    let path? ← searchDirs config.libSearchDirs s
+    match path?.bind (Config.Library.ofPath ·) with
+    | .some res => return [res]
+    | .none      => panic s!"Could not find library: {s}"
+
+  | .unknown => return []
+
+partial def find_files
+    (config : Config)
+    (imported : List System.FilePath)
+    (acc : List Config.Library)
+    (files : List System.FilePath)
+    : IO (List Config.Library) := do
+  match files with
+  | [] => return acc
+  | l :: rest =>
+    if l ∈ imported then find_files config imported acc rest else
+
+    if !(← l.pathExists) then
+      panic! s!"File does not exist: {l}"
+    if ← l.isDir then
+      panic! s!"File is a directory: {l}"
+
+    let contents ← IO.FS.readFile l
+    match Parser.C0Parser.directives.run contents.toUTF8 (.new false) with
+    | ((.error e, state), _) =>
+      IO.println s!"{e () |>.formatPretty state}"
+      panic s!"Could not parse directives!"
+    | ((.ok refs, _), _) =>
+      let refs := (← refs.mapM (find_use_file config)).join
+        |>.filter (· ∉ acc)
+        |>.eraseDups
+      let remaining := rest ++ refs.map (·.toPath)
+      find_files config (l :: imported) (refs.reverse ++ acc) remaining
+
+-- todo monadify this
+structure ParsedC0 where
+  config : Config
+  header : Cst.Prog
+  source : Cst.Prog
+  tydefs : Std.RBSet Symbol compare
+  ctx : Context.State
+
+def parseHeader
+    (acc : ParsedC0)
+    (header : System.FilePath)
+    : IO ParsedC0 := do
+  if acc.config.verbose then IO.println s!"Parsing header {header}"
+  let h ← IO.FS.readFile header
+  match (Parser.C0Parser.prog acc.tydefs).run h.toUTF8 acc.ctx with
+  | ((.error e, state), _) =>
+    IO.println s!"{e () |>.formatPretty state}"
+    panic s!"Header parse error"
+  | ((.ok (cst, tydefs), _), ctx) =>
+    let (_directives, cst) := Cst.splitDirectives cst
+    pure ⟨acc.config, acc.header ++ cst, acc.source, tydefs, ctx⟩
+
+def parseSource
+    (acc : ParsedC0)
+    (source : System.FilePath)
+    : IO ParsedC0 := do
+  if acc.config.verbose then IO.println s!"Parsing source {source}"
+  let c ← IO.FS.readFile source
+  match (Parser.C0Parser.prog acc.tydefs).run c.toUTF8 acc.ctx with
+  | ((.error e, state), _) =>
+    IO.println s!"{e () |>.formatPretty state}"
+    panic s!"Source parse error"
+  | ((.ok (cst, tydefs), _), ctx) =>
+    let (_directives, cst) := Cst.splitDirectives cst
+    pure ⟨acc.config, acc.header, acc.source ++ cst, tydefs, ctx⟩
+
+
 def runTopCmd (p : Parsed) : IO UInt32 := do
   if p.hasFlag "help" then
     p.printHelp
@@ -80,60 +192,64 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     panic! "Missing file argument"
   let input : System.FilePath :=
     p.positionalArg! "input" |>.as! String
-  let libInput : Option System.FilePath :=
-    p.flag? "library" |>.map (·.as! String)
+
+  let libs : List System.FilePath :=
+    p.flag? "library" |>.map (·.as! (Array String) |>.toList) |>.getD []
+  let libSearchDirs : List System.FilePath :=
+    p.flag? "L" |>.map (·.as! (Array String) |>.toList) |>.getD []
+
+  let curDir ← IO.currentDir
+  let libSearchDirs := curDir :: libSearchDirs
+  let libSearchDirs :=
+    if (← (curDir / "libs").pathExists) && (← (curDir / "libs").isDir) then
+      curDir / "libs" :: libSearchDirs
+    else libSearchDirs
 
   if !(← input.pathExists) then
     panic! s!"Input file does not exist: {input}"
   if ← input.isDir then
     panic! s!"Input path is a directory: {input}"
 
-  if libInput.isSome then
-    if !(← libInput.get!.pathExists) then
-      panic! s!"Header file does not exist: {libInput}"
-    if ← libInput.get!.isDir then
-      panic! s!"Header path is a directory: {libInput}"
+  let _ ← libs.mapM (fun lib => do
+      if !(← lib.pathExists) then
+        panic! s!"Library file does not exist: {lib}"
+      if ← lib.isDir then
+        panic! s!"Library file is a directory: {lib}"
+    )
 
-  let config : Config := mkConfig p input
+  let _ ← libSearchDirs.mapM (fun libd => do
+      if !(← libd.pathExists) then
+        panic! s!"Library search directory does not exist: {libd}"
+      if !(← libd.isDir) then
+        panic! s!"Library search directory is not a directory: {libd}"
+    )
+
+  let config : Config := mkConfig p libSearchDirs input
+  let libsCat := (← libs.mapM (find_lib config ·.toString)).join |>.eraseDups
+
+  let sources ←
+    find_files config [] ((.src input) :: libsCat).reverse (input :: libs)
 
   let vprintln : {α : Type} → [ToString α] → α → IO Unit :=
     fun s => do if config.verbose then IO.println s
 
-
-  let contents ← IO.FS.readFile input
-  let header ← libInput.mapM (IO.FS.readFile)
-
-  vprintln "parsing header"
-
-  let (header, headerTydefs, ctx) ← do
-    match header with
-    | none =>
-      pure (none, .empty, .new (¬config.lang.under .c0))
-    | some h =>
-      let new_ctx := .new (¬config.lang.under .c0)
-      match Parser.C0Parser.prog.run h.toUTF8 new_ctx with
-      | ((.error e, state), _) =>
-        IO.println s!"{e () |>.formatPretty state}"
-        return 1
-      | ((.ok (cst, tydefs), _), ctx) =>
-        pure (some cst, tydefs, ctx)
-
-
-  vprintln "parsing input"
-
-  match (Parser.C0Parser.prog headerTydefs).run contents.toUTF8 ctx with
-  | ((.error e, state), _) =>
-    IO.println s!"{e () |>.formatPretty state}"
-    return 1
-  | ((.ok (cst,_), _), ctx) =>
-
-  let (directives, cst) := Cst.splitDirectives cst
-
-
+  let init_parsed : ParsedC0 :=
+    ⟨config, [], [], .empty, .new (¬config.lang.under .c0)⟩
+  let parsed ← sources.foldlM (fun acc f =>
+      match f with
+      | .std l h =>
+        let config := { acc.config with stdLibs := l :: acc.config.stdLibs }
+        parseHeader {acc with config} h
+      | .src s   => parseSource acc s
+      | .head h  => parseHeader acc h
+    ) init_parsed
+  let config := parsed.config
+  let ctx := parsed.ctx
   -- vprintln cst
   vprintln "abstracting"
 
-  let ast ← IO.ofExcept <| Abstractor.abstract config.lang header cst
+  let ast ← IO.ofExcept <|
+    Abstractor.abstract config.lang (parsed.header) (parsed.source)
 
   vprintln ast
   vprintln "typechecking"
@@ -171,7 +287,8 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   vprintln "wasm translation..."
   let wasm := Target.Wasm.Trans.prog irtree (relooped.filterMap (·))
   let data := Target.Wasm.Trans.data irtree
-  let wasm_module_cst := Target.Wasm.mkModule default [] wasm data
+  let libs := config.stdLibs.map (·.toWasmLib)
+  let wasm_module_cst := Target.Wasm.mkModule default libs wasm data
   vprintln "wasm!"
 
   if let .wat := config.emit then
@@ -196,19 +313,20 @@ def topCmd : Cmd := `[Cli|
   "a compiler for C0."
 
   FLAGS:
-    l, library : String;      "Specify header file"
-    v, verbose;               "Give verbose output"
-    x, lang : String;         "Source language (usually derived from filename)"
-    e, emit : String;         s!"Specify compilation target\n{Target.supported_str}"
-    t, "only-typecheck";      "Only typecheck a file"
-    o, output : String;       "Output to given file"
-    -- O0, O0;                   "Compile with no optimizations"
-    -- O1, O1;                   "Compile with optimizations"
-    "unsafe";                 "Assume code does not make memory/division errors"
-    "unsafe-assert-check";    "Requires checking asserts when unsafe"
-    d, "dyn-check";           "Check contracts dynamically"
-    "no-purity-check";        "Disables contract purity checking"
-    "wasm-import-calloc";     "WASM outputs require importing 'c0deine.calloc' and 'c0deine.free'"
+    l, library : Array String; "Specifies libraries to include (comma separated)"
+    L, L : Array String;       "Add library directories to search path (comma separated)"
+    v, verbose;                "Give verbose output"
+    x, lang : String;          "Source language (usually derived from filename)"
+    e, emit : String;          s!"Specify compilation target\n{Target.supported_str}"
+    t, "only-typecheck";       "Only typecheck a file"
+    o, output : String;        "Output to given file"
+    -- O0, O0;                    "Compile with no optimizations"
+    -- O1, O1;                    "Compile with optimizations"
+    "unsafe";                  "Assume code does not make memory/division errors"
+    "unsafe-assert-check";     "Requires checking asserts when unsafe"
+    d, "dyn-check";            "Check contracts dynamically"
+    "no-purity-check";         "Disables contract purity checking"
+    "wasm-import-calloc";      "WASM outputs require importing 'c0deine.calloc' and 'c0deine.free'"
 
   ARGS:
     input : String;      "The input file"

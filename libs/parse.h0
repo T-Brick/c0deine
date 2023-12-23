@@ -1,0 +1,30 @@
+/* Reproduced from: https://bitbucket.org/c0-lang/c0/src/master/cc0/libs/parse/parse.h0 */
+
+/* Library parse */
+/* Functions for parsing basic data values from strings */
+
+/* Attempt to parse "true" or "false from s and return a pointer to
+ * the result or NULL if not of that form. */
+bool* parse_bool(string s);
+
+/* Attempt to parse an integer from the given string.  For base > 10,
+ * the letters A-Z (case insignificant) are used as digits.  Return
+ * NULL if s cannot be completely parsed to an int in the given
+ * base. */
+int* parse_int(string s, int base)
+  /*@requires 2 <= base && base <= 36; @*/ ;
+
+/* Returns the number of whitespace-delimited tokens in a string */
+int num_tokens(string s);
+
+/* Returns true iff the string contains only whitespace separated ints */
+bool int_tokens(string s, int base)
+  /*@requires 2 <= base && base <= 36; @*/ ;
+
+string[] parse_tokens(string s)
+  /*@ensures \length(\result) == num_tokens(s); @*/ ;
+
+/* Parses a string as list of whitespace-delimited integers */
+int[] parse_ints(string s, int base)
+  /*@requires int_tokens(s, base); @*/
+  /*@ensures \length(\result) == num_tokens(s); @*/ ;

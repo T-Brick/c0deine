@@ -170,8 +170,9 @@ inductive GDecl
 | cdir  : Directive → GDecl
 
 def Prog := List GDecl
+instance : HAppend Prog Prog Prog := ⟨List.append⟩
 
--- directives must appear at the start of file so we can fetch them first
+-- directives must appear at the start of file so this removes them
 def splitDirectives : Prog → List Directive × Prog
   | [] => ([], [])
   | (.cdir d) :: rest =>

@@ -1,0 +1,7 @@
+//test return 150
+// try using a compiler directive to use library
+#use <conio>
+
+int main() {
+  return 150;
+}

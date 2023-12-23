@@ -1,0 +1,7 @@
+//test error
+// try using a compiler directive to use a non-existant library
+#use <dasgasdgasdgas>
+
+int main() {
+  return 150;
+}

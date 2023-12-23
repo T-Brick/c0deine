@@ -1,0 +1,71 @@
+/* Reproduced from https://bitbucket.org/c0-lang/c0/src/master/cc0/libs/string/string.h0 */
+
+/* Library string */
+/* Provides basic function for working with strings consisting of
+ * ASCII characters.  For most nontrivial operations it is best to
+ * convert back and forth between character arrays and strings, using
+ * the string_to_chararray and string_from_chararray functions.  The
+ * two are identified in C, but distinguished in C0 to allow a
+ * type-safe and memory-safe implementation.  Note that character
+ * arrays should contain a trailing '\0' character not present in the
+ * corresponding strings.
+ */
+
+/* Return length of s, in characters.
+ * May be an O(n) operation. */
+int string_length(string s);
+
+/* Return s[idx] and abort if the idx is out of bound.
+ * May be an O(n) operation. */
+char string_charat(string s, int idx)
+  /*@requires 0 <= idx && idx < string_length(s); @*/ ;
+
+/* Return a new string that is the result of concatenating a and b. */
+string string_join(string a, string b)
+  /*@ensures string_length(\result)
+               == string_length(a) + string_length(b); @*/ ;
+
+/* Returns the substring composed of the characters of s beginning at
+ * the index given by start and continuing up to but not including the
+ * index given by end.  If end == start, the empty string is returned.
+ * Aborts if start or end are out of bounds, or end < start. */
+string string_sub(string a, int start, int end)
+  /*@requires 0 <= start && start <= end && end <= string_length(a); @*/
+  /*@ensures string_length(\result) == end - start; @*/ ;
+
+/* Compare strings lexicographically */
+bool string_equal(string a, string b);
+int string_compare(string a, string b)
+  /*@ensures -1 <= \result && \result <= 1; @*/ ;
+
+/* Create strings from other basic values */
+string string_fromint(int i);
+string string_frombool(bool b);
+string string_fromchar(char c)
+  /*@requires c != '\0'; @*/
+  /*@ensures string_length(\result) == 1; @*/
+  /*@ensures string_charat(\result, 0) == c; @*/ ;
+
+/* Convert every uppercase character A-Z to lowercase a-z */
+string string_tolower(string s);
+
+/* Check if character array is properly \0-terminated */
+bool string_terminated(char[] A, int n)
+  /*@requires 0 <= n && n <= \length(A); @*/ ;
+
+/* Construct a '\0'-terminated character array from s */
+char[] string_to_chararray(string s)
+  /*@ensures \length(\result) >= string_length(s) + 1; @*/
+  /*@ensures string_terminated(\result, string_length(s) + 1); @*/ ;
+
+/* Construct a string from the the array A up to (but not including)
+ * the terminating '\0' */
+string string_from_chararray(char[] A)
+  /*@requires string_terminated(A, \length(A)); @*/
+  /*@ensures string_length(\result) + 1 <= \length(A); @*/ ;
+
+/* Convert between characters and their ASCII value */
+int char_ord(char c)
+  /*@ensures 0 <= \result && \result <= 127; @*/ ;
+char char_chr(int n)
+  /*@requires 0 <= n && n <= 127; @*/ ;

@@ -10,15 +10,15 @@ namespace C0deine.Target.Wasm.Library.Conio
 open Numbers C0deine.Target.Wasm Wasm.Text Wasm.Text.Instr
   Wasm.Syntax.Instr.Numeric Wasm.Syntax.Instr.Memory
 
-def print_id     : Ident := ⟨"_c0_print"    , sorry, sorry⟩
-def println_id   : Ident := ⟨"_c0_println"  , sorry, sorry⟩
-def printint_id  : Ident := ⟨"_c0_printint" , sorry, sorry⟩
-def printbool_id : Ident := ⟨"_c0_printbool", sorry, sorry⟩
-def printchar_id : Ident := ⟨"_c0_printchar", sorry, sorry⟩
-def flush_id     : Ident := ⟨"_c0_flush"    , sorry, sorry⟩
-def eof_id       : Ident := ⟨"_c0_eof"      , sorry, sorry⟩
-def readline_id  : Ident := ⟨"_c0_readline" , sorry, sorry⟩
-def printf_id    : Ident := ⟨"_c0_printf"   , sorry, sorry⟩
+def print_id     : Ident := ⟨"print"    , sorry, sorry⟩
+def println_id   : Ident := ⟨"println"  , sorry, sorry⟩
+def printint_id  : Ident := ⟨"printint" , sorry, sorry⟩
+def printbool_id : Ident := ⟨"printbool", sorry, sorry⟩
+def printchar_id : Ident := ⟨"printchar", sorry, sorry⟩
+def flush_id     : Ident := ⟨"flush"    , sorry, sorry⟩
+def eof_id       : Ident := ⟨"eof"      , sorry, sorry⟩
+def readline_id  : Ident := ⟨"readline" , sorry, sorry⟩
+def printf_id    : Ident := ⟨"printf"   , sorry, sorry⟩
 
 def conio : Name :=
   ⟨"conio", by simp [String.length, Wasm.Vec.max_length]; linarith⟩

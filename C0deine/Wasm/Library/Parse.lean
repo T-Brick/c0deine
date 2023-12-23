@@ -13,12 +13,12 @@ def is_space_id      : Ident := ⟨"is_space"        , sorry, sorry⟩
 def consume_space_id : Ident := ⟨"consume_space"   , sorry, sorry⟩
 def take_int_id      : Ident := ⟨"take_int"        , sorry, sorry⟩
 
-def parse_bool_id    : Ident := ⟨"_c0_parse_bool"  , sorry, sorry⟩
-def parse_int_id     : Ident := ⟨"_c0_parse_int"   , sorry, sorry⟩
-def num_tokens_id    : Ident := ⟨"_c0_num_tokens"  , sorry, sorry⟩
-def int_tokens_id    : Ident := ⟨"_c0_int_tokens"  , sorry, sorry⟩
-def parse_tokens_id  : Ident := ⟨"_c0_parse_tokens", sorry, sorry⟩
-def parse_ints_id    : Ident := ⟨"_c0_parse_ints"  , sorry, sorry⟩
+def parse_bool_id    : Ident := ⟨"parse_bool"  , sorry, sorry⟩
+def parse_int_id     : Ident := ⟨"parse_int"   , sorry, sorry⟩
+def num_tokens_id    : Ident := ⟨"num_tokens"  , sorry, sorry⟩
+def int_tokens_id    : Ident := ⟨"int_tokens"  , sorry, sorry⟩
+def parse_tokens_id  : Ident := ⟨"parse_tokens", sorry, sorry⟩
+def parse_ints_id    : Ident := ⟨"parse_ints"  , sorry, sorry⟩
 
 /- is_space : char → bool
    Checks whether a given char is a whitespace character
