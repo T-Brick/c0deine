@@ -128,18 +128,19 @@ def imports : List Module.Field :=
   , readline
   -- , printf
   ]
-def impls : List Module.Field :=
+def extern : List Module.Field :=
   [ printint
   , printbool
   , printchar
   ]
-def lib : List Module.Field :=
-  imports ++ impls
+def intern : List Module.Field := []
+def lib    : List Module.Field := imports ++ intern ++ extern
 
 end Conio
 
 def Conio : Library :=
   { imports := Conio.imports
-  , impls   := Conio.impls
+  , extern  := Conio.extern
+  , intern  := Conio.intern
   , lib     := Conio.lib
   }

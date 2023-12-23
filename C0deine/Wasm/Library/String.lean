@@ -253,7 +253,7 @@ def format : Module.Field := .funcs
   }
 
 def imports : List Module.Field := []
-def impls : List Module.Field :=
+def extern : List Module.Field :=
   [ string_length
   , string_charat
   , string_join
@@ -271,13 +271,14 @@ def impls : List Module.Field :=
   , char_chr
   -- , format
   ]
-def lib : List Module.Field :=
-  imports ++ impls
+def intern : List Module.Field := []
+def lib    : List Module.Field := imports ++ intern ++ extern
 
 end String
 
 def String : Library :=
   { imports := String.imports
-  , impls   := String.impls
+  , extern  := String.extern
+  , intern  := String.intern
   , lib     := String.lib
   }

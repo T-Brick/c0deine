@@ -47,6 +47,7 @@ def mkModule (config : Wasm.Config)
        ].filterMap (·)
     ++ [.datas data]
     ++ (main config)
-    ++ (libs.bind (·.impls))
+    ++ (libs.bind (·.intern))
+    ++ (libs.bind (·.extern))
     ++ c0_funcs
   ⟩

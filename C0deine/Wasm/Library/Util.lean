@@ -11,7 +11,8 @@ open Numbers C0deine.Target.Wasm Wasm.Text Wasm.Text.Instr
 
 structure Library where
   imports : List Module.Field
-  impls   : List Module.Field
+  extern  : List Module.Field
+  intern  : List Module.Field
   lib     : List Module.Field
 
 namespace Library.Util
