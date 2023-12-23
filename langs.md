@@ -1,6 +1,6 @@
-# Information about Source Languages + Emitted Code
+# Information about Source Languages
 
-## Source Languages
+## Language Definitions
 
 C0deine has a variety of source languages that build upon each other by adding
 new features. Here is a list of currently supported languages (as well as links
@@ -116,60 +116,27 @@ defined above as well as some behaviour clarifications:
   this (as does `cc0`) even if C compilers do not.
 
 
-## Wasm Target
+## Standard Libraries
 
-By default C0deine requires the following imports:
+In order to be able to run and interface with generated code, C0deine requires
+additional functions. A C-style header file for these functions can be found
+in [libs/c0deine.h](libs/c0deine.h).
 
-```wasm
-(import "c0deine" "memory" (memory  1)                )
-(import "c0deine" "result" (func $result (param i32)) )
-(import "c0deine" "abort"  (func $abort  (param i32)) )
-(import "c0deine" "error"  (func $error  (param i32)) )
-```
+Beyond this, C0 defines a few standard libraries
+[here](https://c0.cs.cmu.edu/docs/c0-libraries.pdf). In the future, we hope for
+C0deine to fully support all of these libraries in some capacity. For now, these
+are the only ones that are currently supported:
+  - Input/Output
+    - [`conio`](libs/conio.h) (except for the `printf` function)
+  - Strings
+    - [`parse`](libs/parse.h)
+    - [`string`](libs/string.h) (except for the `format` function)
+The C0-implemented libraries should also work, but are currently not distributed
+here.
 
-The `result` function is called with the result of the `main` function defined
-by the user.
+The C0deine library is already included with the outputted WASM code, but the
+other libraries can be used via the `#use <lib>` compiler directive. Libraries
+are only included once even if multiple files import them.
 
-If the program executes a divide by zero, this error will be handled through
-WASM error handling. For all other errors the abort function is called with the
-signal of the error that occured:
-- Arithmetic errors: SIGFPE (8)
-  - Importantly this is called for bitshifts that are out of bounds as well
-    as `INT_MIN % -1` which is not considered an error in WASM.
-- Assertion failure: SIGABRT (6)
-- Memory error: SIGUSR2 (12)
-An unreachable statement will be executed if the `abort` function returns.
-
-The `error` function is called with index of a null terminated string in wasm's
-memory. An unreachable state will be executed if this function returns.
-
-### Pointers, Arrays, Strings, and Memory
-
-The current WASM spec has a 32-bit memory. While there are proposals to extend
-this to 64-bits, C0deine uses the 32-bit spec. Due to this all pointers, when
-compiling to WASM, are represented by a `u32` address. That being said, when
-using anything represented as a pointer in `struct`'s or `array`'s will be
-allocated 8-bytes and struct alignment will take account of this.
-
-C0deine implements its own memory allocation scheme but by using the
-`wasm-import-calloc` flag the following imports will be added allowing for a
-custom implementation:
-
-```wasm
-(import "c0deine" "calloc" (func $calloc (param i32) (result i32)) )
-(import "c0deine" "free"   (func $free   (param i32)             ) )
-```
-
-On initialisation, C0deine formats the memory as such:
-- The first eight-bytes are reserved (used to point to a free section).
-- An eight-byte aligned section is reserved for text.
-- The rest of memory is free for the program to use.
-
-Custom implementations of `calloc` should follow these invariants:
-- Only return a pointer to `NULL` (`0`) upon some sort of memory failure.
-- Only return pointers to free memory that are zero'd out.
-- The text section should never be altered.
-- Any live memory should never be altered.
-
-Likewise, `free` should never deallocate live memory and will only be called
-when C0deine has identified that the memory is dead.
+The [example](testing/example.js) already provides necessary imports to make
+these libraries work fully.

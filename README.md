@@ -6,7 +6,7 @@ Currently, we are working to target Web Assembly. We plan to also target C, and
 x86-64 assembly. No phases of the compiler are currently proven correct, but we
 are hoping to do so in the future.
 
-Information about the source and target languages can be found in
+Information about the source languages and standard libraries can be found in
 [langs](langs.md).
 
 ## Install
