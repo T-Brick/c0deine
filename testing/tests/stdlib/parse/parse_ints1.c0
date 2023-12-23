@@ -1,0 +1,7 @@
+//test return 255
+#use <parse>
+
+int main() {
+  int[] arr = parse_ints("10 4 23 65 a2 ff", 16);
+  return arr[5];
+}

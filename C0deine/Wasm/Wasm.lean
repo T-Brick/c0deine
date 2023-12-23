@@ -117,6 +117,15 @@ def calloc_import : Module.Field := .imports
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
+def free_func : Module.Field := .funcs
+  { lbl     := .some Label.free.toWasmIdent
+  , typeuse := .elab_param_res [(.none, .num .i32)] []
+  , locals  := []
+  , body    :=
+    [ .comment "TODO: implement free"
+    , Plain.wasm_return
+    ]
+  }
 def free_import : Module.Field := .imports
   ⟨ c0deine
   , ⟨"free" , by simp [String.length, Wasm.Vec.max_length]; linarith⟩

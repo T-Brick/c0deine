@@ -1,0 +1,7 @@
+//test return 0
+#use <parse>
+
+int main() {
+  if(int_tokens("  aa     ", 16)) return 0;
+  return 1;
+}

@@ -44,8 +44,9 @@ def mkModule (config : Wasm.Config)
   let c0_funcs := funcs.map .funcs
   ⟨ .none
   , mkImports config libs
-    ++ [ if config.import_abort then .none else .some abort_func
-       , if config.import_calloc then .none else .some calloc_func
+    ++ [ if config.import_calloc then .none else .some calloc_func
+       , if config.import_calloc then .none else .some free_func
+       , if config.import_abort then .none else .some abort_func
        ].filterMap (·)
     ++ [.datas data]
     ++ (main config)

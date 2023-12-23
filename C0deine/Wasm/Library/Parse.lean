@@ -9,16 +9,16 @@ namespace C0deine.Target.Wasm.Library.Parse
 open Numbers C0deine.Target.Wasm Wasm.Text Wasm.Text.Instr
   Wasm.Syntax.Instr.Numeric Wasm.Syntax.Instr.Memory
 
-def is_space_id      : Ident := ⟨"is_space"        , sorry, sorry⟩
-def consume_space_id : Ident := ⟨"consume_space"   , sorry, sorry⟩
-def take_int_id      : Ident := ⟨"take_int"        , sorry, sorry⟩
+def is_space_id      : Ident := ⟨"is_space"     , sorry, sorry⟩
+def consume_space_id : Ident := ⟨"consume_space", sorry, sorry⟩
+def take_int_id      : Ident := ⟨"take_int"     , sorry, sorry⟩
 
-def parse_bool_id    : Ident := ⟨"parse_bool"  , sorry, sorry⟩
-def parse_int_id     : Ident := ⟨"parse_int"   , sorry, sorry⟩
-def num_tokens_id    : Ident := ⟨"num_tokens"  , sorry, sorry⟩
-def int_tokens_id    : Ident := ⟨"int_tokens"  , sorry, sorry⟩
-def parse_tokens_id  : Ident := ⟨"parse_tokens", sorry, sorry⟩
-def parse_ints_id    : Ident := ⟨"parse_ints"  , sorry, sorry⟩
+def parse_bool_id    : Ident := ⟨"parse_bool"   , sorry, sorry⟩
+def parse_int_id     : Ident := ⟨"parse_int"    , sorry, sorry⟩
+def num_tokens_id    : Ident := ⟨"num_tokens"   , sorry, sorry⟩
+def int_tokens_id    : Ident := ⟨"int_tokens"   , sorry, sorry⟩
+def parse_tokens_id  : Ident := ⟨"parse_tokens" , sorry, sorry⟩
+def parse_ints_id    : Ident := ⟨"parse_ints"   , sorry, sorry⟩
 
 /- is_space : char → bool
    Checks whether a given char is a whitespace character
@@ -82,13 +82,13 @@ def consume_space : Module.Field := .funcs
 where 
   str : Ident := ⟨"str", sorry, sorry⟩
 
-/- take_int: string × (base : int) → int* × string
+/- take_int: string × (base : int) → bool × int × string
    Tries to parse an integer from the string and returns the remainder when a
    whitespace character is reached.
  -/
 def take_int : Module.Field := .funcs
   { lbl     := .some take_int_id
-  , typeuse := .elab_param_res [(str, .num .i32), (base, .num .i32)] [.num .i32, .num .i32]
+  , typeuse := .elab_param_res [(str, .num .i32), (base, .num .i32)] [.num .i32, .num .i32, .num .i32]
   , locals  := [⟨c, .num .i32⟩, ⟨res, .num .i32⟩, ⟨sign, .num .i32⟩]
   , body    :=
     [ block .no_label             -- check base is within bounds
@@ -210,17 +210,14 @@ def take_int : Module.Field := .funcs
           , Plain.br next     -- successfully parsed digit
           ]
         ]
-      , i32_const 4
-      , Plain.call Label.calloc.toWasmIdent
-      , locl (.tee c)         -- save alloc'd pointer in c since it is unused
+      , i32_const 1
       , locl (.get res)
       , locl (.get sign)
       , i32_bin .mul          -- apply sign to res
-      , i32_mem (.store ⟨0, 0⟩)
-      , locl (.get c)
       , locl (.get str)
       , Plain.wasm_return
       ]
+    , i32_const 0
     , i32_const 0
     , locl (.get str)
     , Plain.wasm_return
@@ -328,13 +325,14 @@ def parse_bool : Module.Field := .funcs
 def parse_int : Module.Field := .funcs
   { lbl     := .some parse_int_id
   , typeuse := .elab_param_res [(str, .num .i32), (base, .num .i32)] [.num .i32]
-  , locals  := []
+  , locals  := [⟨succ, .num .i32⟩]
   , body    :=
     [ locl (.get str)
     , locl (.get base)
     , Plain.call take_int_id
     , locl (.set str)
-    , locl (.set base)  -- pointer to int
+    , locl (.set base)  -- int
+    , locl (.set succ)
     , block .no_label
       [ locl (.get str)
       , i32_mem (.load8 .u ⟨0, 0⟩)
@@ -343,13 +341,26 @@ def parse_int : Module.Field := .funcs
       , i32_const 0     -- ended on non-null char
       , Plain.wasm_return
       ]
+    , block .no_label
+      [ locl (.get succ)
+      , Plain.br_if 0
+      , i32_const 0     -- didn't parse
+      , Plain.wasm_return
+      ]
+    , i32_const 4
+    , Plain.call Label.calloc.toWasmIdent
+    , locl (.tee succ)
     , locl (.get base)
+    , i32_mem (.store ⟨0, 0⟩)
+    , locl (.get succ)
     , Plain.wasm_return
     ]
   }
 where
   str  : Ident := ⟨"str"  , sorry, sorry⟩
   base : Ident := ⟨"base" , sorry, sorry⟩
+  succ : Ident := ⟨"succ" , sorry, sorry⟩
+
 
 /- num_tokens : string → int -/
 def num_tokens : Module.Field := .funcs
@@ -403,14 +414,43 @@ where
  -/
 def int_tokens : Module.Field := .funcs
   { lbl     := .some int_tokens_id
-  , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32)] [.num .i32]
-  , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
+  , typeuse := .elab_param_res [(str, .num .i32), (base, .num .i32)] [.num .i32]
+  , locals  := []
   , body    :=
-    [ .comment "todo impl"
+    [ block fail
+      [ block succ
+        [ locl (.get str)
+        , Plain.call consume_space_id
+        , locl (.set str)
+        , loop .no_label
+          [ locl (.get str)
+          , locl (.get base)
+          , Plain.call take_int_id
+          , locl (.set str)
+          , Plain.drop        -- dont care about the parsed int
+          , i32_eqz
+          , Plain.br_if fail  -- couldn't parse an int
+          , locl (.get str)
+          , Plain.call consume_space_id
+          , locl (.tee str)
+          , i32_mem (.load8 .u ⟨0, 0⟩)
+          , i32_eqz
+          , Plain.br_if succ  -- end of string
+          , Plain.br 0
+          ]
+        ]
+      , i32_const 1
+      , Plain.wasm_return
+      ]
     , i32_const 0
     , Plain.wasm_return
     ]
   }
+where
+  str  : Ident := ⟨"str" , sorry, sorry⟩
+  base : Ident := ⟨"base", sorry, sorry⟩
+  succ : Ident := ⟨"succ", sorry, sorry⟩
+  fail : Ident := ⟨"fail", sorry, sorry⟩
 
 /- parse_tokens : string → string[] -/
 def parse_tokens : Module.Field := .funcs
@@ -427,14 +467,70 @@ def parse_tokens : Module.Field := .funcs
 /- parse_ints : string → int[] -/
 def parse_ints : Module.Field := .funcs
   { lbl     := .some parse_ints_id
-  , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
-  , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
+  , typeuse := .elab_param_res [(str, .num .i32), (base, .num .i32)] [.num .i32]
+  , locals  := [⟨arr, .num .i32⟩, ⟨temp, .num .i32⟩, ⟨temp2, .num .i32⟩]
   , body    :=
-    [ .comment "todo impl"
-    , i32_const 0
-    , Plain.wasm_return
+    [ locl (.get str)
+    , Plain.call num_tokens_id
+    , locl (.tee temp)
+    , i32_const 1              -- add additional space for length
+    , i32_bin .add
+    , i32_const 4
+    , i32_bin .mul
+    , Plain.call Label.calloc.toWasmIdent
+    , locl (.tee arr)
+    , locl (.get temp)
+    , i32_mem (.store ⟨0, 0⟩)  -- store length
+    , locl (.get arr)
+    , i32_const 4
+    , i32_bin .add
+    , locl (.tee arr)
+    , locl (.set temp)
+    , block fail
+      [ block succ
+        [ locl (.get str)
+        , Plain.call consume_space_id
+        , locl (.set str)
+        , loop .no_label
+          [ locl (.get str)
+          , locl (.get base)
+          , Plain.call take_int_id
+          , locl (.set str)
+          , locl (.set temp2)        -- store parsed int
+          , i32_eqz
+          , Plain.br_if fail         -- couldn't parse an int
+          , locl (.get temp)         -- write the int into the array
+          , locl (.get temp2)
+          , i32_mem (.store ⟨0, 0⟩)
+          , locl (.get temp)
+          , i32_const 4
+          , i32_bin .add             -- increment arr writer temp
+          , locl (.set temp)
+          , locl (.get str)
+          , Plain.call consume_space_id
+          , locl (.tee str)
+          , i32_mem (.load8 .u ⟨0, 0⟩)
+          , i32_eqz
+          , Plain.br_if succ  -- end of string
+          , Plain.br 0
+          ]
+        ]
+      , locl (.get arr)
+      , Plain.wasm_return
+      ]
+    , Error.assert
+    , Plain.call Label.abort.toWasmIdent
+    , Plain.unreachable
     ]
   }
+where
+  str   : Ident := ⟨"str"  , sorry, sorry⟩
+  base  : Ident := ⟨"base" , sorry, sorry⟩
+  temp  : Ident := ⟨"temp" , sorry, sorry⟩
+  temp2 : Ident := ⟨"temp2", sorry, sorry⟩
+  arr   : Ident := ⟨"arr"  , sorry, sorry⟩
+  succ  : Ident := ⟨"succ" , sorry, sorry⟩
+  fail  : Ident := ⟨"fail" , sorry, sorry⟩
 
 def imports : List Module.Field := []
 def extern : List Module.Field :=

@@ -1,0 +1,7 @@
+//test abort
+#use <parse>
+
+int main() {
+  int[] arr = parse_ints(" \n    10\r \n\t 4 \t \t 23     65 a2 \t ff\t\n   ", 10);
+  return arr[4];
+}

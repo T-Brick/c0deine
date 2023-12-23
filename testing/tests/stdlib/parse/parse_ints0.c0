@@ -1,0 +1,11 @@
+//test return 45
+#use <parse>
+
+int main() {
+  int[] arr = parse_ints("1 2 3 4 5 6 7 8 9", 10);
+  int res = 0;
+  for(int i = 0; i < 10; i++) {
+    res += arr[i];
+  }
+  return res;
+}
