@@ -1,0 +1,10 @@
+//test return 0
+#use <conio>
+
+int main() {
+  printbool(true);
+  println("");
+  printbool(false);
+  println("");
+  return 0;
+}

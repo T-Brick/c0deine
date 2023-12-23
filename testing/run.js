@@ -12,7 +12,7 @@ var quiet = 0;
 var failed = 0;
 var success = 0;
 
-const memory = new WebAssembly.Memory({ initial: 1 });
+var memory = new WebAssembly.Memory({ initial: 1 });
 
 const c0_parse_str = function(address) {
   const bytes = new Uint8Array(memory.buffer.slice(address | 0));
@@ -215,6 +215,7 @@ const evalTest = function(filename, k) {
         passTest(filename, "Typechecked", "Typechecked")
         return k();
       }
+      memory = new WebAssembly.Memory({ initial: 1 })
       const check_imports = {
         c0deine: {
           memory: memory,

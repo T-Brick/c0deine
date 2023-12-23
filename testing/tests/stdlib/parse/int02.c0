@@ -1,0 +1,10 @@
+//test return 0
+#use <parse>
+
+int main() {
+  for(int i = 2; i < 37; i++) {
+    int *n = parse_int("10010101001", i);
+    if(n == NULL) error("Couldn't parse int");
+  }
+  return 0;
+}

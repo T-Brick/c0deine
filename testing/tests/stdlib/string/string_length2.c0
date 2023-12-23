@@ -1,0 +1,6 @@
+//test return 3
+#use <string>
+
+int main() {
+  return string_length("  \t");
+}

@@ -1,0 +1,14 @@
+//test return -1
+#use <parse>
+
+int main() {
+  int res = 0;
+  int tot = 0;
+  for(int i = 2; i < 5; i++) {
+    int *n = parse_int(" 10", i);
+    if(n == NULL) return -1;
+    res += *n;
+    tot += i;
+  }
+  return res - tot;
+}

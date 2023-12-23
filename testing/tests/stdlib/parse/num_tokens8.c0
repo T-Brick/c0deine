@@ -1,0 +1,6 @@
+//test return 6
+#use <parse>
+
+int main() {
+  return num_tokens("1\n2\t3\r4\f5 6");
+}

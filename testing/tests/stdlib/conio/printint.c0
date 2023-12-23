@@ -1,0 +1,9 @@
+//test return 0
+#use <conio>
+
+int main() {
+  for(int i = 10; i < 20; i++) {
+    printint(i);
+  }
+  return 0;
+}

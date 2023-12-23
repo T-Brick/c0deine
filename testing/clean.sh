@@ -1,3 +1,3 @@
 #!/bin/bash
-rm -f ./tests/**/*.wat
-rm -f ./tests/**/*.wasm
+find . -name "*.wat" -exec rm {} \;
+find . -name "*.wasm" -exec rm {} \;

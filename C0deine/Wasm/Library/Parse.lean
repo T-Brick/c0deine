@@ -28,36 +28,32 @@ def is_space : Module.Field := .funcs
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
-    [ block .no_label
-      [ locl (.get 0)
-      , i32_const 0x20  -- space
-      , i32_rel .eq
-      , Plain.br_if 0
-      , locl (.get 0)
-      , i32_const 0x09  -- tab
-      , i32_rel .eq
-      , Plain.br_if 0
-      , locl (.get 0)
-      , i32_const 0x0D  -- carriage return
-      , i32_rel .eq
-      , Plain.br_if 0
-      , locl (.get 0)
-      , i32_const 0x0A  -- line feed
-      , i32_rel .eq
-      , Plain.br_if 0
-      , i32_const 0
-      , Plain.wasm_return
-      ]
+    [ block .no_label <|
+      char 32     --    space
+      ++ char 9   -- \t tab
+      ++ char 10  -- \n linefeed
+      ++ char 11  -- \v vertical tab
+      ++ char 12  -- \f form feed
+      ++ char 13  -- \r carriage return
+      ++ [ i32_const 0
+         , Plain.wasm_return
+         ]
     , i32_const 1
     , Plain.wasm_return
     ]
   }
+where char (n : Unsigned32) :=
+  [ locl (.get 0)
+  , i32_const n
+  , i32_rel .eq
+  , Plain.br_if 0
+  ]
 
 /- consume_space : string → string
    Returns the string without spaces in the front
  -/
 def consume_space : Module.Field := .funcs
-  { lbl     := .some is_space_id
+  { lbl     := .some consume_space_id
   , typeuse := .elab_param_res [(str, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
@@ -68,6 +64,7 @@ def consume_space : Module.Field := .funcs
         , i32_eqz
         , Plain.br_if 1     -- read a \0, end of string
         , locl (.get str)
+        , i32_mem (.load8 .u ⟨0, 0⟩)
         , Plain.call is_space_id
         , i32_eqz
         , Plain.br_if 1     -- read a non-space
@@ -82,7 +79,8 @@ def consume_space : Module.Field := .funcs
     , Plain.wasm_return
     ]
   }
-where str : Ident := ⟨"str", sorry, sorry⟩
+where 
+  str : Ident := ⟨"str", sorry, sorry⟩
 
 /- take_int: string × (base : int) → int* × string
    Tries to parse an integer from the string and returns the remainder when a
@@ -93,7 +91,7 @@ def take_int : Module.Field := .funcs
   , typeuse := .elab_param_res [(str, .num .i32), (base, .num .i32)] [.num .i32, .num .i32]
   , locals  := [⟨c, .num .i32⟩, ⟨res, .num .i32⟩, ⟨sign, .num .i32⟩]
   , body    :=
-    [ block .no_label
+    [ block .no_label             -- check base is within bounds
       [ block .no_label
         [ locl (.get base)
         , i32_const 2
@@ -177,7 +175,7 @@ def take_int : Module.Field := .funcs
             , i32_rel (.gt .u)
             , Plain.br_if 0
             , locl (.get c)     -- 'A' ≤ c ≤ 'Z'
-            , i32_const (Unsigned.ofNat 'A'.toNat)
+            , i32_const (Unsigned.ofNat 'A'.toNat - 10)
             , i32_bin .sub
             , locl (.tee c)
             , locl (.get base)
@@ -199,7 +197,7 @@ def take_int : Module.Field := .funcs
           , i32_rel (.gt .u)
           , Plain.br_if fail    -- fail if c > 'z'
           , locl (.get c)       -- 'a' ≤ c ≤ 'z'
-          , i32_const (Unsigned.ofNat 'a'.toNat)
+          , i32_const (Unsigned.ofNat 'a'.toNat - 10)
           , i32_bin .sub
           , locl (.tee c)
           , locl (.get base)
@@ -379,6 +377,7 @@ def num_tokens : Module.Field := .funcs
           , i32_eqz
           , Plain.br_if done    -- read a \0, end of string
           , locl (.get str)
+          , i32_mem (.load8 .u ⟨0, 0⟩)
           , Plain.call is_space_id
           , Plain.br_if cont    -- read a space, start over
           , locl (.get str)
@@ -451,7 +450,7 @@ def intern : List Module.Field :=
   , consume_space
   , take_int
   ]
-def lib    : List Module.Field := imports ++ intern ++ extern
+def lib : List Module.Field := imports ++ intern ++ extern
 
 end Parse
 

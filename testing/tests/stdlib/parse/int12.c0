@@ -1,0 +1,8 @@
+//test abort
+#use <parse>
+
+int main() {
+  int *i = parse_int("z0 0", 36);
+  if(i == NULL) error("didn't parse int");
+  return *i;
+}

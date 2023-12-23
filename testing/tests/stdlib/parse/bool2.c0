@@ -1,0 +1,9 @@
+//test return -1
+#use <parse>
+
+int main() {
+  bool *b = parse_bool("gasdg");
+  if(b == NULL) return -1;
+  if(*b) return 1;
+  return 0;
+}

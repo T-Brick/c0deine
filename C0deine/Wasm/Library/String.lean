@@ -34,7 +34,7 @@ def string_length : Module.Field := .funcs
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
     [ i32_const 0
-    , locl (.set 0)
+    , locl (.set 1)
     , block .no_label
       [ loop .no_label
         [ locl (.get 0)
@@ -50,7 +50,7 @@ def string_length : Module.Field := .funcs
         , Plain.br 0
         ]
       ]
-    , locl (.get 0)
+    , locl (.get 1)
     , Plain.wasm_return
     ]
   }
@@ -60,32 +60,35 @@ def string_length : Module.Field := .funcs
  -/
 def string_charat : Module.Field := .funcs
   { lbl     := .some string_charat_id
-  , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32)] [.num .i32]
-  , locals  := [⟨.none, .num .i32⟩]
+  , typeuse := .elab_param_res [(str, .num .i32), (idx, .num .i32)] [.num .i32]
+  , locals  := []
   , body    :=
     [ block .no_label
       [ block .no_label
-        [ locl (.get 1)
-        , locl (.get 1)
+        [ locl (.get idx)
         , i32_const 0
         , i32_rel (.lt .s)
         , Plain.br_if 0
-        , locl (.get 0)
+        , locl (.get idx)
+        , locl (.get str)
         , Plain.call string_length_id
         , i32_rel (.lt .s)
-        , Plain.br 1
+        , Plain.br_if 1
         ]
-      , Error.mem
+      , Error.assert
       , Plain.call Label.abort.toWasmIdent
       , Plain.unreachable
       ]
-    , locl (.get 0)
-    , locl (.get 1)
+    , locl (.get str)
+    , locl (.get idx)
     , i32_bin .add
     , i32_mem (.load8 .u ⟨0, 0⟩)
     , Plain.wasm_return
     ]
   }
+where
+  str : Ident := ⟨"str", sorry, sorry⟩
+  idx : Ident := ⟨"idx", sorry, sorry⟩
 
 /- string_join : string × string → string -/
 def string_join : Module.Field := .funcs

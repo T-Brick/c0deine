@@ -1,0 +1,8 @@
+//test return 0
+#use <conio>
+
+int main() {
+  print("Hello world!");
+  print("\n");
+  return 0;
+}

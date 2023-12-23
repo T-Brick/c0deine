@@ -1,0 +1,9 @@
+//test return 340
+#use <parse>
+
+int main() {
+  int *i = parse_int("Aa", 16);
+  int *j = parse_int("aA", 16);
+  if(i == NULL || j == NULL) error("didn't parse int");
+  return *i + *j;
+}

@@ -1,0 +1,16 @@
+//test return 0
+#use <string>
+
+int main() {
+  if (string_charat("0123456789", 0) != '0') return -1;
+  if (string_charat("0123456789", 1) != '1') return -1;
+  if (string_charat("0123456789", 2) != '2') return -1;
+  if (string_charat("0123456789", 3) != '3') return -1;
+  if (string_charat("0123456789", 4) != '4') return -1;
+  if (string_charat("0123456789", 5) != '5') return -1;
+  if (string_charat("0123456789", 6) != '6') return -1;
+  if (string_charat("0123456789", 7) != '7') return -1;
+  if (string_charat("0123456789", 8) != '8') return -1;
+  if (string_charat("0123456789", 9) != '9') return -1;
+  return 0;
+}

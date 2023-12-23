@@ -1,0 +1,8 @@
+//test return 0
+#use <parse>
+
+int main() {
+  int *i = parse_int("0", 10);
+  if(i == NULL) error("Couldn't parse int");
+  return *i;
+}

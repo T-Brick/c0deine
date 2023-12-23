@@ -1,0 +1,6 @@
+//test return 10
+#use <string>
+
+int main() {
+  return string_length("0123456789");
+}

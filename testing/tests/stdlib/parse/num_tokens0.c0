@@ -1,0 +1,6 @@
+//test return 1
+#use <parse>
+
+int main() {
+  return num_tokens("0");
+}
