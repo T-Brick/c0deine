@@ -1,0 +1,22 @@
+//test return 150
+// try using a compiler directive to use a non-existant library
+#use <conio>
+#use <conio>
+#use <string>
+#use <string>
+#use <parse>
+#use <parse>
+
+int main() {
+  string test = "150";
+  if(string_length(test) == 3) {
+    int* res = parse_int(test, 10);
+    if(res == NULL) {
+      error("failed to parse int");
+      return -1;
+    }
+    printint(*res);
+    return *res;
+  }
+  return -1;
+}

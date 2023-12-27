@@ -1,0 +1,8 @@
+//test return -1
+#use <string>
+
+int main() {
+  if(string_equal("134", "1341"))
+    return 0;
+  return -1;
+}

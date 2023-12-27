@@ -50,8 +50,8 @@ def printint : Module.Field := .funcs
   , locals  := []
   , body    := Util.string_fromint ++
     [ locl (.get 0)
-    , Plain.call print_id
-    , Plain.wasm_return
+    , call print_id
+    , wasm_return
     ]
   }
 
@@ -62,8 +62,8 @@ def printbool : Module.Field := .funcs
   , locals  := []
   , body    := Util.string_frombool ++
     [ locl (.get 0)
-    , Plain.call print_id
-    , Plain.wasm_return
+    , call print_id
+    , wasm_return
     ]
   }
 
@@ -74,7 +74,7 @@ def printchar : Module.Field := .funcs
   , locals  := [⟨.none, .num .i32⟩]
   , body    := Util.string_fromchar ++
     [ locl (.get 1)
-    , Plain.call print_id
+    , call print_id
     ]
   }
 

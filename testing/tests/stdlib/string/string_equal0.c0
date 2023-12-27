@@ -1,0 +1,8 @@
+//test return 0
+#use <string>
+
+int main() {
+  if(string_equal("", ""))
+    return 0;
+  return -1;
+}

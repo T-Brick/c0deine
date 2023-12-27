@@ -1,0 +1,6 @@
+//test return 0
+#use <string>
+
+int main() {
+  return string_compare("1341", "1341");
+}

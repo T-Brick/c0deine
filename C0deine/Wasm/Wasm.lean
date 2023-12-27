@@ -59,6 +59,12 @@ def stemp : SizedTemp → Module.Index :=
   .name ∘ Temp.toWasmIdent ∘ SizedTemp.temp
 def label : Label     → Module.Index := .name ∘ Label.toWasmIdent
 
+def br : Module.Index.Label → Instr      := .plain ∘ .br
+def br_if : Module.Index.Label → Instr   := .plain ∘ .br_if
+def call : Module.Index.Function → Instr := .plain ∘ .call
+def wasm_return : Instr                  := .plain .wasm_return
+def unreachable : Instr                  := .plain .unreachable
+
 /- We pass the signal numbers we want into the abort function
     (nb. div-by-zero is already a wasm exception)
 -/

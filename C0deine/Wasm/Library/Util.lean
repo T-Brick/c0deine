@@ -26,9 +26,9 @@ def string_frombool : List Instr :=
   [ block .no_label
       [ block .no_label
         [ locl (.get 0)
-        , Plain.br_if 0
+        , br_if 0
         , i32_const 6
-        , Plain.call Label.calloc.toWasmIdent
+        , call Label.calloc.toWasmIdent
         , locl (.tee 0)
         , i32_const (Unsigned.ofNat 'f'.toNat)
         , i32_mem (.store8 ⟨0, 0⟩)
@@ -44,10 +44,10 @@ def string_frombool : List Instr :=
         , locl (.get 0)
         , i32_const (Unsigned.ofNat 'e'.toNat)
         , i32_mem (.store8 ⟨4, 0⟩)
-        , Plain.br 1
+        , br 1
         ]
       , i32_const 5           -- input is true
-      , Plain.call Label.calloc.toWasmIdent
+      , call Label.calloc.toWasmIdent
       , locl (.tee 0)
       , i32_const (Unsigned.ofNat 't'.toNat)
       , i32_mem (.store8 ⟨0, 0⟩)
@@ -67,7 +67,7 @@ def string_frombool : List Instr :=
  -/
 def string_fromchar : List Instr :=
   [ i32_const 2
-  , Plain.call Label.calloc.toWasmIdent
+  , call Label.calloc.toWasmIdent
   , locl (.tee 1)
   , locl (.get 0)
   , i32_mem (.store8 ⟨0, 0⟩)

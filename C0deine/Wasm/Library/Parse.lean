@@ -36,17 +36,17 @@ def is_space : Module.Field := .funcs
       ++ char 12  -- \f form feed
       ++ char 13  -- \r carriage return
       ++ [ i32_const 0
-         , Plain.wasm_return
+         , wasm_return
          ]
     , i32_const 1
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 where char (n : Unsigned32) :=
   [ locl (.get 0)
   , i32_const n
   , i32_rel .eq
-  , Plain.br_if 0
+  , br_if 0
   ]
 
 /- consume_space : string → string
@@ -62,21 +62,21 @@ def consume_space : Module.Field := .funcs
         [ locl (.get str)
         , i32_mem (.load8 .u ⟨0, 0⟩)
         , i32_eqz
-        , Plain.br_if 1     -- read a \0, end of string
+        , br_if 1     -- read a \0, end of string
         , locl (.get str)
         , i32_mem (.load8 .u ⟨0, 0⟩)
-        , Plain.call is_space_id
+        , call is_space_id
         , i32_eqz
-        , Plain.br_if 1     -- read a non-space
+        , br_if 1     -- read a non-space
         , locl (.get str)
         , i32_const 1
         , i32_bin .add
         , locl (.set str)   -- increment string
-        , Plain.br 0        -- repeat
+        , br 0        -- repeat
         ]
       ]
     , locl (.get str)
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 where 
@@ -96,16 +96,16 @@ def take_int : Module.Field := .funcs
         [ locl (.get base)
         , i32_const 2
         , i32_rel (.lt .s)
-        , Plain.br_if 0
+        , br_if 0
         , locl (.get base)
         , i32_const 36
         , i32_rel (.gt .s)
-        , Plain.br_if 0
-        , Plain.br 1
+        , br_if 0
+        , br 1
         ]
       , Error.assert   -- todo maybe make this "error" with a specific msg
-      , Plain.call Label.abort.toWasmIdent
-      , Plain.unreachable
+      , call Label.abort.toWasmIdent
+      , unreachable
       ]
     , i32_const 0
     , locl (.set res)
@@ -118,7 +118,7 @@ def take_int : Module.Field := .funcs
           , i32_mem (.load8 .u ⟨0, 0⟩)
           , i32_const (Unsigned.ofNat '-'.toNat)
           , i32_rel .ne
-          , Plain.br_if 0
+          , br_if 0
           , i32_const (-1)
           , locl (.set sign)
           , locl (.get str)
@@ -131,10 +131,10 @@ def take_int : Module.Field := .funcs
           , i32_mem (.load8 .u ⟨0, 0⟩)
           , locl (.tee c)
           , i32_eqz
-          , Plain.br_if 1       -- if \0 then end of string
+          , br_if 1       -- if \0 then end of string
           , locl (.get c)
-          , Plain.call is_space_id
-          , Plain.br_if 1       -- encounted a whitespace char
+          , call is_space_id
+          , br_if 1       -- encounted a whitespace char
           , locl (.get str)
           , i32_const 1
           , i32_bin .add
@@ -146,68 +146,67 @@ def take_int : Module.Field := .funcs
           , locl (.get c)
           , i32_const (Unsigned.ofNat '0'.toNat)
           , i32_rel (.lt .u)
-          , Plain.br_if fail
+          , br_if fail
           , block .no_label
             [ locl (.get c)
             , i32_const (Unsigned.ofNat '9'.toNat)
             , i32_rel (.gt .u)
-            , Plain.br_if 0
+            , br_if 0
             , locl (.get c)     -- 0 ≤ c ≤ 9
             , i32_const (Unsigned.ofNat '0'.toNat)
             , i32_bin .sub
             , locl (.tee c)
             , locl (.get base)
             , i32_rel (.ge .u)
-            , Plain.br_if fail  -- fail if c ≥ base
+            , br_if fail  -- fail if c ≥ base
             , locl (.get res)
             , locl (.get c)
             , i32_bin .add
             , locl (.set res)
-            , Plain.br next     -- successfully parsed digit
+            , br next     -- successfully parsed digit
             ]
           , locl (.get c)       -- not a digit between 0-9 (c > '9')
           , i32_const (Unsigned.ofNat 'A'.toNat)
           , i32_rel (.lt .u)
-          , Plain.br_if fail    -- fail if c < 'A'
+          , br_if fail    -- fail if c < 'A'
           , block .no_label
             [ locl (.get c)
             , i32_const (Unsigned.ofNat 'Z'.toNat)
             , i32_rel (.gt .u)
-            , Plain.br_if 0
+            , br_if 0
             , locl (.get c)     -- 'A' ≤ c ≤ 'Z'
             , i32_const (Unsigned.ofNat 'A'.toNat - 10)
             , i32_bin .sub
             , locl (.tee c)
             , locl (.get base)
             , i32_rel (.ge .u)
-            , Plain.br_if fail  -- fail if c ≥ base
+            , br_if fail  -- fail if c ≥ base
             , locl (.get res)
             , locl (.get c)
             , i32_bin .add
             , locl (.set res)
-            , Plain.br next     -- successfully parsed digit
+            , br next     -- successfully parsed digit
             ]
-          ] ++  -- for some reason type inference is failing me without append
-          [ locl (.get c)       -- not a digit between 0-9 and A-Z
+          , locl (.get c)       -- not a digit between 0-9 and A-Z
           , i32_const (Unsigned.ofNat 'a'.toNat)
           , i32_rel (.lt .u)
-          , Plain.br_if fail    -- fail if c < 'a'
+          , br_if fail    -- fail if c < 'a'
           , locl (.get c)
           , i32_const (Unsigned.ofNat 'z'.toNat)
           , i32_rel (.gt .u)
-          , Plain.br_if fail    -- fail if c > 'z'
+          , br_if fail    -- fail if c > 'z'
           , locl (.get c)       -- 'a' ≤ c ≤ 'z'
           , i32_const (Unsigned.ofNat 'a'.toNat - 10)
           , i32_bin .sub
           , locl (.tee c)
           , locl (.get base)
           , i32_rel (.ge .u)
-          , Plain.br_if fail  -- fail if c ≥ base
+          , br_if fail          -- fail if c ≥ base
           , locl (.get res)
           , locl (.get c)
           , i32_bin .add
           , locl (.set res)
-          , Plain.br next     -- successfully parsed digit
+          , br next       -- successfully parsed digit
           ]
         ]
       , i32_const 1
@@ -215,12 +214,12 @@ def take_int : Module.Field := .funcs
       , locl (.get sign)
       , i32_bin .mul          -- apply sign to res
       , locl (.get str)
-      , Plain.wasm_return
+      , wasm_return
       ]
     , i32_const 0
     , i32_const 0
     , locl (.get str)
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 where
@@ -246,75 +245,75 @@ def parse_bool : Module.Field := .funcs
         , i32_mem (.load8 .u ⟨0, 0⟩)
         , i32_const (Unsigned.ofNat 't'.toNat)
         , i32_rel .ne
-        , Plain.br_if 0 -- try parsing false
+        , br_if 0 -- try parsing false
         , locl (.get 0)
         , i32_mem (.load8 .u ⟨1, 0⟩)
         , i32_const (Unsigned.ofNat 'r'.toNat)
         , i32_rel .ne
-        , Plain.br_if 1
+        , br_if 1
         , locl (.get 0)
         , i32_mem (.load8 .u ⟨2, 0⟩)
         , i32_const (Unsigned.ofNat 'u'.toNat)
         , i32_rel .ne
-        , Plain.br_if 1
+        , br_if 1
         , locl (.get 0)
         , i32_mem (.load8 .u ⟨3, 0⟩)
         , i32_const (Unsigned.ofNat 'e'.toNat)
         , i32_rel .ne
-        , Plain.br_if 1
+        , br_if 1
         , locl (.get 0)
         , i32_mem (.load8 .u ⟨4, 0⟩)
         , i32_const 0
         , i32_rel .ne
-        , Plain.br_if 1
+        , br_if 1
         , i32_const 1
-        , Plain.call Label.calloc.toWasmIdent
+        , call Label.calloc.toWasmIdent
         , locl (.tee 0)
         , i32_const 1
         , i32_mem (.store8 ⟨0, 0⟩)
         , locl (.get 0)
-        , Plain.wasm_return
+        , wasm_return
         ]
       , locl (.get 0)
       , i32_mem (.load8 .u ⟨0, 0⟩)
       , i32_const (Unsigned.ofNat 'f'.toNat)
       , i32_rel .ne
-      , Plain.br_if 0 -- not a bool
+      , br_if 0 -- not a bool
       , locl (.get 0)
       , i32_mem (.load8 .u ⟨1, 0⟩)
       , i32_const (Unsigned.ofNat 'a'.toNat)
       , i32_rel .ne
-      , Plain.br_if 0
+      , br_if 0
       , locl (.get 0)
       , i32_mem (.load8 .u ⟨2, 0⟩)
       , i32_const (Unsigned.ofNat 'l'.toNat)
       , i32_rel .ne
-      , Plain.br_if 0
+      , br_if 0
       , locl (.get 0)
       , i32_mem (.load8 .u ⟨3, 0⟩)
       , i32_const (Unsigned.ofNat 's'.toNat)
       , i32_rel .ne
-      , Plain.br_if 0
+      , br_if 0
       , locl (.get 0)
       , i32_mem (.load8 .u ⟨4, 0⟩)
       , i32_const (Unsigned.ofNat 'e'.toNat)
       , i32_rel .ne
-      , Plain.br_if 0
+      , br_if 0
       , locl (.get 0)
       , i32_mem (.load8 .u ⟨5, 0⟩)
       , i32_const 0
       , i32_rel .ne
-      , Plain.br_if 0
+      , br_if 0
       , i32_const 1
-      , Plain.call Label.calloc.toWasmIdent
+      , call Label.calloc.toWasmIdent
       , locl (.tee 0)
       , i32_const 0
       , i32_mem (.store8 ⟨0, 0⟩)
       , locl (.get 0)
-      , Plain.wasm_return
+      , wasm_return
       ]
     , i32_const 0
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
@@ -329,7 +328,7 @@ def parse_int : Module.Field := .funcs
   , body    :=
     [ locl (.get str)
     , locl (.get base)
-    , Plain.call take_int_id
+    , call take_int_id
     , locl (.set str)
     , locl (.set base)  -- int
     , locl (.set succ)
@@ -337,23 +336,23 @@ def parse_int : Module.Field := .funcs
       [ locl (.get str)
       , i32_mem (.load8 .u ⟨0, 0⟩)
       , i32_eqz
-      , Plain.br_if 0
+      , br_if 0
       , i32_const 0     -- ended on non-null char
-      , Plain.wasm_return
+      , wasm_return
       ]
     , block .no_label
       [ locl (.get succ)
-      , Plain.br_if 0
+      , br_if 0
       , i32_const 0     -- didn't parse
-      , Plain.wasm_return
+      , wasm_return
       ]
     , i32_const 4
-    , Plain.call Label.calloc.toWasmIdent
+    , call Label.calloc.toWasmIdent
     , locl (.tee succ)
     , locl (.get base)
     , i32_mem (.store ⟨0, 0⟩)
     , locl (.get succ)
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 where
@@ -373,11 +372,11 @@ def num_tokens : Module.Field := .funcs
     , block (.name done)
       [ loop (.name cont)
         [ locl (.get str)
-        , Plain.call consume_space_id
+        , call consume_space_id
         , locl (.tee str)
         , i32_mem (.load8 .u ⟨0, 0⟩)
         , i32_eqz
-        , Plain.br_if done      -- at \0, end of string
+        , br_if done      -- at \0, end of string
         , locl (.get res)       -- increment total number seen
         , i32_const 1
         , i32_bin .add
@@ -386,21 +385,21 @@ def num_tokens : Module.Field := .funcs
           [ locl (.get str)
           , i32_mem (.load8 .u ⟨0, 0⟩)
           , i32_eqz
-          , Plain.br_if done    -- read a \0, end of string
+          , br_if done    -- read a \0, end of string
           , locl (.get str)
           , i32_mem (.load8 .u ⟨0, 0⟩)
-          , Plain.call is_space_id
-          , Plain.br_if cont    -- read a space, start over
+          , call is_space_id
+          , br_if cont    -- read a space, start over
           , locl (.get str)
           , i32_const 1
           , i32_bin .add
           , locl (.set str)     -- increment string
-          , Plain.br 0          -- repeat
+          , br 0          -- repeat
           ]
         ]
       ]
     , locl (.get res)
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 where
@@ -420,30 +419,30 @@ def int_tokens : Module.Field := .funcs
     [ block fail
       [ block succ
         [ locl (.get str)
-        , Plain.call consume_space_id
+        , call consume_space_id
         , locl (.set str)
         , loop .no_label
           [ locl (.get str)
           , locl (.get base)
-          , Plain.call take_int_id
+          , call take_int_id
           , locl (.set str)
           , Plain.drop        -- dont care about the parsed int
           , i32_eqz
-          , Plain.br_if fail  -- couldn't parse an int
+          , br_if fail  -- couldn't parse an int
           , locl (.get str)
-          , Plain.call consume_space_id
+          , call consume_space_id
           , locl (.tee str)
           , i32_mem (.load8 .u ⟨0, 0⟩)
           , i32_eqz
-          , Plain.br_if succ  -- end of string
-          , Plain.br 0
+          , br_if succ  -- end of string
+          , br 0
           ]
         ]
       , i32_const 1
-      , Plain.wasm_return
+      , wasm_return
       ]
     , i32_const 0
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 where
@@ -460,7 +459,7 @@ def parse_tokens : Module.Field := .funcs
   , body    :=
     [ .comment "todo impl"
     , i32_const 0
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
@@ -471,13 +470,13 @@ def parse_ints : Module.Field := .funcs
   , locals  := [⟨arr, .num .i32⟩, ⟨temp, .num .i32⟩, ⟨temp2, .num .i32⟩]
   , body    :=
     [ locl (.get str)
-    , Plain.call num_tokens_id
+    , call num_tokens_id
     , locl (.tee temp)
     , i32_const 1              -- add additional space for length
     , i32_bin .add
     , i32_const 4
     , i32_bin .mul
-    , Plain.call Label.calloc.toWasmIdent
+    , call Label.calloc.toWasmIdent
     , locl (.tee arr)
     , locl (.get temp)
     , i32_mem (.store ⟨0, 0⟩)  -- store length
@@ -489,16 +488,16 @@ def parse_ints : Module.Field := .funcs
     , block fail
       [ block succ
         [ locl (.get str)
-        , Plain.call consume_space_id
+        , call consume_space_id
         , locl (.set str)
         , loop .no_label
           [ locl (.get str)
           , locl (.get base)
-          , Plain.call take_int_id
+          , call take_int_id
           , locl (.set str)
           , locl (.set temp2)        -- store parsed int
           , i32_eqz
-          , Plain.br_if fail         -- couldn't parse an int
+          , br_if fail         -- couldn't parse an int
           , locl (.get temp)         -- write the int into the array
           , locl (.get temp2)
           , i32_mem (.store ⟨0, 0⟩)
@@ -507,20 +506,20 @@ def parse_ints : Module.Field := .funcs
           , i32_bin .add             -- increment arr writer temp
           , locl (.set temp)
           , locl (.get str)
-          , Plain.call consume_space_id
+          , call consume_space_id
           , locl (.tee str)
           , i32_mem (.load8 .u ⟨0, 0⟩)
           , i32_eqz
-          , Plain.br_if succ  -- end of string
-          , Plain.br 0
+          , br_if succ  -- end of string
+          , br 0
           ]
         ]
       , locl (.get arr)
-      , Plain.wasm_return
+      , wasm_return
       ]
     , Error.assert
-    , Plain.call Label.abort.toWasmIdent
-    , Plain.unreachable
+    , call Label.abort.toWasmIdent
+    , unreachable
     ]
   }
 where

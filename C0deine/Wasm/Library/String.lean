@@ -42,16 +42,16 @@ def string_length : Module.Field := .funcs
         , i32_bin .add
         , i32_mem (.load8 .u ⟨0, 0⟩)
         , i32_eqz
-        , Plain.br_if 1
+        , br_if 1
         , locl (.get 1)
         , i32_const 1
         , i32_bin .add
         , locl (.set 1)
-        , Plain.br 0
+        , br 0
         ]
       ]
     , locl (.get 1)
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
@@ -68,22 +68,22 @@ def string_charat : Module.Field := .funcs
         [ locl (.get idx)
         , i32_const 0
         , i32_rel (.lt .s)
-        , Plain.br_if 0
+        , br_if 0
         , locl (.get idx)
         , locl (.get str)
-        , Plain.call string_length_id
+        , call string_length_id
         , i32_rel (.lt .s)
-        , Plain.br_if 1
+        , br_if 1
         ]
       , Error.assert
-      , Plain.call Label.abort.toWasmIdent
-      , Plain.unreachable
+      , call Label.abort.toWasmIdent
+      , unreachable
       ]
     , locl (.get str)
     , locl (.get idx)
     , i32_bin .add
     , i32_mem (.load8 .u ⟨0, 0⟩)
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 where
@@ -98,7 +98,7 @@ def string_join : Module.Field := .funcs
   , body    :=
     [ .comment "todo impl"
     , i32_const 0
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
@@ -110,33 +110,99 @@ def string_sub : Module.Field := .funcs
   , body    :=
     [ .comment "todo impl"
     , i32_const 0
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
 /- string_equal : string × string → bool -/
 def string_equal : Module.Field := .funcs
   { lbl     := .some string_equal_id
-  , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32)] [.num .i32]
+  , typeuse := .elab_param_res [(str1, .num .i32), (str2, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
-    [ .comment "todo impl"
+    [ block .no_label
+      [ loop .no_label
+        [ locl (.get str1)
+        , i32_mem (.load8 .u ⟨0, 0⟩)
+        , locl (.get str2)
+        , i32_mem (.load8 .u ⟨0, 0⟩)
+        , i32_rel .ne
+        , br_if 1                     -- strings are not equal
+        , locl (.get str1)
+        , i32_mem (.load8 .u ⟨0, 0⟩)
+        , locl (.get str2)
+        , i32_mem (.load8 .u ⟨0, 0⟩)
+        , i32_bin .and               -- if either str1 or str2 NULL then 0
+        , locl (.get str1)
+        , i32_const 1
+        , i32_bin .add
+        , locl (.set str1)            -- increment str1
+        , locl (.get str2)
+        , i32_const 1
+        , i32_bin .add
+        , locl (.set str2)            -- increment str2
+        , br_if 0                     -- restart loop if not null
+        ]
+      , i32_const 1
+      , wasm_return
+      ]
     , i32_const 0
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
+where
+  str1 : Ident := ⟨"str1", sorry, sorry⟩
+  str2 : Ident := ⟨"str2", sorry, sorry⟩
 
 /- string_compare : string × string → int -/
 def string_compare : Module.Field := .funcs
   { lbl     := .some string_compare_id
-  , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32)] [.num .i32]
+  , typeuse := .elab_param_res [(str1, .num .i32), (str2, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
-    [ .comment "todo impl"
-    , i32_const 0
-    , Plain.wasm_return
+    [ block .no_label
+      [ loop .no_label
+        [ locl (.get str1)
+        , i32_mem (.load8 .u ⟨0, 0⟩)
+        , locl (.get str2)
+        , i32_mem (.load8 .u ⟨0, 0⟩)
+        , i32_rel .ne
+        , br_if 1                     -- strings are not equal
+        , locl (.get str1)
+        , i32_mem (.load8 .u ⟨0, 0⟩)
+        , locl (.get str2)
+        , i32_mem (.load8 .u ⟨0, 0⟩)
+        , i32_bin .and               -- if either str1 or str2 NULL then 0
+        , locl (.get str1)
+        , i32_const 1
+        , i32_bin .add
+        , locl (.set str1)            -- increment str1
+        , locl (.get str2)
+        , i32_const 1
+        , i32_bin .add
+        , locl (.set str2)            -- increment str2
+        , br_if 0                     -- restart loop if not null
+        ]
+      , i32_const 0                   -- equal
+      , wasm_return
+      ]
+    , block .no_label
+      [ locl (.get str1)              -- not equal, compare
+      , i32_mem (.load8 .u ⟨0, 0⟩)
+      , locl (.get str2)
+      , i32_mem (.load8 .u ⟨0, 0⟩)
+      , i32_rel (.lt .u)
+      , br_if 0
+      , i32_const (-1)                -- str1 > str2
+      , wasm_return
+      ]
+    , i32_const 1                     -- str1 < str2
+    , wasm_return
     ]
   }
+where
+  str1 : Ident := ⟨"str1", sorry, sorry⟩
+  str2 : Ident := ⟨"str2", sorry, sorry⟩
 
 /- string_fromint : int → string -/
 def string_fromint : Module.Field := .funcs
@@ -145,7 +211,7 @@ def string_fromint : Module.Field := .funcs
   , locals  := [⟨.none, .num .i32⟩]
   , body    := Util.string_fromint ++
     [ locl (.get 0)
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
@@ -156,7 +222,7 @@ def string_frombool : Module.Field := .funcs
   , locals  := [⟨.none, .num .i32⟩]
   , body    := Util.string_frombool ++
     [ locl (.get 0)
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
@@ -167,7 +233,7 @@ def string_fromchar : Module.Field := .funcs
   , locals  := [⟨.none, .num .i32⟩]
   , body    := Util.string_fromchar ++
     [ locl (.get 1)
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
@@ -179,7 +245,7 @@ def string_tolower : Module.Field := .funcs
   , body    :=
     [ .comment "todo impl"
     , i32_const 0
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
@@ -193,7 +259,7 @@ def string_terminated : Module.Field := .funcs
   , body    :=
     [ .comment "todo impl"
     , i32_const 0
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
@@ -205,7 +271,7 @@ def string_to_chararray : Module.Field := .funcs
   , body    :=
     [ .comment "todo impl"
     , i32_const 0
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
@@ -217,7 +283,7 @@ def string_from_chararray : Module.Field := .funcs
   , body    :=
     [ .comment "todo impl"
     , i32_const 0
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
@@ -228,7 +294,7 @@ def char_ord : Module.Field := .funcs
   , locals  := []
   , body    :=
     [ locl (.get 0)
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
@@ -239,7 +305,7 @@ def char_chr : Module.Field := .funcs
   , locals  := [⟨.none, .num .i32⟩]
   , body    :=
     [ locl (.get 0)
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
@@ -251,7 +317,7 @@ def format : Module.Field := .funcs
   , body    :=
     [ .comment "todo impl"
     , i32_const 0
-    , Plain.wasm_return
+    , wasm_return
     ]
   }
 
