@@ -366,38 +366,178 @@ where
  -/
 def string_terminated : Module.Field := .funcs
   { lbl     := .some string_terminated_id
-  , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32)] [.num .i32]
-  , locals  := [⟨.none, .num .i32⟩]
-  , body    :=
-    [ .comment "todo impl"
-    , i32_const 0
-    , wasm_return
+  , typeuse := .elab_param_res [(arr, .num .i32), (n, .num .i32)] [.num .i32]
+  , locals  := [⟨i, .num .i32⟩]
+  , body    := [wat_instr_list|
+      block     -- bounds check
+        block
+          local.get ↑n
+          i32.const 0
+          i32.lt_s
+          br_if 0
+          local.get ↑arr
+          i32.eqz
+          br_if 0
+          local.get ↑arr
+          i32.const 8
+          i32.sub         -- get array length
+          i32.load
+          local.get ↑n
+          i32.lt_s
+          br_if 0
+          br 1
+        end
+        (↑Error.assert)
+        call ↑Label.abort.toWasmIdent
+        unreachable
+      end
+      i32.const 0
+      local.set ↑i
+      block ↑fail
+        block ↑succ
+          loop
+            local.get ↑i
+            local.get ↑n
+            i32.ge_s
+            br_if ↑fail
+            local.get ↑arr
+            local.get ↑i
+            i32.add
+            i32.load8_u
+            i32.eqz
+            br_if ↑succ
+            local.get ↑i
+            i32.const 1
+            i32.add
+            local.set ↑i
+            br 0
+          end
+        end ↑succ
+        i32.const 1
+        return
+      end ↑fail
+      i32.const 0
+      return
     ]
   }
+where
+  arr  : Ident := ⟨"arr", sorry, sorry⟩
+  n    : Ident := ⟨"n", sorry, sorry⟩
+  i    : Ident := ⟨"i", sorry, sorry⟩
+  fail : Ident := ⟨"fail", sorry, sorry⟩
+  succ : Ident := ⟨"succ", sorry, sorry⟩
 
 /- string_to_chararray : string → char[] -/
 def string_to_chararray : Module.Field := .funcs
   { lbl     := .some string_to_chararray_id
-  , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
-  , locals  := [⟨.none, .num .i32⟩]
-  , body    :=
-    [ .comment "todo impl"
-    , i32_const 0
-    , wasm_return
+  , typeuse := .elab_param_res [(str, .num .i32)] [.num .i32]
+  , locals  := [⟨arr, .num .i32⟩, ⟨temp, .num .i32⟩, ⟨arrw, .num .i32⟩]
+  , body    := [wat_instr_list|
+      local.get ↑str
+      call ↑string_length_id
+      i32.const 1
+      i32.add                 -- 1 for \0
+      local.tee ↑temp
+      i32.const 8             -- 8 for length info
+      i32.add
+      call ↑Label.calloc.toWasmIdent
+      local.tee ↑arr
+      local.get ↑temp
+      i32.store
+      local.get ↑arr
+      i32.const 8
+      i32.add
+      local.tee ↑arr
+      local.set ↑arrw
+      block
+        loop
+          local.get ↑str
+          i32.load8_u
+          local.tee ↑temp
+          i32.eqz
+          br_if 1           -- reached \0, done
+          local.get ↑arrw
+          local.get ↑temp
+          i32.store8
+          local.get ↑arrw
+          i32.const 1
+          i32.add
+          local.set ↑arrw
+          local.get ↑str
+          i32.const 1
+          i32.add
+          local.set ↑str
+          br 0
+        end
+      end
+      local.get ↑arr
+      return
     ]
   }
+where
+  str  : Ident := ⟨"str", sorry, sorry⟩
+  arr  : Ident := ⟨"arr", sorry, sorry⟩
+  temp : Ident := ⟨"temp", sorry, sorry⟩
+  arrw : Ident := ⟨"arrw", sorry, sorry⟩
 
 /- string_from_chararray : char[] → string -/
 def string_from_chararray : Module.Field := .funcs
   { lbl     := .some string_from_chararray_id
-  , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
-  , locals  := [⟨.none, .num .i32⟩]
-  , body    :=
-    [ .comment "todo impl"
-    , i32_const 0
-    , wasm_return
+  , typeuse := .elab_param_res [(arr, .num .i32)] [.num .i32]
+  , locals  := [⟨str, .num .i32⟩, ⟨strw, .num .i32⟩, ⟨temp, .num .i32⟩]
+  , body    := [wat_instr_list|
+      block       -- contract checks
+        block
+          local.get ↑arr
+          i32.eqz
+          br_if 0
+          local.get ↑arr
+          local.get ↑arr
+          i32.const 8
+          i32.sub
+          i32.load
+          local.tee ↑str      -- store length here
+          call ↑string_terminated_id
+          br_if 1
+        end
+        (↑Error.assert)
+        call ↑Label.abort.toWasmIdent
+        unreachable
+      end
+      local.get ↑str
+      call ↑Label.calloc.toWasmIdent
+      local.tee ↑str
+      local.set ↑strw
+      block
+        loop
+          local.get ↑arr
+          i32.load8_u
+          local.tee ↑temp
+          i32.eqz
+          br_if 1
+          local.get ↑strw
+          local.get ↑temp
+          i32.store8
+          local.get ↑arr
+          i32.const 1
+          i32.add
+          local.set ↑arr
+          local.get ↑strw
+          i32.const 1
+          i32.add
+          local.set ↑strw
+          br 0
+        end
+      end
+      local.get ↑str
+      return
     ]
   }
+where
+  str  : Ident := ⟨"str", sorry, sorry⟩
+  arr  : Ident := ⟨"arr", sorry, sorry⟩
+  temp : Ident := ⟨"temp", sorry, sorry⟩
+  strw : Ident := ⟨"strw", sorry, sorry⟩
 
 /- char_ord : char → int -/
 def char_ord : Module.Field := .funcs

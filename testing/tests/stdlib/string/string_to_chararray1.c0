@@ -1,0 +1,10 @@
+//test return 0
+#use <string>
+
+int main() {
+  string s = "";
+  char[] arr = string_to_chararray(s);
+  if(arr[0] == '\0')
+    return 0;
+  return 1;
+}

@@ -1,0 +1,14 @@
+//test return 0
+#use <string>
+
+int main() {
+  string s = "0123456789";
+  char[] arr = string_to_chararray(s);
+  for(int i = 0; i < 10; i++) {
+    if(arr[i] != string_charat(s, i))
+      return -1;
+  }
+  if(arr[10] == '\0')
+    return 0;
+  return 1;
+}

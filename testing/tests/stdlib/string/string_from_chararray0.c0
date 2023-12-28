@@ -1,0 +1,10 @@
+//test return 0
+#use <string>
+
+int main() {
+  char[] arr = alloc_array(char, 10);
+  string s = string_from_chararray(arr);
+  if(string_equal(s, ""))
+    return 0;
+  return 1;
+}

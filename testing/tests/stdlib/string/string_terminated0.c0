@@ -1,0 +1,9 @@
+//test return 0
+#use <string>
+
+int main() {
+  char[] arr = alloc_array(char, 10);
+  if(string_terminated(arr, 10))
+    return 0;
+  return 1;
+}

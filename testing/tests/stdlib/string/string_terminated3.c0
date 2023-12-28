@@ -1,0 +1,15 @@
+//test return 0
+#use <string>
+
+int main() {
+  char[] arr = alloc_array(char, 10);
+
+  for(int i = 0; i < 9; i++) { // end still 0
+    arr[i] = 'a';
+    if(i == 4) arr[i] = '\0';
+  }
+
+  if(string_terminated(arr, 5))
+    return 0;
+  return 1;
+}
