@@ -1,0 +1,7 @@
+//test memerror
+#use <parse>
+
+int main() {
+  int[] arr = parse_ints("    ", 10);
+  return arr[0];
+}

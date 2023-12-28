@@ -1,0 +1,12 @@
+//test return 0
+#use <parse>
+
+int main() {
+  string[] arr = parse_tokens("\t\t\r\n10 11\f12 13\t\t\r\n14 15 16 17 18 19\r\t");
+  for(int i = 0; i < 10; i++) {
+    int *x = parse_int(arr[i], 10);
+    if(x == NULL) return 1;
+    if(*x != i + 10) return -1;
+  }
+  return 0;
+}

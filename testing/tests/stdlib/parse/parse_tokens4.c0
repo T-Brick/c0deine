@@ -1,0 +1,11 @@
+//test memerror
+#use <parse>
+
+int main() {
+  string[] arr = parse_tokens("a b ff d");
+  int* x = parse_int(arr[10], 16);
+  if(x == NULL) return -1;
+  if(*x == 255)
+    return 0;
+  return 1;
+}

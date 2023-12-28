@@ -92,7 +92,8 @@ where
  -/
 def take_int : Module.Field := .funcs
   { lbl     := .some take_int_id
-  , typeuse := .elab_param_res [(str, .num .i32), (base, .num .i32)] [.num .i32, .num .i32, .num .i32]
+  , typeuse := .elab_param_res [(str, .num .i32), (base, .num .i32)]
+                  [.num .i32, .num .i32, .num .i32]
   , locals  := [⟨c, .num .i32⟩, ⟨res, .num .i32⟩, ⟨sign, .num .i32⟩]
   , body    := [wat_instr_list|
       block                       -- check base is within bounds
@@ -457,14 +458,85 @@ where
 /- parse_tokens : string → string[] -/
 def parse_tokens : Module.Field := .funcs
   { lbl     := .some parse_tokens_id
-  , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
-  , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
-  , body    :=
-    [ .comment "todo impl"
-    , i32_const 0
-    , wasm_return
+  , typeuse := .elab_param_res [(str, .num .i32)] [.num .i32]
+  , locals  := [ ⟨toks, .num .i32⟩, ⟨tok, .num .i32⟩, ⟨start, .num .i32⟩
+               , ⟨temp, .num .i32⟩, ⟨toksw, .num .i32⟩]
+  , body    := [wat_instr_list|
+      local.get ↑str
+      call ↑num_tokens_id
+      local.tee ↑temp
+      i32.const 1       -- space for length
+      i32.add
+      i32.const 8       -- we allocate 8 bites for pointers even if they are 4
+      i32.mul
+      call ↑Label.calloc.toWasmIdent
+      local.tee ↑toks
+      local.get ↑temp
+      i32.store
+      local.get ↑toks
+      i32.const 8
+      i32.add
+      local.tee ↑toks
+      local.set ↑toksw
+      block ↑done
+        loop
+          local.get ↑str
+          call ↑consume_space_id
+          local.tee ↑str
+          i32.load8_u
+          i32.eqz
+          br_if ↑done         -- reached \0 end of string
+          local.get ↑str
+          local.set ↑start
+          block
+            loop                -- parse token
+              local.get ↑str
+              i32.const 1
+              i32.add
+              local.tee ↑str
+              i32.load8_u
+              local.tee ↑temp
+              i32.eqz
+              br_if 1           -- reached \0, save last token
+              local.get ↑temp
+              call ↑is_space_id
+              br_if 1           -- reached space (i.e. end of token)
+              br 0
+            end
+          end                   -- allocate token
+          local.get ↑str
+          local.get ↑start
+          i32.sub               -- length of the parsed token
+          local.tee ↑temp
+          i32.const 1
+          i32.add               -- add space for \0
+          call ↑Label.calloc.toWasmIdent
+          local.tee ↑tok
+          local.get ↑start
+          local.get ↑temp
+          memory.copy           -- copy token into tok
+          local.get ↑toksw
+          local.get ↑tok
+          i32.store             -- store address in string
+          local.get ↑toksw
+          i32.const 8
+          i32.add
+          local.set ↑toksw      -- increment token array
+          br 0                  -- repeat
+        end
+      end ↑done
+      local.get ↑toks
+      return
     ]
   }
+where
+  str   : Ident := ⟨"str" , sorry, sorry⟩
+  toks  : Ident := ⟨"toks", sorry, sorry⟩
+  tok   : Ident := ⟨"tok", sorry, sorry⟩
+  start : Ident := ⟨"start", sorry, sorry⟩
+  temp  : Ident := ⟨"temp", sorry, sorry⟩
+  toksw : Ident := ⟨"toksw", sorry, sorry⟩
+  done  : Ident := ⟨"done", sorry, sorry⟩
 
 /- parse_ints : string → int[] -/
 def parse_ints : Module.Field := .funcs
@@ -475,7 +547,7 @@ def parse_ints : Module.Field := .funcs
       local.get ↑str
       call ↑num_tokens_id
       local.tee ↑temp
-      i32.const 1               -- add additional space for length
+      i32.const 2               -- add additional space for length (8 bytes)
       i32.add
       i32.const 4
       i32.mul
@@ -484,7 +556,7 @@ def parse_ints : Module.Field := .funcs
       local.get ↑temp
       i32.store                 -- store length
       local.get ↑arr
-      i32.const 4
+      i32.const 8
       i32.add
       local.tee ↑arr
       local.set ↑temp

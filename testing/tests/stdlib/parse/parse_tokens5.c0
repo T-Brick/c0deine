@@ -1,0 +1,8 @@
+//test memerror
+#use <parse>
+
+int main() {
+  string[] arr = parse_tokens("    ");
+  arr[0];
+  return 1;
+}
