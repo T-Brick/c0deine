@@ -1,0 +1,9 @@
+//test return 0
+#use <string>
+
+int main() {
+  string test = string_fromint(1);
+  if(string_equal(test, "1"))
+    return 0;
+  return -1;
+}

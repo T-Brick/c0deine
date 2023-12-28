@@ -275,10 +275,10 @@ where
 /- string_fromint : int → string -/
 def string_fromint : Module.Field := .funcs
   { lbl     := .some string_fromint_id
-  , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
-  , locals  := [⟨.none, .num .i32⟩]
+  , typeuse := .elab_param_res Util.string_fromint.params [.num .i32]
+  , locals  := Util.string_fromint.locals
   , body    := Util.string_fromint ++
-    [ locl (.get 0)
+    [ locl (.get Util.string_fromint.str)
     , wasm_return
     ]
   }

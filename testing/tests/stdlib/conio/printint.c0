@@ -3,7 +3,12 @@
 
 int main() {
   for(int i = 10; i < 20; i++) {
+    printint(-i);
+  }
+  println("");
+  for(int i = 10; i < 20; i++) {
     printint(i);
   }
+  println("");
   return 0;
 }

@@ -21,8 +21,110 @@ namespace Library.Util
 
 open Wasm.Text.Notation
 
-def string_fromint : List Instr :=
-  [ .comment "todo impl" ]
+/- takes int in local string_fromint.num and returns string_fromint.str -/
+def string_fromint : List Instr := [wat_instr_list|
+    block
+      block
+        local.get ↑num
+        br_if 0           -- quick bound for when num == 0
+        i32.const 2
+        call ↑Label.calloc.toWasmIdent
+        local.tee ↑str
+        i32.const ↑(Unsigned.ofNat '0'.toNat)
+        i32.store8
+        br 1
+      end
+      local.get ↑num      -- record sign and flipping if needed
+      local.get ↑num
+      i32.const 0
+      i32.lt_s
+      local.tee ↑sign     -- 1 if negative, 0 if positive
+      i32.const ↑(-1)
+      i32.mul             -- now -1 if negative, 0 if positive
+      i32.xor             -- num ^ (-sign) + sign = abs(num)
+      local.get ↑sign
+      i32.add
+      local.set ↑num      -- num is now positive and sign is set
+      i32.const 0
+      local.set ↑len
+      local.get ↑num
+      local.set ↑n
+      block               -- compute digit length of integers
+        loop
+          local.get ↑n
+          i32.eqz
+          br_if 1
+          local.get ↑len
+          i32.const 1
+          i32.add
+          local.set ↑len
+          local.get ↑n
+          i32.const 10
+          i32.div_s
+          local.set ↑n
+          br 0
+        end
+      end
+      local.get ↑len
+      local.get ↑sign
+      i32.const 1
+      i32.add
+      i32.add             -- add space for sign and \0
+      call ↑Label.calloc.toWasmIdent
+      local.tee ↑str
+      local.tee ↑strw
+      i32.const ↑(Unsigned.ofNat '-'.toNat)
+      i32.store8          -- always add negative sign, just override it if pos
+      local.get ↑strw
+      local.get ↑sign
+      i32.add
+      local.get ↑len
+      i32.add
+      i32.const 1
+      i32.sub
+      local.set ↑strw     -- move strw to the end; decrement as we go
+      i32.const 0
+      local.set ↑n        -- n can be used as indexer now
+      loop
+        local.get ↑n
+        local.get ↑len
+        i32.ge_s
+        br_if 1           -- done if n ≥ len
+        local.get ↑strw
+        local.get ↑num
+        i32.const 10
+        i32.rem_s
+        i32.const ↑(Unsigned.ofNat '0'.toNat)
+        i32.add
+        i32.store8        -- store char
+        local.get ↑num    -- update vars
+        i32.const 10
+        i32.div_s
+        local.set ↑num
+        local.get ↑strw
+        i32.const 1
+        i32.sub
+        local.set ↑strw
+        local.get ↑n
+        i32.const 1
+        i32.add
+        local.set ↑n
+        br 0
+      end -- loop
+    end
+  ]
+where
+  num  : Ident := ⟨"num" , sorry, sorry⟩
+  n    : Ident := ⟨"n"   , sorry, sorry⟩
+  str  : Ident := ⟨"str" , sorry, sorry⟩
+  strw : Ident := ⟨"strw", sorry, sorry⟩
+  len  : Ident := ⟨"len" , sorry, sorry⟩
+  sign : Ident := ⟨"sign", sorry, sorry⟩
+  params : List Typ.Param := [⟨num, .num .i32⟩]
+  locals : List Module.Local :=
+    [ ⟨n, .num .i32⟩, ⟨str, .num .i32⟩, ⟨strw, .num .i32⟩, ⟨len, .num .i32⟩
+    , ⟨sign, .num .i32⟩
+    ]
 
 /- takes a bool in the zeroth local returns string in same local -/
 def string_frombool : List Instr := [wat_instr_list|

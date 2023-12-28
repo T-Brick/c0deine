@@ -46,10 +46,10 @@ def println : Module.Field := .imports
 /- printint : int → unit -/
 def printint : Module.Field := .funcs
   { lbl     := .some printint_id
-  , typeuse := .elab_param_res [(.none, .num .i32)] []
-  , locals  := []
+  , typeuse := .elab_param_res Util.string_fromint.params []
+  , locals  := Util.string_fromint.locals
   , body    := Util.string_fromint ++
-    [ locl (.get 0)
+    [ locl (.get Util.string_fromint.str)
     , call print_id
     , wasm_return
     ]
