@@ -4,6 +4,7 @@
    - Thea Brick
  -/
 import C0deine.Wasm.Library.Util
+import Wasm.Notation
 
 namespace C0deine.Target.Wasm.Library.String
 
@@ -27,31 +28,33 @@ def char_ord_id              : Ident := ⟨"char_ord"             , sorry, sorry
 def char_chr_id              : Ident := ⟨"char_chr"             , sorry, sorry⟩
 def format_id                : Ident := ⟨"format"               , sorry, sorry⟩
 
+open Wasm.Text.Notation
+
 /- string_length : string → int -/
 def string_length : Module.Field := .funcs
   { lbl     := .some string_length_id
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
-  , body    :=
-    [ i32_const 0
-    , locl (.set 1)
-    , block .no_label
-      [ loop .no_label
-        [ locl (.get 0)
-        , locl (.get 1)
-        , i32_bin .add
-        , i32_mem (.load8 .u ⟨0, 0⟩)
-        , i32_eqz
-        , br_if 1
-        , locl (.get 1)
-        , i32_const 1
-        , i32_bin .add
-        , locl (.set 1)
-        , br 0
-        ]
-      ]
-    , locl (.get 1)
-    , wasm_return
+  , body    := [wat_instr_list|
+      i32.const 0
+      local.set 1
+      block
+        loop
+          local.get 0
+          local.get 1
+          i32.add
+          i32.load8_u
+          i32.eqz
+          br_if 1
+          local.get 1
+          i32.const 1
+          i32.add
+          local.set 1
+          br 0
+        end
+      end
+      local.get 1
+      return
     ]
   }
 
@@ -62,28 +65,28 @@ def string_charat : Module.Field := .funcs
   { lbl     := .some string_charat_id
   , typeuse := .elab_param_res [(str, .num .i32), (idx, .num .i32)] [.num .i32]
   , locals  := []
-  , body    :=
-    [ block .no_label
-      [ block .no_label
-        [ locl (.get idx)
-        , i32_const 0
-        , i32_rel (.lt .s)
-        , br_if 0
-        , locl (.get idx)
-        , locl (.get str)
-        , call string_length_id
-        , i32_rel (.lt .s)
-        , br_if 1
-        ]
-      , Error.assert
-      , call Label.abort.toWasmIdent
-      , unreachable
-      ]
-    , locl (.get str)
-    , locl (.get idx)
-    , i32_bin .add
-    , i32_mem (.load8 .u ⟨0, 0⟩)
-    , wasm_return
+  , body    := [wat_instr_list|
+      block
+        block
+          local.get ↑idx
+          i32.const 0
+          i32.lt_s
+          br_if 0
+          local.get ↑idx
+          local.get ↑str
+          call ↑string_length_id
+          i32.lt_s
+          br_if 1
+        end
+        (↑Error.assert)
+        call ↑Label.abort.toWasmIdent
+        unreachable
+      end
+      local.get ↑str
+      local.get ↑idx
+      i32.add
+      i32.load8_u
+      return
     ]
   }
 where
@@ -119,85 +122,87 @@ def string_equal : Module.Field := .funcs
   { lbl     := .some string_equal_id
   , typeuse := .elab_param_res [(str1, .num .i32), (str2, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
-  , body    :=
-    [ block .no_label
-      [ loop .no_label
-        [ locl (.get str1)
-        , i32_mem (.load8 .u ⟨0, 0⟩)
-        , locl (.get str2)
-        , i32_mem (.load8 .u ⟨0, 0⟩)
-        , i32_rel .ne
-        , br_if 1                     -- strings are not equal
-        , locl (.get str1)
-        , i32_mem (.load8 .u ⟨0, 0⟩)
-        , locl (.get str2)
-        , i32_mem (.load8 .u ⟨0, 0⟩)
-        , i32_bin .and               -- if either str1 or str2 NULL then 0
-        , locl (.get str1)
-        , i32_const 1
-        , i32_bin .add
-        , locl (.set str1)            -- increment str1
-        , locl (.get str2)
-        , i32_const 1
-        , i32_bin .add
-        , locl (.set str2)            -- increment str2
-        , br_if 0                     -- restart loop if not null
-        ]
-      , i32_const 1
-      , wasm_return
-      ]
-    , i32_const 0
-    , wasm_return
+  , body    := [wat_instr_list|
+      block
+        loop
+          local.get ↑str1
+          i32.load8_u
+          local.get ↑str2
+          i32.load8_u
+          i32.ne
+          br_if 1             -- strings are not equal
+          local.get ↑str1
+          i32.load8_u
+          local.get ↑str2
+          i32.load8_u
+          i32.and             -- if either str1 or str2 NULL then 0
+          local.get ↑str1
+          i32.const 1
+          i32.add
+          local.set ↑str1     -- increment str1
+          local.get ↑str2
+          i32.const 1
+          i32.add
+          local.set ↑str2     -- increment str2
+          br_if 0             -- restart loop if not null
+        end
+        i32.const 1
+        return
+      end
+      i32.const 0
+      return
     ]
   }
 where
   str1 : Ident := ⟨"str1", sorry, sorry⟩
   str2 : Ident := ⟨"str2", sorry, sorry⟩
 
+#eval string_equal
+
 /- string_compare : string × string → int -/
 def string_compare : Module.Field := .funcs
   { lbl     := .some string_compare_id
   , typeuse := .elab_param_res [(str1, .num .i32), (str2, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
-  , body    :=
-    [ block .no_label
-      [ loop .no_label
-        [ locl (.get str1)
-        , i32_mem (.load8 .u ⟨0, 0⟩)
-        , locl (.get str2)
-        , i32_mem (.load8 .u ⟨0, 0⟩)
-        , i32_rel .ne
-        , br_if 1                     -- strings are not equal
-        , locl (.get str1)
-        , i32_mem (.load8 .u ⟨0, 0⟩)
-        , locl (.get str2)
-        , i32_mem (.load8 .u ⟨0, 0⟩)
-        , i32_bin .and               -- if either str1 or str2 NULL then 0
-        , locl (.get str1)
-        , i32_const 1
-        , i32_bin .add
-        , locl (.set str1)            -- increment str1
-        , locl (.get str2)
-        , i32_const 1
-        , i32_bin .add
-        , locl (.set str2)            -- increment str2
-        , br_if 0                     -- restart loop if not null
-        ]
-      , i32_const 0                   -- equal
-      , wasm_return
-      ]
-    , block .no_label
-      [ locl (.get str1)              -- not equal, compare
-      , i32_mem (.load8 .u ⟨0, 0⟩)
-      , locl (.get str2)
-      , i32_mem (.load8 .u ⟨0, 0⟩)
-      , i32_rel (.lt .u)
-      , br_if 0
-      , i32_const (-1)                -- str1 > str2
-      , wasm_return
-      ]
-    , i32_const 1                     -- str1 < str2
-    , wasm_return
+  , body    := [wat_instr_list|
+      block
+        loop
+          local.get ↑str1
+          i32.load8_u
+          local.get ↑str2
+          i32.load8_u
+          i32.ne
+          br_if 1           -- strings are not equal
+          local.get ↑str1
+          i32.load8_u
+          local.get ↑str2
+          i32.load8_u
+          i32.and           -- if either str1 or str2 NULL then 0
+          local.get ↑str1
+          i32.const 1
+          i32.add
+          local.set ↑str1   -- increment str1
+          local.get ↑str2
+          i32.const 1
+          i32.add
+          local.set ↑str2   -- increment str2
+          br_if 0           -- restart loop if not null
+        end
+        i32.const 0         -- equal
+        return
+      end
+      block
+        local.get ↑str1
+        i32.load8_u
+        local.get ↑str2
+        i32.load8_u
+        i32.lt_u
+        br_if 0
+        i32.const ↑(-1)     -- todo fix <<<<<<<<<<<<<<<<<<<<<<
+        return
+      end
+      i32.const 1
+      return
     ]
   }
 where
@@ -322,7 +327,7 @@ def format : Module.Field := .funcs
   }
 
 def imports : List Module.Field := []
-def extern : List Module.Field :=
+def «extern» : List Module.Field :=
   [ string_length
   , string_charat
   , string_join
@@ -341,7 +346,7 @@ def extern : List Module.Field :=
   -- , format
   ]
 def intern : List Module.Field := []
-def lib    : List Module.Field := imports ++ intern ++ extern
+def lib    : List Module.Field := imports ++ intern ++ «extern»
 
 end String
 

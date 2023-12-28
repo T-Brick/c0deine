@@ -4,6 +4,7 @@
  -/
 import C0deine.Wasm.Wasm
 import Wasm.Text.Module
+import Wasm.Notation
 
 namespace C0deine.Target.Wasm
 
@@ -18,57 +19,59 @@ structure Library where
 namespace Library.Util
 -- todo should these just be a functions?
 
+open Wasm.Text.Notation
+
 def string_fromint : List Instr :=
   [ .comment "todo impl" ]
 
 /- takes a bool in the zeroth local returns string in same local -/
-def string_frombool : List Instr :=
-  [ block .no_label
-      [ block .no_label
-        [ locl (.get 0)
-        , br_if 0
-        , i32_const 6
-        , call Label.calloc.toWasmIdent
-        , locl (.tee 0)
-        , i32_const (Unsigned.ofNat 'f'.toNat)
-        , i32_mem (.store8 ⟨0, 0⟩)
-        , locl (.get 0)
-        , i32_const (Unsigned.ofNat 'a'.toNat)
-        , i32_mem (.store8 ⟨1, 0⟩)
-        , locl (.get 0)
-        , i32_const (Unsigned.ofNat 'l'.toNat)
-        , i32_mem (.store8 ⟨2, 0⟩)
-        , locl (.get 0)
-        , i32_const (Unsigned.ofNat 's'.toNat)
-        , i32_mem (.store8 ⟨3, 0⟩)
-        , locl (.get 0)
-        , i32_const (Unsigned.ofNat 'e'.toNat)
-        , i32_mem (.store8 ⟨4, 0⟩)
-        , br 1
-        ]
-      , i32_const 5           -- input is true
-      , call Label.calloc.toWasmIdent
-      , locl (.tee 0)
-      , i32_const (Unsigned.ofNat 't'.toNat)
-      , i32_mem (.store8 ⟨0, 0⟩)
-      , locl (.get 0)
-      , i32_const (Unsigned.ofNat 'r'.toNat)
-      , i32_mem (.store8 ⟨1, 0⟩)
-      , locl (.get 0)
-      , i32_const (Unsigned.ofNat 'u'.toNat)
-      , i32_mem (.store8 ⟨2, 0⟩)
-      , locl (.get 0)
-      , i32_const (Unsigned.ofNat 'e'.toNat)
-      , i32_mem (.store8 ⟨3, 0⟩)
-      ]
+def string_frombool : List Instr := [wat_instr_list|
+    block
+      block
+        local.get 0
+        br_if 0
+        i32.const 6
+        call ↑Label.calloc.toWasmIdent
+        local.tee 0
+        i32.const ↑(Unsigned.ofNat 'f'.toNat)
+        i32.store8
+        local.get 0
+        i32.const ↑(Unsigned.ofNat 'a'.toNat)
+        i32.store8 offset=1
+        local.get 0
+        i32.const ↑(Unsigned.ofNat 'l'.toNat)
+        i32.store8 offset=2
+        local.get 0
+        i32.const ↑(Unsigned.ofNat 's'.toNat)
+        i32.store8 offset=3
+        local.get 0
+        i32.const ↑(Unsigned.ofNat 'e'.toNat)
+        i32.store8 offset=4
+        br 1
+      end
+      i32.const 5   -- input is true
+      call ↑Label.calloc.toWasmIdent
+      local.tee 0
+      i32.const ↑(Unsigned.ofNat 't'.toNat)
+      i32.store8
+      local.get 0
+      i32.const ↑(Unsigned.ofNat 'r'.toNat)
+      i32.store8 offset=1
+      local.get 0
+      i32.const ↑(Unsigned.ofNat 'u'.toNat)
+      i32.store8 offset=2
+      local.get 0
+      i32.const ↑(Unsigned.ofNat 'e'.toNat)
+      i32.store8 offset=3
+    end
   ]
 
 /- takes a char in the zeroth local returns string in first local
  -/
-def string_fromchar : List Instr :=
-  [ i32_const 2
-  , call Label.calloc.toWasmIdent
-  , locl (.tee 1)
-  , locl (.get 0)
-  , i32_mem (.store8 ⟨0, 0⟩)
+def string_fromchar : List Instr := [wat_instr_list|
+    i32.const 2
+    call ↑Label.calloc.toWasmIdent
+    local.tee 1
+    local.get 0
+    i32.store8
   ]

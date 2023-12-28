@@ -8,6 +8,7 @@ import Numbers
 import C0deine.Context.Label
 import C0deine.Context.Temp
 import C0deine.Config.Targets
+import Wasm.Notation
 import Wasm.Text.Module
 import Wasm.Binary.Module
 
@@ -74,6 +75,7 @@ def Error.arith  : Instr := i32_const 8     -- SIGFPE
 
 
 /- Module Field implementations/utils for a compiled C0 program. -/
+open Wasm.Text.Notation
 
 def c0deine : Name :=
   ⟨"c0deine", by simp [String.length, Wasm.Vec.max_length]; linarith⟩
@@ -88,32 +90,32 @@ def result_import : Module.Field := .imports
 def calloc_func : Module.Field := .funcs
   { lbl     := .some Label.calloc.toWasmIdent
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
-  , locals  := [⟨.some Temp.general.toWasmIdent, .num .i32⟩]
-  , body    :=
-    [ locl (.get (.num 0))            -- get arg (ie. sizeOf type)
-    , i32_const 0
-    , i32_mem (.load ⟨0, 2⟩)          -- 0 address has ptr to next free seg
-    , i32_bin .add                    -- get next free pointer after alloc
-    , locl (.set (temp Temp.general))
-    , block .no_label
-      [ loop .no_label                -- loop to increase memory size
-        [ locl (.get (temp Temp.general))
-        , Plain.memory .size          -- returns number of pages
-        , i32_const 65536             -- pagesize
-        , i32_bin .mul
-        , i32_rel (.lt .u)
-        , Plain.br_if (.num 1)        -- next ptr within bounds, don't grow
-        , i32_const 1                 -- grow by 1 page
-        , Plain.memory .grow
-        , Plain.br (.num 0)
-        ]
-      ]
-    , i32_const 0
-    , i32_mem (.load ⟨0, 2⟩)          -- pointer we want to return
-    , i32_const 0
-    , locl (.get (temp Temp.general))
-    , i32_mem (.store ⟨0, 2⟩)         -- update free pointer
-    , Plain.wasm_return
+  , locals  := [⟨.none, .num .i32⟩]
+  , body    := [wat_instr_list|
+      local.get 0           -- get arg (ie. sizeOf type)
+      i32.const 0           -- get next free pointer after alloc
+      i32.load
+      i32.add
+      local.set 1
+      block
+        loop                -- loop to increase memory size
+          local.get 1
+          memory.size       -- returns number of pages
+          i32.const 65536   -- pagesize
+          i32.mul
+          i32.lt_u
+          br_if 1           -- next ptr within bounds, don't grow
+          i32.const 1       -- grow by 1 page
+          memory.grow
+          br 0
+        end
+      end
+      i32.const 0
+      i32.load              -- pointer we want to return
+      i32.const 0
+      local.get 1
+      i32.store             -- update free pointer
+      return
     ]
   }
 def calloc_import : Module.Field := .imports
@@ -143,10 +145,10 @@ def abort_func : Module.Field := .funcs
   { lbl     := .some Label.abort.toWasmIdent
   , typeuse := .elab_param_res [(.none, .num .i32)] []
   , locals  := []
-  , body    :=
-    [ locl (.get (.num 0))
-    , Plain.call (.name result_id)
-    , Plain.unreachable
+  , body    := [wat_instr_list|
+      local.get 0
+      call ↑result_id
+      unreachable
     ]
   }
 def abort_import : Module.Field := .imports

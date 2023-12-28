@@ -13,33 +13,36 @@ import C0deine.Config.Config
 import C0deine.Utils.Comparison
 import C0deine.ControlFlow.Relooper
 import C0deine.Wasm.Wasm
+import Wasm.Notation
 
 namespace C0deine.Target.Wasm.Trans
 
 open Numbers Wasm.Text Wasm.Text.Instr Wasm.Syntax.Instr.Numeric
   Wasm.Syntax.Instr.Memory
 
+open Wasm.Text.Notation in
 def pure_binop (op : IrTree.PureBinop) : Instr :=
   match op with
-  | .add                 => i32_bin .add
-  | .sub                 => i32_bin .sub
-  | .mul                 => i32_bin .mul
-  | .and                 => i32_bin .and
-  | .xor                 => i32_bin .xor
-  | .or                  => i32_bin .or
-  | .comp .less          => i32_rel (.lt .s)
-  | .comp .greater       => i32_rel (.gt .s)
-  | .comp .equal         => i32_rel .eq
-  | .comp .not_equal     => i32_rel .ne
-  | .comp .less_equal    => i32_rel (.le .s)
-  | .comp .greater_equal => i32_rel (.ge .s)
+  | .add                 => [wat_instr| i32.add ]
+  | .sub                 => [wat_instr| i32.sub ]
+  | .mul                 => [wat_instr| i32.mul ]
+  | .and                 => [wat_instr| i32.and ]
+  | .xor                 => [wat_instr| i32.xor ]
+  | .or                  => [wat_instr| i32.or  ]
+  | .comp .less          => [wat_instr| i32.lt_s]
+  | .comp .greater       => [wat_instr| i32.gt_s]
+  | .comp .equal         => [wat_instr| i32.eq  ]
+  | .comp .not_equal     => [wat_instr| i32.ne  ]
+  | .comp .less_equal    => [wat_instr| i32.le_s]
+  | .comp .greater_equal => [wat_instr| i32.ge_s]
 
+open Wasm.Text.Notation in
 def effect_binop (op : IrTree.EffectBinop) : Instr :=
   match op with
-  | .div => i32_bin (.div .s)
-  | .mod => i32_bin (.rem .s)
-  | .lsh => i32_bin (.shl)
-  | .rsh => i32_bin (.shr .s)
+  | .div => [wat_instr| i32.div_s]
+  | .mod => [wat_instr| i32.rem_s]
+  | .lsh => [wat_instr| i32.shl  ]
+  | .rsh => [wat_instr| i32.shr_s]
 
 partial def texpr (te : Typ.Typed IrTree.Expr) : List Instr :=
   match te.data with
