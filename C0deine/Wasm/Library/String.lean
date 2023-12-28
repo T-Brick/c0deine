@@ -96,26 +96,91 @@ where
 /- string_join : string × string → string -/
 def string_join : Module.Field := .funcs
   { lbl     := .some string_join_id
-  , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32)] [.num .i32]
-  , locals  := [⟨.none, .num .i32⟩]
-  , body    :=
-    [ .comment "todo impl"
-    , i32_const 0
-    , wasm_return
+  , typeuse := .elab_param_res [(str1, .num .i32), (str2, .num .i32)] [.num .i32]
+  , locals  := [⟨str3, .num .i32⟩, ⟨len1, .num .i32⟩, ⟨len2, .num .i32⟩]
+  , body    := [wat_instr_list|
+      local.get ↑str1
+      call ↑string_length_id
+      local.tee ↑len1
+      local.get ↑str2
+      call ↑string_length_id
+      local.tee ↑len2
+      i32.const 1
+      i32.add
+      i32.add
+      call ↑Label.calloc.toWasmIdent
+      local.tee ↑str3
+      local.get ↑str1
+      local.get ↑len1
+      memory.copy
+      local.get ↑str3
+      local.get ↑len1
+      i32.add
+      local.get ↑str2
+      local.get ↑len2
+      memory.copy
+      local.get ↑str3
+      return
     ]
   }
+where
+  str1 : Ident := ⟨"str1", sorry, sorry⟩
+  str2 : Ident := ⟨"str2", sorry, sorry⟩
+  str3 : Ident := ⟨"str3", sorry, sorry⟩
+  len1 : Ident := ⟨"len1", sorry, sorry⟩
+  len2 : Ident := ⟨"len2", sorry, sorry⟩
 
 /- string_sub : string × int × int → string -/
 def string_sub : Module.Field := .funcs
   { lbl     := .some string_sub_id
-  , typeuse := .elab_param_res [(.none, .num .i32), (.none, .num .i32), (.none, .num .i32)] [.num .i32]
-  , locals  := [⟨.none, .num .i32⟩]
-  , body    :=
-    [ .comment "todo impl"
-    , i32_const 0
-    , wasm_return
+  , typeuse := .elab_param_res [(str, .num .i32), (start, .num .i32), (finish, .num .i32)] [.num .i32]
+  , locals  := [⟨temp, .num .i32⟩]
+  , body    := [wat_instr_list|
+      local.get ↑finish
+      local.get ↑start
+      i32.sub
+      local.set ↑temp
+      block           -- bounds check
+        block
+          local.get ↑start
+          i32.const 0
+          i32.lt_s
+          br_if 0
+          local.get ↑temp
+          i32.const 0
+          i32.lt_s
+          br_if 0     -- negative length
+          local.get ↑str
+          call ↑string_length_id
+          -- local.tee ↑len
+          local.get ↑finish
+          i32.lt_s
+          br_if 0
+          br 1
+        end
+        (↑Error.assert)
+        call ↑Label.abort.toWasmIdent
+        unreachable
+      end
+      local.get ↑temp
+      i32.const 1
+      i32.add
+      call ↑Label.calloc.toWasmIdent
+      local.tee ↑finish       -- don't need finish anymore so store res in it
+      local.get ↑str
+      local.get ↑start
+      i32.add
+      local.get ↑temp
+      memory.copy
+      local.get ↑finish
+      return
     ]
   }
+where
+  str    : Ident := ⟨"str", sorry, sorry⟩
+  start  : Ident := ⟨"start", sorry, sorry⟩
+  finish : Ident := ⟨"finish", sorry, sorry⟩
+  temp   : Ident := ⟨"temp", sorry, sorry⟩
 
 /- string_equal : string × string → bool -/
 def string_equal : Module.Field := .funcs
@@ -156,8 +221,6 @@ def string_equal : Module.Field := .funcs
 where
   str1 : Ident := ⟨"str1", sorry, sorry⟩
   str2 : Ident := ⟨"str2", sorry, sorry⟩
-
-#eval string_equal
 
 /- string_compare : string × string → int -/
 def string_compare : Module.Field := .funcs
@@ -245,14 +308,58 @@ def string_fromchar : Module.Field := .funcs
 /- string_tolower : string → string -/
 def string_tolower : Module.Field := .funcs
   { lbl     := .some string_tolower_id
-  , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
-  , locals  := [⟨.none, .num .i32⟩]
-  , body    :=
-    [ .comment "todo impl"
-    , i32_const 0
-    , wasm_return
+  , typeuse := .elab_param_res [(str, .num .i32)] [.num .i32]
+  , locals  := [⟨temp, .num .i32⟩, ⟨str2, .num .i32⟩]
+  , body    := [wat_instr_list|
+      local.get ↑str
+      call ↑string_length_id
+      i32.const 1
+      i32.add
+      local.tee ↑temp
+      call ↑Label.calloc.toWasmIdent
+      local.tee ↑str2
+      local.get ↑str
+      local.get ↑temp         -- copy str into str2
+      memory.copy
+      local.get ↑str2
+      local.set ↑str          -- dont need str1 anymore, store starter pointer
+      block
+        loop
+          local.get ↑str2
+          i32.load8_u
+          local.tee ↑temp
+          i32.eqz
+          br_if 1             -- reached end of string
+          local.get ↑str2
+          i32.const 1
+          i32.add
+          local.set ↑str2     -- increment str2
+          local.get ↑temp
+          i32.const ↑(Unsigned.ofNat 'A'.toNat)
+          i32.lt_u
+          br_if 0             -- less than 'A' skip to next char
+          local.get ↑temp
+          i32.const ↑(Unsigned.ofNat 'Z'.toNat)
+          i32.gt_u
+          br_if 0             -- greater than 'Z' skip to next char
+          local.get ↑str2
+          i32.const 1
+          i32.sub             -- go back to current char
+          local.get ↑temp
+          i32.const 32
+          i32.add             -- add 32 to reacher lowercase characters
+          i32.store8
+          br 0
+        end
+      end
+      local.get ↑str
+      return
     ]
   }
+where
+  temp : Ident := ⟨"temp", sorry, sorry⟩
+  str  : Ident := ⟨"str", sorry, sorry⟩
+  str2 : Ident := ⟨"str2", sorry, sorry⟩
 
 /- string_terminated : char[] × int → bool
    Checks that the char array is \0 terminated

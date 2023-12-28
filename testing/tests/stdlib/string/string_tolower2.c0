@@ -1,0 +1,10 @@
+//test return 0
+#use <string>
+
+int main() {
+  string TEST = "ABC";
+  string test = string_tolower(TEST);
+  if(string_equal(TEST, "ABC"))
+    return 0;
+  return -1;
+}

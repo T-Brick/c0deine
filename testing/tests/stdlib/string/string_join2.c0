@@ -1,0 +1,11 @@
+//test return 0
+#use <string>
+
+int main() {
+  string x = "";
+  string y = "456";
+  string z = string_join(y, x);
+  if(string_equal(z, y))
+    return 0;
+  return -1;
+}

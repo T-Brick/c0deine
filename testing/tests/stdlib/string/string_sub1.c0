@@ -1,0 +1,10 @@
+//test return 0
+#use <string>
+
+int main() {
+  string x = "0123456789";
+  string y = string_sub(x, 0, 5);
+  if(string_equal(y, "01234"))
+    return 0;
+  return -1;
+}

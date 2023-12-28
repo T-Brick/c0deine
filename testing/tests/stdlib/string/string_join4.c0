@@ -1,0 +1,13 @@
+//test return 0
+#use <string>
+
+int main() {
+  string x = "abc";
+  string y = "xyz";
+  string z = string_join(x, y);
+  if(string_equal(z, "abcxyz"))
+    if(string_equal(x, "abc"))
+      if(string_equal(y, "xyz"))
+        return 0;
+  return -1;
+}
