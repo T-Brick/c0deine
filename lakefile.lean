@@ -24,7 +24,7 @@ script js (args : List String) do
     stdout := .piped
     stderr := .piped
     cmd    := "node"
-    args   := (".lake/build/wasm/main.js" :: args).toArray
+    args   := (".lake/build/wasm/c0deine.js" :: args).toArray
   }
   IO.print out.stdout
   IO.print out.stderr

@@ -12,7 +12,12 @@ open Lean System
 -- This is what we want to compile and should contain `main`
 def root : Name := `Main
 
-def main : IO UInt32 := do
+def main (args : List String) : IO UInt32 := do
+
+  let is_web :=
+    match args with
+    | "web"::_ => true
+    | _ => false
 
   let outdir : FilePath := ".lake" / "build" / "wasm"
   if ¬ (←FilePath.pathExists outdir) then
@@ -69,7 +74,7 @@ def main : IO UInt32 := do
       cmd    := "emcc"
       args   :=
        #[ "-o"
-        , outdir / "main.js" |>.toString
+        , outdir / "c0deine.js" |>.toString
         , "-I"
         , toolchain / "include" |>.toString
         , "-L"
@@ -80,9 +85,12 @@ def main : IO UInt32 := do
         , "-lleancpp"
         , "-lleanrt"
         , "-sFORCE_FILESYSTEM"
-        -- , "-sNODERAWFS"    -- comment this line for use in webpage
-        , "-lnodefs.js"
-        , "-sEXIT_RUNTIME=0"
+        ] ++ (if is_web
+              then #["-sMODULARIZE", "-sEXPORT_NAME=c0deine"]
+              else #["-sNODERAWFS"]
+             ) ++
+       #[ "-lnodefs.js"
+        , "-sEXIT_RUNTIME=1"
         , "-sMAIN_MODULE=2" -- use 2 to reduce exports to a usable amount
         , "-sLINKABLE=0"
         , "-sEXPORT_ALL=0"
@@ -90,6 +98,8 @@ def main : IO UInt32 := do
         , "-fwasm-exceptions"
         , "-pthread"
         , "-flto"
+        , "--embed-file"
+        , "libs"
         , "-Oz"    -- takes much much longer to compile but optimises for size
         ]
     }
