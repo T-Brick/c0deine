@@ -80,7 +80,7 @@ def main : IO UInt32 := do
         , "-lleancpp"
         , "-lleanrt"
         , "-sFORCE_FILESYSTEM"
-        , "-sNODERAWFS"
+        -- , "-sNODERAWFS"    -- comment this line for use in webpage
         , "-lnodefs.js"
         , "-sEXIT_RUNTIME=0"
         , "-sMAIN_MODULE=2" -- use 2 to reduce exports to a usable amount
@@ -90,7 +90,7 @@ def main : IO UInt32 := do
         , "-fwasm-exceptions"
         , "-pthread"
         , "-flto"
-        -- , "-Oz"    -- takes much longer to compile but optimises for size
+        , "-Oz"    -- takes much much longer to compile but optimises for size
         ]
     }
 

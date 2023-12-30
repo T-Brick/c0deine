@@ -73,9 +73,10 @@ def outputBinary (config : Config) (data : ByteArray) : IO Unit := do
     IO.print "!wasm-dump: "
     let out := data.data.toList.map UInt8.toHexNumString
     IO.println (" ".intercalate out)
-  match config.output with
-  | .none   => panic! "Cannot write binary to stdout"
-  | .some f => IO.FS.writeBinFile f data
+  else
+    match config.output with
+    | .none   => panic! "Cannot write binary to stdout"
+    | .some f => IO.FS.writeBinFile f data
 
 def searchDirs (dirs : List System.FilePath)
                (file : String) : IO (Option System.FilePath) :=
@@ -120,7 +121,28 @@ def find_use_file (config : Config) : Cst.Directive → IO (List Config.Library)
 
   | .unknown => return []
 
-partial def find_files
+
+mutual
+partial def find_files_from_source
+    (config : Config)
+    (imported : List System.FilePath)
+    (acc : List Config.Library)
+    (rest : List System.FilePath)
+    (contents : String)
+    : IO (List Config.Library) := do
+  match Parser.C0Parser.directives.run contents.toUTF8 (.new false) with
+  | ((.error e, state), _) =>
+    IO.println s!"{e () |>.formatPretty state}"
+    panic s!"Could not parse directives!"
+  | ((.ok refs, _), _) =>
+    let refs := (← refs.mapM (find_use_file config)).join
+      |>.filter (· ∉ acc)
+      |>.eraseDups
+      |>.reverse
+    let remaining := rest ++ refs.map (·.toPath)
+    find_files_from_file config imported (refs ++ acc) remaining
+
+partial def find_files_from_file
     (config : Config)
     (imported : List System.FilePath)
     (acc : List Config.Library)
@@ -129,7 +151,7 @@ partial def find_files
   match files with
   | [] => return acc
   | l :: rest =>
-    if l ∈ imported then find_files config imported acc rest else
+    if l ∈ imported then find_files_from_file config imported acc rest else
 
     if !(← l.pathExists) then
       panic! s!"File does not exist: {l}"
@@ -137,16 +159,8 @@ partial def find_files
       panic! s!"File is a directory: {l}"
 
     let contents ← IO.FS.readFile l
-    match Parser.C0Parser.directives.run contents.toUTF8 (.new false) with
-    | ((.error e, state), _) =>
-      IO.println s!"{e () |>.formatPretty state}"
-      panic s!"Could not parse directives!"
-    | ((.ok refs, _), _) =>
-      let refs := (← refs.mapM (find_use_file config)).join
-        |>.filter (· ∉ acc)
-        |>.eraseDups
-      let remaining := rest ++ refs.map (·.toPath)
-      find_files config (l :: imported) (refs.reverse ++ acc) remaining
+    find_files_from_source config (l::imported) acc files contents
+end
 
 -- todo monadify this
 structure ParsedC0 where
@@ -198,10 +212,6 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     p.printVersion!
     return 0
 
-  let inputs : List System.FilePath :=
-    p.variableArgsAs! String |>.toList
-  if inputs.isEmpty then panic! "Must provide a file input"
-
   let libs : List System.FilePath :=
     p.flag? "library" |>.map (·.as! (Array String) |>.toList) |>.getD []
   let libSearchDirs : List System.FilePath :=
@@ -213,13 +223,6 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     if (← (curDir / "libs").pathExists) && (← (curDir / "libs").isDir) then
       curDir / "libs" :: libSearchDirs
     else libSearchDirs
-
-  let _ ← inputs.mapM (fun input => do
-    if !(← input.pathExists) then
-      panic! s!"Input file does not exist: {input}"
-    if ← input.isDir then
-      panic! s!"Input path is a directory: {input}"
-  )
 
   let _ ← libs.mapM (fun lib => do
       if !(← lib.pathExists) then
@@ -235,19 +238,45 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
         panic! s!"Library search directory is not a directory: {libd}"
     )
 
-  let config : Config := mkConfig p libSearchDirs (inputs.get! 0)
+  let cl_program := p.hasFlag "cl-program"
+
+  let inputs : List System.FilePath ← do
+    if cl_program then pure [] else
+    let inputs : List System.FilePath :=
+      p.variableArgsAs! String |>.toList
+    if inputs.isEmpty then panic! "Must provide a file input"
+    pure inputs
+
+  let src? : Option String :=
+    if cl_program then
+      " ".intercalate (p.variableArgsAs! String |>.toList)
+      |>.replace "\\\\n" "$newline"   -- convert `\\n` to `$newline`
+      |>.replace "\\n" "\n"
+      |>.replace "$newline" "\\n"     -- restore newlines
+    else none
+
+  let _ ← inputs.mapM (fun input => do
+    if !(← input.pathExists) then
+      panic! s!"Input file does not exist: {input}"
+    if ← input.isDir then
+      panic! s!"Input path is a directory: {input}"
+  )
+
+  let config : Config :=
+    mkConfig p libSearchDirs (inputs.get? 0 |>.getD "default.c0")
   let inputsCat := inputs.map (Config.Library.src)
   let libsCat := (← libs.mapM (find_lib config ·.toString)).join |>.eraseDups
+  let cats := (inputsCat.reverse ++ libsCat).reverse
+  let files := inputs ++ libs
 
   let sources ←
-    find_files config [] (inputsCat.reverse ++ libsCat).reverse
-      (inputs ++ libs)
-
-  let vprintln : {α : Type} → [ToString α] → α → IO Unit :=
-    fun s => do if config.verbose then IO.println s
+    match src? with
+    | some src => find_files_from_source config [] cats files src
+    | none     => find_files_from_file config [] cats files
 
   let init_parsed : ParsedC0 :=
     ⟨config, [], [], .empty, .new (¬config.lang.under .c0)⟩
+
   let parsed ← sources.foldlM (fun acc f =>
       match f with
       | .std l h =>
@@ -256,6 +285,17 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
       | .src s   => parseFile acc s
       | .head h  => parseHeaderFile acc h
     ) init_parsed
+
+  -- if program was passed on the command line load it here
+  let parsed ← do
+    match src? with
+    | .some src => parseSource parsed src
+    | .none     => pure parsed
+
+
+  let vprintln : {α : Type} → [ToString α] → α → IO Unit :=
+    fun s => do if config.verbose then IO.println s
+
   let config := parsed.config
   let ctx := parsed.ctx
   -- vprintln cst
@@ -341,6 +381,7 @@ def topCmd : Cmd := `[Cli|
     "no-purity-check";         "Disables contract purity checking"
     "wasm-import-calloc";      "WASM outputs require importing 'c0deine.calloc' and 'c0deine.free'"
     "dump-wasm";               "Dumps the WASM bytecode to stdout"
+    "cl-program";              "Program is passed in as a string in the input instead of as a filepath"
 
   ARGS:
     ...inputs : String;      "The input files"
