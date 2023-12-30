@@ -40,6 +40,10 @@ def Nat.ofDigits? (base : Nat) (s : Substring) : Option Nat :=
         none)
     (some 0)
 
+def UInt8.toHexNumString (n : UInt8) : String :=
+  let str := Nat.toHexNumString n.toNat
+  if str.length == 1 then "0" ++ str else str
+
 def Substring.toNat?' (s : Substring) : Option Nat :=
   if s.get 0 = '0' && ((s.drop 1 |>.get 0) = 'x' || (s.drop 1 |>.get 0) = 'X')
   then Nat.ofDigits? 16 (s.drop 2)

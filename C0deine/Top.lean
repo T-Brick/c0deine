@@ -60,6 +60,7 @@ def mkConfig (p : Parsed)
       checkAssertsWhenUnsafe := p.hasFlag "unsafe-assert-check"
       dynCheckContracts      := p.hasFlag "dyn-check"
       contractPurity         := ¬p.hasFlag "no-purity-check"
+      dumpWasmHex            := p.hasFlag "dump-wasm"
   }
 
 def outputText (config : Config) (data : String) : IO Unit :=
@@ -67,7 +68,11 @@ def outputText (config : Config) (data : String) : IO Unit :=
   | .none   => IO.println data
   | .some f => IO.FS.writeFile f data
 
-def outputBinary (config : Config) (data : ByteArray) : IO Unit :=
+def outputBinary (config : Config) (data : ByteArray) : IO Unit := do
+  if config.dumpWasmHex then
+    IO.print "!wasm-dump: "
+    let out := data.data.toList.map UInt8.toHexNumString
+    IO.println (" ".intercalate out)
   match config.output with
   | .none   => panic! "Cannot write binary to stdout"
   | .some f => IO.FS.writeBinFile f data
@@ -151,7 +156,7 @@ structure ParsedC0 where
   tydefs : Std.RBSet Symbol compare
   ctx : Context.State
 
-def parseHeader
+def parseHeaderFile
     (acc : ParsedC0)
     (header : System.FilePath)
     : IO ParsedC0 := do
@@ -167,10 +172,8 @@ def parseHeader
 
 def parseSource
     (acc : ParsedC0)
-    (source : System.FilePath)
+    (c : String)
     : IO ParsedC0 := do
-  if acc.config.verbose then IO.println s!"Parsing source {source}"
-  let c ← IO.FS.readFile source
   match (Parser.C0Parser.prog acc.tydefs).run c.toUTF8 acc.ctx with
   | ((.error e, state), _) =>
     IO.println s!"{e () |>.formatPretty state}"
@@ -179,6 +182,13 @@ def parseSource
     let (_directives, cst) := Cst.splitDirectives cst
     pure ⟨acc.config, acc.header, acc.source ++ cst, tydefs, ctx⟩
 
+def parseFile
+    (acc : ParsedC0)
+    (source : System.FilePath)
+    : IO ParsedC0 := do
+  if acc.config.verbose then IO.println s!"Parsing source {source}"
+  let c ← IO.FS.readFile source
+  parseSource acc c
 
 def runTopCmd (p : Parsed) : IO UInt32 := do
   if p.hasFlag "help" then
@@ -188,10 +198,9 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     p.printVersion!
     return 0
 
-  if !p.hasPositionalArg "input" then
-    panic! "Missing file argument"
-  let input : System.FilePath :=
-    p.positionalArg! "input" |>.as! String
+  let inputs : List System.FilePath :=
+    p.variableArgsAs! String |>.toList
+  if inputs.isEmpty then panic! "Must provide a file input"
 
   let libs : List System.FilePath :=
     p.flag? "library" |>.map (·.as! (Array String) |>.toList) |>.getD []
@@ -205,10 +214,12 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
       curDir / "libs" :: libSearchDirs
     else libSearchDirs
 
-  if !(← input.pathExists) then
-    panic! s!"Input file does not exist: {input}"
-  if ← input.isDir then
-    panic! s!"Input path is a directory: {input}"
+  let _ ← inputs.mapM (fun input => do
+    if !(← input.pathExists) then
+      panic! s!"Input file does not exist: {input}"
+    if ← input.isDir then
+      panic! s!"Input path is a directory: {input}"
+  )
 
   let _ ← libs.mapM (fun lib => do
       if !(← lib.pathExists) then
@@ -224,11 +235,13 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
         panic! s!"Library search directory is not a directory: {libd}"
     )
 
-  let config : Config := mkConfig p libSearchDirs input
+  let config : Config := mkConfig p libSearchDirs (inputs.get! 0)
+  let inputsCat := inputs.map (Config.Library.src)
   let libsCat := (← libs.mapM (find_lib config ·.toString)).join |>.eraseDups
 
   let sources ←
-    find_files config [] ((.src input) :: libsCat).reverse (input :: libs)
+    find_files config [] (inputsCat.reverse ++ libsCat).reverse
+      (inputs ++ libs)
 
   let vprintln : {α : Type} → [ToString α] → α → IO Unit :=
     fun s => do if config.verbose then IO.println s
@@ -239,9 +252,9 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
       match f with
       | .std l h =>
         let config := { acc.config with stdLibs := l :: acc.config.stdLibs }
-        parseHeader {acc with config} h
-      | .src s   => parseSource acc s
-      | .head h  => parseHeader acc h
+        parseHeaderFile {acc with config} h
+      | .src s   => parseFile acc s
+      | .head h  => parseHeaderFile acc h
     ) init_parsed
   let config := parsed.config
   let ctx := parsed.ctx
@@ -301,7 +314,7 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
       IO.println ("\n".intercalate e.log.reverse)
       return 1
     | (.ok wasm_module_ast, _) =>
-      IO.println (toString (wasm_module_ast : Wasm.Text.Module))
+      vprintln (toString (wasm_module_ast : Wasm.Text.Module))
       let arr_byte := (Wasm.Binary.Module.toOpcode wasm_module_ast).toArray
       outputBinary config ⟨arr_byte⟩
 
@@ -327,7 +340,8 @@ def topCmd : Cmd := `[Cli|
     d, "dyn-check";            "Check contracts dynamically"
     "no-purity-check";         "Disables contract purity checking"
     "wasm-import-calloc";      "WASM outputs require importing 'c0deine.calloc' and 'c0deine.free'"
+    "dump-wasm";               "Dumps the WASM bytecode to stdout"
 
   ARGS:
-    input : String;      "The input file"
+    ...inputs : String;      "The input files"
 ]

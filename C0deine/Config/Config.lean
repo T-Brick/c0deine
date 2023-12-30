@@ -45,6 +45,7 @@ structure Config where
   dynCheckContracts : Bool
   -- WIP: purity check contracts
   contractPurity : Bool
+  dumpWasmHex : Bool
   /- WIP: In C0, `int x = x + 1` is not allowed because `x` is not declared on
      the RHS. In C, `x` is in scope. This change makes C0 follow the C standard.
 
@@ -101,7 +102,8 @@ instance : Inhabited Config where default :=
   , safe                   := true
   , checkAssertsWhenUnsafe := false
   , dynCheckContracts      := false
-  , contractPurity         := true
+  , contractPurity         := false -- todo change when implemented
+  , dumpWasmHex            := false
   , cDeclScope             := false
   , obviousDeadCode        := .ignore
   , uselessAllocs          := .ignore
