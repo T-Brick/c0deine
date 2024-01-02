@@ -157,6 +157,13 @@ theorem List.length_join_replicate : (replicate n L).join.length = n * L.length 
   . simp
   . simp [Nat.succ_mul, Nat.add_comm]
 
+def List.toMap [DecidableEq α] : List (α × β) → (α → Option β)
+| []       => fun _ => none
+| (a,b)::L => Function.update (toMap L) a (some b)
+
+def List.toFn (lst : List α) : Fin lst.length → α :=
+  fun i => lst.get i
+
 def Std.HashMap.insert_multi [BEq α] [Hashable α]
     (self : Std.HashMap α (List β))
     (a : α)

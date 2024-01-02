@@ -19,7 +19,7 @@ structure Context.State where
   symbolCache  : Std.HashMap String Symbol
 
 def Context.State.new (annotations : Bool) : Context.State where
-  nextTemp     := (Temp.startId:)
+  nextTemp     := ⟨Temp.startId, none⟩
   nextLabel    := ⟨Label.startId, none⟩
   nextSymbolId := 1
   inLineAnno   := if annotations then .some false else .none
@@ -40,7 +40,12 @@ def Context.setInLineAnno (b : Bool) : Context Unit :=
 namespace Temp
 
 def fresh : Context Temp :=
-  fun s => (s.nextTemp, {s with nextTemp := (show Nat from s.nextTemp) + 1})
+  fun s => (s.nextTemp, {s with nextTemp := ⟨s.nextTemp.id + 1, none⟩})
+
+def namedFresh (name : String): Context Temp :=
+  fun s => ( {s.nextTemp with name := some name}
+           , {s with nextTemp := ⟨s.nextTemp.id + 1, none⟩}
+           )
 
 end Temp
 

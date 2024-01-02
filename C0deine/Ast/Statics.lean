@@ -6,7 +6,7 @@
 import C0deine.AuxDefs
 import C0deine.Ast.Ast
 
-namespace C0deine.Statics
+namespace C0deine.Ast.Statics
 
 open Ast
 
@@ -242,10 +242,6 @@ inductive FuncSigCompat (Δ : GCtx) (name : Ident) (fs : FuncSig) : Prop
           (h_ret : fs.retTy = fs'.retTy)
           (h_def : ¬fs.defined ∨ ¬fs'.defined)
 
-def mapOfList [DecidableEq α] : List (α × β) → (α → Option β)
-| [] => fun _ => none
-| (a,b)::L => Function.update (mapOfList L) a (some b)
-
 inductive GDeclTc : GCtx → GDecl → GCtx → Prop
 | tydef
   : Δ.func td.name = none
@@ -262,7 +258,7 @@ inductive GDeclTc : GCtx → GDecl → GCtx → Prop
          , defined := false
          }
   → FuncSigCompat Δ f.name fs
-  → AnnoTc.Func Δ (mapOfList (List.ofFn (fun i => (f.params[i].name, τ i)))) ρ f.annos
+  → AnnoTc.Func Δ (List.toMap (.ofFn (fun i => (f.params[i].name, τ i)))) ρ f.annos
   → GDeclTc Δ (.fdecl f) {Δ with func := Function.update Δ.func f.name fs}
 | fdef {τ : Fin f.params.length → Typ} {fs : FuncSig}
   : TypOptResolves Δ f.type ρ
@@ -274,8 +270,8 @@ inductive GDeclTc : GCtx → GDecl → GCtx → Prop
          , defined := true
          }
   → FuncSigCompat Δ f.name fs
-  → AnnoTc.Func Δ (mapOfList (List.ofFn (fun i => (f.params[i].name, τ i)))) ρ f.annos
-  → StmtsTc Δ (mapOfList (List.ofFn (fun i => (f.params[i].name, τ i)))) f.body ρ
+  → AnnoTc.Func Δ (List.toMap (.ofFn (fun i => (f.params[i].name, τ i)))) ρ f.annos
+  → StmtsTc Δ (List.toMap (.ofFn (fun i => (f.params[i].name, τ i)))) f.body ρ
   → GDeclTc Δ (.fdef f) {Δ with func := Function.update Δ.func f.name (some
     { arity := f.params.length
     , retTy := ρ
@@ -289,7 +285,7 @@ inductive GDeclTc : GCtx → GDecl → GCtx → Prop
   → (∀ (i j : Fin s.fields.length), i ≠ j → s.fields[i].name ≠ s.fields[j].name)
   → (∀ i, TypResolves Δ s.fields[i].type (τ i))
   → GDeclTc Δ (.sdef s) {Δ with struct := Function.update Δ.struct s.name (
-      some ⟨ mapOfList (List.ofFn (fun i => (s.fields[i].name, τ i))) ⟩
+      some ⟨ List.toMap (.ofFn (fun i => (s.fields[i].name, τ i))) ⟩
     )}
 
 inductive GDeclsTc : GCtx → List GDecl → GCtx → Prop

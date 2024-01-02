@@ -13,7 +13,13 @@ inductive Comparator
 | greater_equal
 deriving Repr, DecidableEq
 
-def Comparator.toString : Comparator → String
+namespace Comparator
+def isEquality : Comparator → Bool
+  | .equal => true
+  | .not_equal => true
+  | _ => false
+
+def toString : Comparator → String
   | less => "<"
   | greater => ">"
   | equal => "=="

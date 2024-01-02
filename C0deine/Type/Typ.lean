@@ -2,6 +2,7 @@
    Representation of C0 types that can be used across IRs.
    - Thea Brick
  -/
+import C0deine.AuxDefs
 import C0deine.Context.Symbol
 
 namespace C0deine
@@ -96,14 +97,14 @@ instance : DecidableEq Memory := fun a b =>
   | .isFalse h => .isFalse (h ∘ Memory.deq.mpr)
 
 mutual
-  def equiv (a b : Typ) : Bool :=
+  @[reducible] def equiv (a b : Typ) : Bool :=
     match a, b with
     | .any, _   | _, .any  => true
     | .prim p1  , .prim p2 => p1 == p2
     | .mem m1   , .mem m2  => Memory.equiv m1 m2
     | _, _                 => false
 
-  def Memory.equiv (a b : Memory) : Bool :=
+  @[reducible] def Memory.equiv (a b : Memory) : Bool :=
     match a, b with
     | .pointer t1, .pointer t2 => equiv t1 t2
     | .array t1  , .array t2   => equiv t1 t2
@@ -141,12 +142,34 @@ def sizeof! : Typ → Nat
   | .mem (.array _)   => 8
   | .mem (.struct _)  => 8
 
+def is_eqtype : Typ → Bool
+  | .prim .string => false
+  | .mem (.struct _) => false
+  | _ => true
+
+-- todo: types must be equivalent
+def intersect (t1 : Typ) (t2 : Typ) : Typ :=
+  match t1, t2 with
+  | .mem (.pointer t1'), .mem (.pointer t2') =>
+    (.mem ∘ .pointer) (intersect t1' t2')
+  | .mem (.array t1'), .mem (.array t2') =>
+    (.mem ∘ .array) (intersect t1' t2')
+  | .any, _ => t2
+  | _, .any => t1
+  | _, _    => t1
+
 inductive Typed (α : Type) where
 | mk : (type : Typ) → (data : α) → Typed α
 deriving Inhabited, DecidableEq
 
 @[reducible, simp] def Typed.data : Typed α → α   | .mk _ data => data
 @[reducible, simp] def Typed.type : Typed α → Typ | .mk type _ => type
+
+def Typed.toProd : Typed α → α × Typ
+  | .mk τ a => (a, τ)
+
+def Typed.toMap [DecidableEq α] : List (Typed α) → α → Option Typ :=
+  List.toMap ∘ .map toProd
 
 def Typed.toString [ToString α] (a : Typed α) : String :=
   s!"({a.data} : {a.type})"
