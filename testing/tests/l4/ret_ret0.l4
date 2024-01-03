@@ -1,0 +1,7 @@
+//test return 0
+
+int main() {
+  int x;
+  return 0; // initialises all variables in scope
+  return x;
+}

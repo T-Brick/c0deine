@@ -7,7 +7,6 @@ import Std
 import C0deine.Parser.Cst
 import C0deine.Ast.Ast
 import C0deine.Type.Typ
-import C0deine.Type.Tst
 import C0deine.Context.Context
 import C0deine.Context.Symbol
 import C0deine.Config.Language
@@ -330,7 +329,13 @@ partial def Trans.simp (lang : Language)
     let op' ← Trans.asnop lang op
     let v' ← Trans.expr lang v
     let rest' ← Trans.stmts lang rest
-    return .assn lv' op' v' :: rest'
+    if op_eq : op' ≠ .eq then
+      return .assn lv' op' (.inr op_eq) v' :: rest'
+    else
+      match is_var : lv' with
+      | .var name => return [.assn_var name v' rest']
+      | .dot _ _ | .arrow _ _ | .deref _ | .index _ _ =>
+        return .assn lv' op' (by simp [is_var]) v' :: rest'
   | .post lv op =>
     if lang.under .l2
     then unsupported lang "post operators"
@@ -338,8 +343,8 @@ partial def Trans.simp (lang : Language)
       let lv' ← Trans.lvalue lang lv
       let rest' ← Trans.stmts lang rest
       match op with
-      | .incr => return .assn lv' (.aseq .plus) (.num 1) :: rest'
-      | .decr => return .assn lv' (.aseq .minus) (.num 1) :: rest'
+      | .incr => return .assn lv' (.aseq .plus) (by simp) (.num 1) :: rest'
+      | .decr => return .assn lv' (.aseq .minus) (by simp) (.num 1) :: rest'
   | .decl type name init =>
     let type' ← Trans.type_nonvoid lang type
     let init' ← init.mapM (Trans.expr lang)

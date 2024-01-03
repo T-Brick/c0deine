@@ -229,7 +229,7 @@ def Typ.tempSize (tau : Typ) : Env.Prog ValueSize := do
   | _      => return .double
 
 def Elab.lvalue : Tst.LValue Δ Γ τ → Tst.Expr Δ Γ τ
-  | .var name h         => .var name h
+  | .var name h         => .var name sorry
   | .dot lv field h₁ h₂ => .dot (Elab.lvalue lv) field h₁ h₂
   | .deref lv           => .deref (Elab.lvalue lv)
   | .index lv indx      => .index (Elab.lvalue lv) indx.val
@@ -548,7 +548,7 @@ partial def Addr.addr (tau : Typ) (acc : List IrTree.Stmt)
   | .dot e field _ _ => Addr.dot acc e field offset
   | .deref e         => Addr.deref acc e offset check
   | .index e indx    => Addr.index acc e indx offset
-  | _ => panic! "IR Trans: Attempted to address a non-pointer"
+  | _ => panic! s!"IR Trans: Attempted to address a non-pointer {e} {offset}"
 
 partial def Addr.dot (acc : List IrTree.Stmt)
              (texp : Tst.Expr Δ Γ τ)
@@ -626,41 +626,51 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
       Env.Func.new_var (← Env.Prog.toFunc (Typ.tempSize name.type)) name
     let (istmts, res) ← texpr past init.val
     stmts (.move t res :: istmts) body.toList
-  | .assign (τ₁ := τ₁) tlv rhs _ =>
-    match tlv with
-    | .var name _ =>
-      let dest ← Env.Func.var name
-      let (stms, src) ← texpr past rhs.val
-      return .move dest src :: stms
-    | _ =>
-      let lhs' := Elab.lvalue tlv
-      let (stms1, dest, checks) ← Addr.taddr past lhs' 0 false
-      let (stms2, src) ← texpr stms1 rhs.val
-      let size ← Env.Prog.toFunc (Typ.tempSize τ₁)
-      return .store dest src :: checks ++ stms2
+  | .assign_var (τ₁ := τ₁) (name := name) lhs is_var rhs _ _ body =>
+    let dest ← Env.Func.var name
+    let (stms, src) ← texpr past rhs.val
+    stmts (.move dest src :: stms) body.toList
 
-  | .asnop (τ₁ := τ₁) (τ₂ := τ₂) tlv iop rhs =>
+  | .assign (τ₁ := τ₁) tlv _ rhs _ =>
     let lhs' := Elab.lvalue tlv
     let (stms1, dest, checks) ← Addr.taddr past lhs' 0 false
     let (stms2, src) ← texpr stms1 rhs.val
     let size ← Env.Prog.toFunc (Typ.tempSize τ₁)
-    match binop_op_int iop with
-    | .inl pure =>
-      let temp := ⟨size, ← Env.Func.freshTemp⟩
-      let ttemp := ⟨τ₂, .temp temp⟩
-      let load := .load temp dest
-      let src' := ⟨τ₁.val, .binop pure ttemp src⟩
-      let store := .store dest src'
-      return store :: load :: checks ++ stms2
-    | .inr impure =>
-      let t1 := ⟨size, ← Env.Func.freshTemp⟩
-      let t2 := ⟨size, ← Env.Func.freshTemp⟩
-      let tt1 := ⟨τ₂, .temp t1⟩
-      let tt2 := ⟨τ₂, .temp t2⟩
-      let load : IrTree.Stmt := .load t1 dest
-      let effect := .effect t2 impure tt1 src
-      let store := .store dest tt2
-      return store :: effect :: load :: checks ++ stms2
+    return .store dest src :: checks ++ stms2
+
+  | .asnop (τ₁ := τ₁) (τ₂ := τ₂) tlv iop rhs =>
+    match tlv with
+    | .var name h =>
+      let dest ← Env.Func.var name
+      let lhs := ⟨τ₁, .temp dest⟩
+      let (stms, rhs) ← texpr past rhs.val
+      match binop_op_int iop with
+      | .inl pure =>
+        return .move dest ⟨.prim .int, .binop pure lhs rhs⟩ :: stms
+      | .inr impure =>
+        return .effect dest impure lhs rhs :: stms
+    | _ => /- must be a pointer -/
+      let lhs' := Elab.lvalue tlv
+      let (stms1, dest, checks) ← Addr.taddr past lhs' 0 false
+      let (stms2, src) ← texpr stms1 rhs.val
+      let size ← Env.Prog.toFunc (Typ.tempSize τ₁)
+      match binop_op_int iop with
+      | .inl pure =>
+        let temp := ⟨size, ← Env.Func.freshTemp⟩
+        let ttemp := ⟨τ₂, .temp temp⟩
+        let load := .load temp dest
+        let src' := ⟨τ₁.val, .binop pure ttemp src⟩
+        let store := .store dest src'
+        return store :: load :: checks ++ stms2
+      | .inr impure =>
+        let t1 := ⟨size, ← Env.Func.freshTemp⟩
+        let t2 := ⟨size, ← Env.Func.freshTemp⟩
+        let tt1 := ⟨τ₂, .temp t1⟩
+        let tt2 := ⟨τ₂, .temp t2⟩
+        let load : IrTree.Stmt := .load t1 dest
+        let effect := .effect t2 impure tt1 src
+        let store := .store dest tt2
+        return store :: effect :: load :: checks ++ stms2
 
   | .ite (τ := τ) cond tt ff =>
     let tLbl  ← Env.Func.freshLabel
@@ -813,6 +823,7 @@ def gdecl (header : Bool) (glbl : Tst.GDecl Δ Δ') : Env.Prog (Option Func) := 
       else Env.Prog.namedLabel s!"_c0_{fdec.name.name}"
     let () ← Env.Prog.addFunc fdec.name label
     return none
+
   | .fdef fdef =>
     let label ← Env.Prog.namedLabel s!"_c0_{fdef.name.name}"
     let args ← dec_args fdef.params
@@ -822,6 +833,7 @@ def gdecl (header : Bool) (glbl : Tst.GDecl Δ Δ') : Env.Prog (Option Func) := 
     let () ← Env.Prog.addFunc fdef.name label
     let res ← fdef.ret.mapM Typ.tempSize
     return some ⟨label, entry, args, blocks, res, sorry⟩
+
   | .sdef sd =>
     let alignList ← sd.fields |>.mapM (fun ts =>
         match ts.type with

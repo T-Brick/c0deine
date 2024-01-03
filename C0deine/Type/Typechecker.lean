@@ -18,20 +18,20 @@ structure FuncType where
   args : List Typ
 
 structure Status.Var where
-  type : Typ
+  type        : Typ
   initialised : Bool
 
 structure Status.Func where
-  type : FuncType
+  type    : FuncType
   defined : Bool
 
 structure Status.Struct where
-  fields : Symbol.Map Typ
+  fields  : Symbol.Map Typ
   defined : Bool
 
 inductive Status.Symbol
-| var (v : Status.Var)
-| func (f : Status.Func)
+| var   (v : Status.Var)
+| func  (f : Status.Func)
 | alias (type : Typ)
 
 def SymbolTable := Symbol.Map Status.Symbol
@@ -117,7 +117,7 @@ def FuncCtx.join (ctx1 ctx2 : FuncCtx) : FuncCtx :=
 
 structure Error.TExpr where
   Δ : Tst.GCtx
-  Γ : Symbol → Option Typ
+  Γ : Tst.FCtx
   τ : Typ
   e : Tst.Expr Δ Γ τ
 
@@ -572,8 +572,6 @@ def expr (ctx : FuncCtx)
     | some (.func status) =>
       let resargs ← exprs ctx P fail args
       let arg_types := resargs.texprs.map (·.type)
-      -- let arg_exprs := resargs.texprs.map (·.texpr)
-      -- let arg_valid := resargs.texprs.map (·.valid)
 
       let ret_type := -- return unit (i.e. void_star) if there's no return type
         match status.type.ret with
@@ -647,10 +645,10 @@ def expr (ctx : FuncCtx)
           s!"Array length expected an '{Typ.prim .int}' but got '{res.type}'"
 
   | .var name          =>
-    match ctx.symbols.find? name with
+    match h : Γ name with
     | some (.var status) =>
-      if status.initialised then
-        let e' := .var name sorry
+      if is_init : status.initialised then
+        let e' := .var name (by simp [←is_init]; exact h)
         if p : P e'
         then return ⟨ctx.calls, ctx.strings, status.type, e', .var p⟩
         else throw <| fail e' p
@@ -783,7 +781,7 @@ end Synth.Expr
 
 namespace Synth.LValue
 
-structure Result (Δ : Tst.GCtx) (Γ : Symbol → Option Typ) where
+structure Result (Δ : Tst.GCtx) (Γ : Tst.FCtx) where
   calls : Tst.Calls
   type : Typ
   lval : Tst.LValue Δ Γ type
@@ -796,10 +794,11 @@ def small (res : Except Error (Result Δ Γ)) : Except Error (Result Δ Γ) := d
 def lvalue (ctx : FuncCtx) (lval : Ast.LValue) : Except Error (Result Δ Γ) := do
   match lval with
   | .var var =>
-    match ctx.symbols.find? var with
+    match h : Γ var with
     | some (.var status) =>
-      if status.initialised
-      then return ⟨ctx.calls, status.type, .var var sorry⟩
+      if is_init : status.initialised then
+        let lv' := .var var (by simp [←is_init]; exact .inl h)
+        return ⟨ctx.calls, status.type, lv'⟩
       else throw <| Error.lval lval s!"Variable not initialised"
     | _ => throw <| Error.lval lval s!"Variable not declared"
 
@@ -951,11 +950,11 @@ end Synth.Anno
 
 namespace Stmt
 
-structure Result (Δ : Tst.GCtx) (Γ : Symbol → Option Typ) (ρ : Option Typ) where
+structure Result (Δ : Tst.GCtx) (Γ : Tst.FCtx) (ρ : Option Typ) where
   ctx  : FuncCtx
   stmt : Tst.Stmt Δ Γ ρ
 
-structure Result.List (Δ : Tst.GCtx) (Γ : Symbol → Option Typ) (ρ : Option Typ) where
+structure Result.List (Δ : Tst.GCtx) (Γ : Tst.FCtx) (ρ : Option Typ) where
   ctx   : FuncCtx
   stmts : Tst.Stmt.List Δ Γ ρ
 
@@ -986,7 +985,7 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Except Error (Result Δ Γ ρ) := do
         let ctx' ← Validate.var ctx name tau (init.isSome)
         match init with
         | none =>
-          let Γ' := Function.update Γ name (some tau)
+          let Γ' := Γ.updateVar name ⟨tau, false⟩
           let res ← stmts (Γ := Γ')
               {ctx' with calls := ctx.calls, strings := ctx.strings} body
           let symbols' := -- restore old symbol status
@@ -1014,7 +1013,7 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Except Error (Result Δ Γ ρ) := do
               | _ => throw <| Error.stmt stm <|
                 s!"Expression '{res_init.texpr}' has undefined/undeclared type '{res_init.type}'"
 
-            let Γ' := Function.update Γ name (some tau)
+            let Γ' := Γ.updateVar name ⟨tau, true⟩
             let calls := res_init.calls.merge ctx'.calls
             let strings := res_init.strings ∪ ctx'.strings
             let res ← stmts (Γ := Γ') {ctx' with calls, strings} body
@@ -1031,55 +1030,63 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Except Error (Result Δ Γ ρ) := do
           else throw <| Error.stmt stm <|
             s!"Variable '{name}' has mismatched types. Declaration expects '{tau}' but {res_init.texpr} has type '{res_init.type}'"
 
-  | .assn lv op e =>
-    match lv with
-    | .var var =>
-      let elab_e :=
-        match op with
-        | .eq => e
-        | .aseq binop => .binop (.int binop) (.var var) e
-      match ctx.symbols.find? var with
-      | none => throwS s!"Variable '{var}' must be initialised before assignment"
-      | some status =>
-        match status with
-        | .var vstatus =>
-          let res ← handle <| Synth.Expr.small_nonvoid <|
-              Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract elab_e
-          let ctx := {ctx with calls := res.calls, strings := res.strings}
+  | .assn_var var e body =>
+    match h : Γ var with
+    | none => throwS s!"Variable '{var}' must be declared before assignment"
+    | some (.var vstatus) =>
+      let res ← handle <| Synth.Expr.small_nonvoid <|
+          Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
+      let ctx := {ctx with calls := res.calls, strings := res.strings}
 
-          if ty_equiv : res.type.equiv vstatus.type then
-            let ctx' :=
-              if vstatus.initialised then ctx else
-                let symbols' :=
-                  ctx.symbols.insert var (.var ⟨vstatus.type, true⟩)
-                { ctx with symbols := symbols' }
-            let lv' := Tst.LValue.var (τ := vstatus.type) var sorry
-            let e' : Tst.Expr.NoContract Δ Γ _ := ⟨res.texpr, res.valid⟩
-            return ⟨ctx', .assign lv' e' sorry⟩
-          else throwS s!"Assignment of '{var}' expects type '{vstatus.type}' but got '{res.type}'"
-        | .func _  => throwS s!"Cannot assign to function '{var}'"
-        | .alias _ => throwS s!"Cannot assign to type alias '{var}'"
+      if ty_equiv : vstatus.type.equiv res.type then
+        let Γ' := Γ.updateVar var ⟨vstatus.type, true⟩
+        let ctx' :=
+          if vstatus.initialised then ctx else
+            let symbols' :=
+              ctx.symbols.insert var (.var ⟨vstatus.type, true⟩)
+            { ctx with symbols := symbols' }
 
-    | _         =>
-      let resl ← handleLV <| Synth.LValue.small <| Synth.LValue.lvalue ctx lv
-      let resr ← handle <| Synth.Expr.small_nonvoid <|
-        Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
-      let ctx := { ctx with calls := resl.calls.merge resr.calls
-                          , strings := resr.strings
-                 }
-      match op with
-      | .eq =>
-        if ty_equiv : resl.type.equiv resr.type then
-          return ⟨ctx, .assign resl.lval ⟨resr.texpr, resr.valid⟩ ty_equiv⟩
-        else throwS s!"Left side of assignment has type '{resl.type}' doesn't match the right side '{resr.type}'"
-      | .aseq binop =>
-        if l_eq : resl.type = .prim .int then
-          if r_eq : resr.type = .prim .int then
-            let lv' := resl.lval.intType l_eq
-            let e'  := ⟨resr.texpr.intType r_eq, resr.valid⟩
-            return ⟨ctx, .asnop lv' (Trans.int_binop binop) e'⟩
-          else throwS s!"Assignment with operations must have type '{Typ.prim .int}' but right side is '{resr.type}'"
-        else throwS s!"Assignment with operations must have type '{Typ.prim .int}'  but left side is '{resl.type}'"
+        let lv' := Tst.LValue.var (τ := vstatus.type) var (by
+            if init : vstatus.initialised
+            then simp [←init]; exact .inl h
+            else simp at init; simp [←init]; exact .inr h
+          )
+        let e' : Tst.Expr.NoContract Δ Γ _ := ⟨res.texpr, res.valid⟩
+
+        let res ← stmts (Γ := Γ') ctx' body
+
+        let stmt' :=
+          .assign_var lv' (by simp [lv']; rfl) e' (ty_equiv) (by simp) res.stmts
+        return ⟨res.ctx, stmt'⟩
+      else throwS s!"Assignment of '{var}' expects type '{vstatus.type}' but got '{res.type}'"
+    | some (.func _)  => throwS s!"Cannot assign to function '{var}'"
+    | some (.alias _) => throwS s!"Cannot assign to type alias '{var}'"
+
+  | .assn lv op h e =>
+    let resl ← handleLV <| Synth.LValue.small <| Synth.LValue.lvalue ctx lv
+    let resr ← handle <| Synth.Expr.small_nonvoid <|
+      Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
+    let ctx := { ctx with calls := resl.calls.merge resr.calls
+                        , strings := resr.strings
+                }
+    match op_eq : op with
+    | .eq =>
+      if ty_equiv : resl.type.equiv resr.type then
+        have : ∀ name h, resl.lval ≠ .var name h := by
+          intro b name h'
+          simp [op_eq] at h
+          sorry
+        return ⟨ctx, .assign resl.lval this ⟨resr.texpr, resr.valid⟩ ty_equiv⟩
+      else throwS s!"Left side of assignment has type '{resl.type}' doesn't match the right side '{resr.type}'"
+    | .aseq binop =>
+      if l_eq : resl.type = .prim .int then
+        if r_eq : resr.type = .prim .int then
+          let lv' := resl.lval.intType l_eq
+          let e'  := ⟨resr.texpr.intType r_eq, resr.valid⟩
+          let stmt' := .asnop lv' (Trans.int_binop binop) e'
+          return ⟨ctx, stmt'⟩
+        else throwS s!"Assignment with operations must have type '{Typ.prim .int}' but right side is '{resr.type}'"
+      else throwS s!"Assignment with operations must have type '{Typ.prim .int}'  but left side is '{resl.type}'"
 
   | .ite cond tt ff =>
     let resc ← handle <| Synth.Expr.small_nonvoid <|
@@ -1114,7 +1121,7 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Except Error (Result Δ Γ ρ) := do
     | some _ => throw <| Error.stmt stm <|
         s!"Expected return type is '{ctx.ret_type}'" -- todo change this msg?
     | none =>
-      return ⟨ctx, .return_void⟩
+      return ⟨{ctx with returns := true}, .return_void⟩
 
   | .return (.some e) =>
     match ρ with
@@ -1197,8 +1204,16 @@ def stmts (ctx : FuncCtx)
   | [] => return ⟨ctx, .nil⟩
   | b::bs =>
     let resb ← stmt ctx b
-    let resbs ← stmts resb.ctx bs
-    return ⟨resbs.ctx, .cons resb.stmt resbs.stmts⟩
+    /- We need to typecheck after returns but we disregard the result.
+       TOOD: think about how this could be structurally enforced.
+     -/
+    if resb.ctx.returns then
+      let Γ' := Γ.initialiseAll
+      let resbs : (Result.List Δ Γ' ρ) ← stmts (Γ := Γ') resb.ctx bs
+      return ⟨resbs.ctx, .cons resb.stmt .nil⟩
+    else
+      let resbs ← stmts resb.ctx bs
+      return ⟨resbs.ctx, .cons resb.stmt resbs.stmts⟩
 end
 
 end Stmt
@@ -1256,7 +1271,7 @@ def fdecl (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDecl)
   else
     let (ctx', fctx, ret) ← func ctx extern false f.name f.type f.params
     let params ← Trans.params fctx f.params
-    let init_Γ := Typ.Typed.toMap params
+    let init_Γ := Tst.FCtx.ofParams params
     let (fctx', annos) ← Synth.Anno.func (Γ := init_Γ) fctx f.annos
     let fdecl := Tst.GDecl.fdecl {ret, name := f.name, params, annos}
     return ⟨{ctx' with calls := ctx'.calls.merge fctx'.calls}, _, some fdecl⟩
@@ -1274,7 +1289,7 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
         | none => throw <| Error.func f.name <|
           s!"Function input must have non-void, declared type"
       ) []
-    let init_Γ := Typ.Typed.toMap params
+    let init_Γ := Tst.FCtx.ofParams params
     let (fctx', annos) ← Synth.Anno.func (Γ := init_Γ) fctx f.annos
     let fdecl := {ret, name := f.name, params, init_Γ, annos}
 

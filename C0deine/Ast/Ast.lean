@@ -32,17 +32,21 @@ inductive UnOp
 
 inductive BinOp.Int
 | plus | minus | times | div | mod | and | xor | or | lsh | rsh
+deriving DecidableEq
 
 inductive BinOp.Bool
 | and | or
+deriving DecidableEq
 
 inductive BinOp
 | int (op : BinOp.Int)
 | cmp (op : Comparator)
 | bool (op : BinOp.Bool)
+deriving DecidableEq
 
 inductive AsnOp
 | eq | aseq (op : BinOp.Int)
+deriving DecidableEq
 
 inductive Expr
 | num (v : Int32)
@@ -79,7 +83,11 @@ inductive Anno
 
 inductive Stmt
 | decl (type : Typ) (name : Ident) (init : Option Expr) (body : List Stmt)
-| assn (lv : LValue) (op : AsnOp) (v : Expr)
+| assn_var (name : Ident) (v : Expr) (body : List Stmt)
+| assn (lv : LValue)
+       (op : AsnOp)
+       (h : (∀ x, lv ≠ .var x) ∨ op ≠ AsnOp.eq)
+       (v : Expr)
 | ite (cond : Expr) (tt : List Stmt) (ff : List Stmt)
 | while (cond : Expr) (annos : List Anno) (body : List Stmt)
 | «return» (e : Option Expr)
@@ -254,7 +262,9 @@ def Stmt.toString (s : Stmt) : String :=
       | some i => s!", {i}"
     let str_body := (Stmt.listToString body).replace "\n" "\n  "
     s!"declare({type}, {name}{initStr},\n  {str_body}\n)"
-  | .assn lv op v => s!"{lv} {op} {v}"
+  | .assn_var name v body =>
+    s!"{name} =} {v}\n{(Stmt.listToString body)}"
+  | .assn lv op _ v => s!"{lv} {op} {v}"
   | .ite cond tt ff =>
     let str_tt := (Stmt.listToString tt).replace "\n" "\n  "
     let str_ff := (Stmt.listToString ff).replace "\n" "\n  "

@@ -44,24 +44,56 @@ deriving Inhabited
 @[inline] private def arr    := Typ.mem ∘ .array
 @[inline] private def struct := Typ.mem ∘ .struct
 
-structure StructSig where
-  fieldTys : Symbol → Option Typ
 
 structure FuncSig where
   arity  : Nat
   argTys : Fin arity → Typ
-  retTy  : Typ    -- use .any if void
+  retTy  : Typ    -- use .any  if void
+
+structure Status.Var where
+  type        : Typ
+  initialised : Bool
+
+structure Status.Func where
+  type    : FuncSig
+  defined : Bool
+
+structure Status.Struct where
+  fields  : Symbol.Map Typ
+  defined : Bool
+
+inductive Status.Symbol
+| var   (v : Status.Var)
+| func  (f : Status.Func)
+| alias (t : Typ)
+
+abbrev FCtx := Symbol → Option Status.Symbol
+
+@[inline] def FCtx.update (Γ : FCtx) (x : Symbol) (s : Status.Symbol) : FCtx :=
+  Function.update Γ x (some s)
+@[inline] def FCtx.updateVar (Γ : FCtx) (x : Symbol) (s : Status.Var) : FCtx :=
+  Γ.update x (.var s)
+@[inline] def FCtx.ofParams (params : List (Typed Symbol)) : FCtx :=
+  (params.map (fun p => (p.data, Tst.Status.Symbol.var ⟨p.type, true⟩))).toMap
+@[inline] def FCtx.initialiseAll (Γ : FCtx) : FCtx :=
+  fun x =>
+    match Γ x with
+    | .some (.var status) => .some (.var {status with initialised := true})
+    | status => status
+
+structure StructSig where
+  fieldTys : Symbol → Option Typ
 
 structure GCtx where
   struct : Symbol → Option StructSig := fun _ => none
   func   : Symbol → Option FuncSig   := fun _ => none
 deriving Inhabited
 
-inductive Expr (Δ : GCtx) (Γ : Symbol → Option Typ) : Typ → Type
+inductive Expr (Δ : GCtx) (Γ : FCtx) : Typ → Type
 | num     : Int32  → Expr Δ Γ int
 | char    : Char   → Expr Δ Γ (.prim .char)
 | str     : String → Expr Δ Γ (.prim .string)
-| var     : (x : Symbol) → Γ x = .some τ → Expr Δ Γ τ
+| var     : (x : Symbol) → Γ x = .some (.var ⟨τ, true⟩) → Expr Δ Γ τ
 | «true»  : Expr Δ Γ bool
 | «false» : Expr Δ Γ bool
 | null    : Expr Δ Γ (ptr .any)
@@ -270,10 +302,12 @@ inductive Expr.All (P : {τ : Typ} → Expr Δ Γ τ → Bool) : Expr Δ Γ τ �
 abbrev Expr.NoContract Δ Γ τ := {e : Expr Δ Γ τ // Expr.All no_contract e}
 abbrev Expr.NoResult   Δ Γ τ := {e : Expr Δ Γ τ // Expr.All no_result   e}
 
-abbrev TExpr := {Δ : GCtx} → {Γ : Symbol → Option Typ} → {τ : Typ} → Expr Δ Γ τ
+abbrev TExpr := {Δ : GCtx} → {Γ : FCtx} → {τ : Typ} → Expr Δ Γ τ
 
-inductive LValue (Δ : GCtx) (Γ : Symbol → Option Typ) : Typ → Type
-| var   : (x : Symbol) → Γ x = .some τ → LValue Δ Γ τ
+inductive LValue (Δ : GCtx) (Γ : FCtx) : Typ → Type
+| var   : (x : Symbol)
+        → (Γ x = .some (.var ⟨τ, true⟩)) ∨ (Γ x = .some (.var ⟨τ, false⟩))
+        → LValue Δ Γ τ
 | dot   : {τ₁ : {τ : Typ // τ = struct s}}
         → LValue Δ Γ τ₁
         → (field : Symbol)
@@ -304,7 +338,7 @@ inductive LValue (Δ : GCtx) (Γ : Symbol → Option Typ) : Typ → Type
 @[inline] def LValue.structType (e : LValue Δ Γ τ) (s : Symbol) (eq : τ = struct s)
     : LValue Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = struct s}) := e.typeWithEq eq
 
-inductive Anno (Δ : GCtx) (Γ : Symbol → Option Typ) : Type
+inductive Anno (Δ : GCtx) (Γ : FCtx) : Type
 | requires   : {τ : {τ : Typ // τ = bool}} → Expr.NoResult Δ Γ τ → Anno Δ Γ
 | ensures    : {τ : {τ : Typ // τ = bool}} → Expr          Δ Γ τ → Anno Δ Γ
 | loop_invar : {τ : {τ : Typ // τ = bool}} → Expr.NoResult Δ Γ τ → Anno Δ Γ
@@ -336,21 +370,30 @@ abbrev Anno.Function Δ Γ := {a : Anno Δ Γ  // Anno.function a}
 abbrev Anno.Free     Δ Γ := {a : Anno Δ Γ  // Anno.free     a}
 
 mutual
-inductive Stmt (Δ : GCtx) : (Γ : Symbol → Option Typ) → Option Typ → Type
+inductive Stmt (Δ : GCtx) : (Γ : FCtx) → Option Typ → Type
 | decl
   : (name : Typed Symbol)
-  → (new_ctx : Γ' = (Function.update Γ name.data (some name.type)))
+  → (new_ctx : Γ' = Γ.updateVar name.data ⟨name.type, false⟩)
   → (body : Stmt.List Δ Γ' ρ)
   → Stmt Δ Γ ρ
 | decl_init
   : (name : Typed Symbol)
   → (init : Expr.NoContract Δ Γ τ)
   → (ty_equiv : name.type.equiv τ)
-  → (new_ctx : Γ' = (Function.update Γ name.data (some name.type)))
+  → (new_ctx : Γ' = Γ.updateVar name.data ⟨name.type, true⟩)
+  → (body : Stmt.List Δ Γ' ρ)
+  → Stmt Δ Γ ρ
+| assign_var
+  : (lhs : LValue Δ Γ τ₁)
+  → (is_var : lhs = .var name h)
+  → (rhs : Expr.NoContract Δ Γ τ₂)
+  → (ty_equiv : τ₁.equiv τ₂)
+  → (new_ctx : Γ' = Γ.updateVar name ⟨τ₁, true⟩)
   → (body : Stmt.List Δ Γ' ρ)
   → Stmt Δ Γ ρ
 | assign
   : (lhs : LValue Δ Γ τ₁)
+  → (is_var : ∀ name h, lhs ≠ .var name h) -- elaborate away
   → (rhs : Expr.NoContract Δ Γ τ₂)
   → (ty_equiv : τ₁.equiv τ₂)
   → Stmt Δ Γ ρ
@@ -391,9 +434,9 @@ inductive Stmt (Δ : GCtx) : (Γ : Symbol → Option Typ) → Option Typ → Typ
   → Stmt Δ Γ ρ
 | anno : Anno.Free Δ Γ → Stmt Δ Γ ρ
 
-inductive Stmt.List (Δ : GCtx) : (Γ : Symbol → Option Typ) → Option Typ → Type
+inductive Stmt.List (Δ : GCtx) : (Γ : FCtx) → Option Typ → Type
 | nil  : Stmt.List Δ Γ ρ
-| cons : Stmt Δ Γ ρ → Stmt.List Δ Γ ρ → Stmt.List Δ Γ ρ
+| cons : (s : Stmt Δ Γ ρ) → Stmt.List Δ Γ ρ → Stmt.List Δ Γ ρ
 end
 
 def Stmt.List.toList : Stmt.List Δ Γ ρ → _root_.List (Stmt Δ Γ ρ)
@@ -415,7 +458,7 @@ structure FDecl (Δ : GCtx) where
   ret    : Option Typ
   name   : Symbol
   params : List (Typed Symbol)
-  init_Γ : Symbol → Option Typ := Typed.toMap params
+  init_Γ : FCtx
   annos  : List (Anno.Function Δ init_Γ)
 
 structure FDef (Δ : GCtx) extends FDecl Δ where
@@ -453,11 +496,11 @@ def Calls.merge (calls1 calls2 : Calls) : Calls :=
 
 structure Prog where
   header_ctx : GCtx
-  header  : GDecl.List {} header_ctx
-  body_ctx : GCtx
-  body    : GDecl.List header_ctx body_ctx
-  calls   : Calls
-  strings : List String
+  header     : GDecl.List {} header_ctx
+  body_ctx   : GCtx
+  body       : GDecl.List header_ctx body_ctx
+  calls      : Calls
+  strings    : List String
 
 
 def UnOp.Int.toString : UnOp.Int → String
@@ -522,10 +565,10 @@ def Expr.toString : Expr Δ Γ τ → String
   | .alloc_array ty e => s!"(alloc_array({ty}, {Expr.toString e}) : {τ})"
   | .var name _ => s!"({name} : {τ})"
   | .dot e field _ _ => s!"({Expr.toString e}.{field} : {τ})"
-  | .deref e => s!"(*{Expr.toString e} : {τ})"
+  | .deref e   => s!"(*{Expr.toString e} : {τ})"
   | .index e i => s!"({Expr.toString e}[{Expr.toString i}] : {τ})"
-  | .result => s!"(\\result : {τ})"
-  | .length e => s!"(\\length {Expr.toString e} : {τ})"
+  | .result    => s!"(\\result : {τ})"
+  | .length e  => s!"(\\length {Expr.toString e} : {τ})"
 
 instance : ToString (Expr Δ Γ τ) := ⟨Expr.toString⟩
 
@@ -566,8 +609,10 @@ partial def Stmt.toString (s : Stmt Δ Γ ρ) : String :=
   | .decl_init name init _ _ body =>
     let str_body := (Stmt.listToString body).replace "\n" "\n  "
     s!"declare({name}, {init},\n  {str_body}\n)"
-  | .assign lv v _ => s!"{lv} = {v}"
-  | .asnop lv op v => s!"{lv} {op}= {v}"
+  | .assign_var lv _ v _ _ body =>
+    s!"{lv} = {v}\n{Stmt.listToString body}"
+  | .assign lv _ v _  => s!"{lv} = {v}"
+  | .asnop lv op v  => s!"{lv} {op}= {v}"
   | .ite cond tt ff =>
     let str_tt := (Stmt.listToString tt).replace "\n" "\n  "
     let str_ff := (Stmt.listToString ff).replace "\n" "\n  "
