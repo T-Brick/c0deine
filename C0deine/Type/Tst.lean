@@ -54,12 +54,15 @@ structure Status.Var where
   type        : Typ
   initialised : Bool
 
+structure StructSig where
+  fieldTys : Symbol → Option Typ
+
 structure Status.Func where
   type    : FuncSig
   defined : Bool
 
 structure Status.Struct where
-  fields  : Symbol.Map Typ
+  sig     : StructSig
   defined : Bool
 
 inductive Status.Symbol
@@ -73,21 +76,39 @@ abbrev FCtx := Symbol → Option Status.Symbol
   Function.update Γ x (some s)
 @[inline] def FCtx.updateVar (Γ : FCtx) (x : Symbol) (s : Status.Var) : FCtx :=
   Γ.update x (.var s)
+@[inline] def FCtx.updateFunc
+    (Γ : FCtx) (x : Symbol) (s : Status.Func) : FCtx :=
+  Γ.update x (.func s)
 @[inline] def FCtx.ofParams (params : List (Typed Symbol)) : FCtx :=
   (params.map (fun p => (p.data, Tst.Status.Symbol.var ⟨p.type, true⟩))).toMap
+@[inline] def FCtx.addFunc
+    (Γ : FCtx) (f : Symbol) (retTy : Typ) (params : List (Typed Symbol))
+    : FCtx :=
+  let params_Γ := FCtx.ofParams params
+  let args := fun i => params.get i |>.type
+  let status := ⟨⟨params.length, args, retTy⟩, true⟩
+  fun x => -- re-add params bc they shadow the function definition
+    match params_Γ x with
+    | some status => some status
+    | none => if x = f then some (.func status) else Γ x
 @[inline] def FCtx.initialiseAll (Γ : FCtx) : FCtx :=
   fun x =>
     match Γ x with
     | .some (.var status) => .some (.var {status with initialised := true})
     | status => status
 
-structure StructSig where
-  fieldTys : Symbol → Option Typ
-
 structure GCtx where
-  struct : Symbol → Option StructSig := fun _ => none
-  func   : Symbol → Option FuncSig   := fun _ => none
+  symbols : Symbol → Option Status.Symbol := fun _ => none
+  struct  : Symbol → Option StructSig     := fun _ => none
 deriving Inhabited
+
+@[inline] def FCtx.init
+    (Δ : GCtx) (params : List (Typed Symbol)) : FCtx :=
+  let params_Γ := FCtx.ofParams params
+  fun x =>
+    match params_Γ x with
+    | some status => some status
+    | none => Δ.symbols x
 
 inductive Expr (Δ : GCtx) (Γ : FCtx) : Typ → Type
 | num     : Int32  → Expr Δ Γ int
@@ -149,14 +170,11 @@ inductive Expr (Δ : GCtx) (Γ : FCtx) : Typ → Type
   → Expr Δ Γ (τ₂.intersect τ₃)
 | app
   : (f : Symbol)
-  → Δ.func f = .some sig
-  → (τs : List Typ)
-  → (len : sig.arity = τs.length)
-  → (eq : ∀ i, (sig.argTys i).equiv
-              (τs.get ⟨↑i, by have := i.isLt; simp [len] at *; exact this⟩))
-  → (args : (i : Fin sig.arity)
-      → Expr Δ Γ (τs.get ⟨↑i, by have := i.isLt; simp [len] at *; exact this⟩))
-  → Expr Δ Γ sig.retTy
+  → Γ f = .some (.func status)
+  → (τs : Fin status.type.arity → Typ)
+  → (eq : ∀ i, (status.type.argTys i).equiv (τs i))
+  → (args : (i : Fin status.type.arity) → Expr Δ Γ (τs i))
+  → Expr Δ Γ status.type.retTy
 | alloc : (τ : Typ) → Expr Δ Γ (ptr τ)
 | alloc_array
   : {τ₁ : {τ : Typ // τ = int}}
@@ -255,12 +273,11 @@ inductive Expr.All (P : {τ : Typ} → Expr Δ Γ τ → Bool) : Expr Δ Γ τ �
   → P (.ternop cc tt ff h₂)
   → All P (.ternop cc tt ff h₂)
 | app
-  : {hsig : Δ.func f = .some sig}
-  → {args : (i : Fin sig.arity)
-      → Expr Δ Γ (τs.get ⟨↑i, by have := i.isLt; simp [len] at *; exact this⟩)}
+  : {hsig : Γ f = .some (.func status)}
+  → {args : (i : Fin status.type.arity) → Expr Δ Γ (τs i)}
   → (∀ i, All P (args i))
-  → P (.app f hsig τs len eq args)
-  → All P (.app f hsig τs len eq args)
+  → P (.app f hsig τs eq args)
+  → All P (.app f hsig τs eq args)
 | alloc : P (.alloc τ₁) → All P (.alloc τ₁)
 | alloc_array
   : All P e
@@ -462,22 +479,28 @@ structure FDecl (Δ : GCtx) where
   annos  : List (Anno.Function Δ init_Γ)
 
 structure FDef (Δ : GCtx) extends FDecl Δ where
-  body : List (Stmt Δ init_Γ ret)
+  body : List (Stmt Δ (init_Γ.addFunc name (Typ.flattenOpt ret) params) ret)
 
 def GCtx.updateStruct (Δ : GCtx) (s : SDef) : GCtx :=
   let sig := ⟨Typed.toMap s.fields⟩
   { Δ with struct := Function.update Δ.struct s.name (some sig) }
 
-def GCtx.updateFunc (Δ : GCtx) (f : FDecl Δ) : GCtx :=
+def GCtx.updateFunc (Δ : GCtx) (f : FDecl Δ) (defined : Bool) : GCtx :=
   let arity  := f.params.length
   let argTys := fun i => (f.params.get i).type
   let retTy := match f.ret with | none => .any | some τ => τ
-  let sig := ⟨arity, argTys, retTy⟩
-  { Δ with func := Function.update Δ.func f.name (some sig)}
+
+  let defined' := -- can declare a function after defining it
+    if let some (.func status) := Δ.symbols f.name then
+      defined || status.defined
+    else defined
+
+  let sig : Status.Func := ⟨⟨arity, argTys, retTy⟩, defined'⟩
+  { Δ with symbols := FCtx.updateFunc Δ.symbols f.name sig}
 
 inductive GDecl (Δ : GCtx) : GCtx → Type
-| fdecl : (f : FDecl Δ) → GDecl Δ (Δ.updateFunc f)
-| fdef  : (f : FDef Δ)  → GDecl Δ (Δ.updateFunc f.toFDecl)
+| fdecl : (f : FDecl Δ) → GDecl Δ (Δ.updateFunc f false)
+| fdef  : (f : FDef Δ)  → GDecl Δ (Δ.updateFunc f.toFDecl true)
 | sdef  : (s : SDef)    → GDecl Δ (Δ.updateStruct s)
 
 inductive GDecl.List : GCtx → GCtx → Type
@@ -558,8 +581,9 @@ def Expr.toString : Expr Δ Γ τ → String
     s!"({Expr.toString l} {op} {Expr.toString r} : {τ})"
   | .ternop cc tt ff _ =>
     s!"({Expr.toString cc} ? {Expr.toString tt} : {Expr.toString ff} : {τ})"
-  | .app f _ _ _ _ args =>
-    let str_args := ", ".intercalate (.ofFn (fun i => Expr.toString (args i)))
+  | .app f _ _ _ args =>
+    let str_args := ", ".intercalate
+      (.ofFn (fun i => Expr.toString (args i)))
     s!"({f}({str_args}) : {τ})"
   | .alloc ty => s!"(alloc({ty}) : {τ})"
   | .alloc_array ty e => s!"(alloc_array({ty}, {Expr.toString e}) : {τ})"

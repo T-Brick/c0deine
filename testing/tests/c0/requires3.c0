@@ -1,0 +1,23 @@
+//test error
+
+// from the c0-reference
+int exp (int k, int n)
+//@requires n >= 0;
+//@requires exp(1, 0) == 1;
+//@ ensures \result >= 1;
+/*@ensures \result > n; @*/
+{
+  int res = 1;
+  int i = 0;
+  while (i < n)
+  //@loop_invariant i <= n;
+  {
+    res = res * k;
+    i = i + 1;
+  }
+  return res;
+}
+
+int main() {
+  return exp(2,4);
+}

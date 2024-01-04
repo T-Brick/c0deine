@@ -102,15 +102,29 @@ mutual
     | .any, _   | _, .any  => true
     | .prim p1  , .prim p2 => p1 == p2
     | .mem m1   , .mem m2  => Memory.equiv m1 m2
-    | _, _                 => false
+    | _, _ => false
 
   @[reducible] def Memory.equiv (a b : Memory) : Bool :=
     match a, b with
     | .pointer t1, .pointer t2 => equiv t1 t2
     | .array t1  , .array t2   => equiv t1 t2
     | .struct s1 , .struct s2  => s1 == s2
-    | _, _                     => false
+    | _, _ => false
 end
+
+mutual
+@[simp] theorem equiv_refl : ∀ τ, equiv τ τ := by
+  intro τ; cases τ <;> simp [equiv]; next m => exact Memory.equiv_refl m
+
+@[simp] theorem Memory.equiv_refl : ∀ τ, Memory.equiv τ τ := by
+  intro τ; cases τ <;> simp [Memory.equiv]
+  case pointer τ' => exact equiv_refl τ'
+  case array τ'   => exact equiv_refl τ'
+end
+
+@[inline] def flattenOpt : Option Typ → Typ
+  | none   => .any
+  | some τ => τ
 
 def isScalar : Typ → Bool
   | .prim .int => true

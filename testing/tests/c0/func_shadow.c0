@@ -1,0 +1,9 @@
+//test return 100
+
+int foo(int foo) {
+  return foo;
+}
+
+int main() {
+  return foo(100);
+}

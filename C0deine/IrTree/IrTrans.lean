@@ -267,10 +267,11 @@ partial def transSizeExpr (e : Tst.Expr Δ Γ τ) : Nat :=
   | .binop_rel₂ _ _ l r => 1 + max (transSizeExpr l) (transSizeExpr r)
   | .ternop cc tt ff _  =>
     1 + (transSizeExpr cc) + 1 + (transSizeExpr tt) + 1 + (transSizeExpr ff)
-  | .app f _ τs len _ as =>
-    let as' : (i : Fin τs.length) → Tst.Expr Δ Γ (τs.get i) :=
-      fun i => as ⟨↑i, by simp [len]⟩
-    1 + transSizeArgs τs as'
+  | .app f _ τs _ as =>
+    let as' : (i : Fin _) → Tst.Expr Δ Γ (τs i) :=
+      fun i => as i
+    1
+    -- 1 + transSizeArgs τs as'
   | .alloc _          => 1
   | .alloc_array _ e  => 1 + transSizeExpr e
   | .dot e _ _ _      => 2 + transSizeExpr e
@@ -384,10 +385,8 @@ partial def expr (tau : Typ)
 
   | .ternop cond tt ff eq => ternary tau acc cond tt ff
 
-  | .app f _ τs len _ as =>
-    let as' : (i : Fin τs.length) → Tst.Expr Δ Γ (τs.get i) :=
-      fun i => as ⟨↑i, by simp [len]⟩
-    let (stmts, args') ← args acc τs as'
+  | .app (status := status) f _ τs _ as =>
+    let (stmts, args') ← args acc status.type.arity τs as
     let func_lbl ← Env.Func.func f
     let dest ← Env.Func.freshTemp
     let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
@@ -523,16 +522,17 @@ partial def ternary
 
 partial def args
     (acc : List IrTree.Stmt)
-    (τs : List Typ)
-    (as : (i : Fin τs.length) → Tst.Expr Δ Γ (τs.get i))
+    (n : Nat)
+    (τs : Fin n → Typ)
+    (as : (i : Fin n) → Tst.Expr Δ Γ (τs i))
     : Env.Func ((List IrTree.Stmt) × (List (Typ.Typed Expr))) := do
-  match τs with
-  | [] => return (acc, [])
-  | τ :: rest =>
+  match n with
+  | .zero => return (acc, [])
+  | .succ m =>
     let (stmts, arg') ← texpr acc (as ⟨0, by simp⟩)
-    let (stmts', args') ← args stmts rest (fun i =>
-        as ⟨Nat.succ i, by simp; exact Nat.succ_lt_succ i.isLt⟩
-      )
+    let (stmts', args') ← args stmts m
+      (fun i => τs ⟨Nat.succ i, Nat.succ_lt_succ i.isLt⟩)
+      (fun i => as ⟨Nat.succ i, Nat.succ_lt_succ i.isLt⟩)
     return (stmts', arg' :: args')
 
 

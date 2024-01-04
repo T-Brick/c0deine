@@ -371,35 +371,6 @@ structure Result.List (P : {τ : Typ} → Tst.Expr Δ Γ τ → Bool) where
 @[inline] def ExprOutput (P : {τ : Typ} → Tst.Expr Δ Γ τ → Bool) :=
   Except Error (Result P)
 
--- def binop_type
---     (expect₁ : Typ)
---     (opt_expect₂ : Option Typ)
---     (expr : Ast.Expr)
---     (op : Ast.BinOp)
---     (lhs : Typ)
---     (rhs : Typ)
---     : Except Error Typ := do
---   let check := fun (ty : Typ) =>
---     if expect₁ = ty then pure ty else
---     match opt_expect₂ with
---     | .some expect₂ =>
---       if expect₂ = ty then pure ty else
---       throw <| Error.expr expr <|
---         s!"Binary operator '{op}' expects both sides to have type '{expect₁}' or '{expect₂}' but they both have type '{ty}'"
---     | .none =>
---       throw <| Error.expr expr <|
---         s!"Binary operator '{op}' expects both sides to have type '{expect₁}' but they both have type '{ty}'"
---   match lhs, rhs with
---   | .prim .int , .prim .int   => check (.prim .int)
---   | .prim .bool, .prim .bool  => check (.prim .bool)
---   | .prim .char, .prim .char  => check (.prim .char)
---   | .any, .any                => pure expect₁
---   | _, _ => throw <| Error.expr expr <|
---     if lhs.equiv rhs then
---       s!"Binary operator '{op}' cannot operate on type '{lhs}'"
---     else
---       s!"Binary operator '{op}' expects both sides to have the same type but instead got '{lhs}' and '{rhs}'"
-
 @[inline] def nonvoid (eres : ExprOutput P) : ExprOutput P := do
   let res ← eres
   match res.type with
@@ -568,50 +539,44 @@ def expr (ctx : FuncCtx)
     else throw <| Error.expr exp s!"Ternary condition {resc.texpr} must be a bool"
 
   | .app f args        =>
-    match ctx.symbols.find? f with
+    match is_func : Γ f with
     | some (.func status) =>
       let resargs ← exprs ctx P fail args
-      let arg_types := resargs.texprs.map (·.type)
+      -- false => not in contract (corrected later if we actually are)
+      let calls := resargs.calls.insert f .false
 
-      let ret_type := -- return unit (i.e. void_star) if there's no return type
-        match status.type.ret with
-        | some tau => tau
-        | none => .any
+      if len : status.type.arity = resargs.texprs.length then
+        let τs := fun (i : Fin status.type.arity) =>
+          resargs.texprs.get ⟨↑i, by simp [←len]⟩ |>.type
+        let tys_equiv_fn := fun i =>
+          (status.type.argTys i).equiv (τs i)
+        if tys_equiv : (List.ofFn tys_equiv_fn).all (·) then
+          have eq : ∀ i, (status.type.argTys i).equiv
+              (τs i) := by
+            have := List.all_eq_true.mp tys_equiv
+                 |> List.forall_mem_ofFn_iff.mp
+            simp [tys_equiv_fn] at this
+            simp [τs]
+            exact this
 
-      let arity := resargs.texprs.length
-      let argTys : Fin arity → Typ :=
-        fun i => arg_types.get ⟨i.val, by simp [arg_types]⟩
-      let sig : Tst.FuncSig := ⟨arity, argTys, ret_type⟩
+          let args_core : (i : Fin status.type.arity) → Result.Core _ :=
+            fun i => resargs.texprs.get ⟨↑i, by simp [←len]⟩
 
-      let types_match := arg_types.zip status.type.args
-        |>.all fun (a, b) => Typ.equiv a b
-      if resargs.texprs.length = status.type.args.length && types_match then
-        let calls := resargs.calls.insert f .false
+          let args : (i : Fin status.type.arity) → Tst.Expr Δ Γ (τs i) :=
+            fun i => args_core i |>.texpr
 
-        have hsig : Δ.func f = .some sig := sorry
-        have len : sig.arity = arg_types.length := sorry
-        have heq := sorry
+          have valid : (i : Fin status.type.arity) → Tst.Expr.All _ (args i) :=
+            fun i => args_core i |>.valid
 
-        let args' : (i : Fin sig.arity)
-            → Tst.Expr Δ Γ (arg_types.get ⟨↑i, by simp [len]⟩) :=
-          fun i => by
-            simp [argTys]
-            exact (resargs.texprs.get i).texpr
-        let valid' : ∀ (i : Fin sig.arity), Tst.Expr.All P (args' i) :=
-          fun i => by
-            have := (resargs.texprs.get i).valid
-            have h' : Tst.Expr.All P (args' i) := sorry
-            simp [args']
-            exact h'
-
-        let e' := .app f hsig arg_types len heq args'
-        if p : P e' then
-          let p' := .app valid' p
-          return ⟨calls, resargs.strings, ret_type, e', p'⟩
-        else throw <| fail e' p
+          let e' := .app f is_func τs eq args
+          if p : P e' then
+            let p' := .app valid p
+            return ⟨calls, resargs.strings, status.type.retTy, e', p'⟩
+          else throw <| fail e' p
+        else throw <| Error.expr exp <|
+          s!"Arguments should have types {List.ofFn status.type.argTys} but received {List.ofFn τs}"
       else throw <| Error.expr exp <|
-        s!"Arguments should have types {status.type.args} but received {arg_types}"
-
+        s!"Expected {status.type.arity} arguments but received {resargs.texprs.length}"
     | some (.var _) => throw <| Error.expr exp <|
       s!"Cannot call variable {f} (non-function type)"
     | some (.alias _) => throw <| Error.expr exp s!"Cannot call type {f}"
@@ -1271,7 +1236,7 @@ def fdecl (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDecl)
   else
     let (ctx', fctx, ret) ← func ctx extern false f.name f.type f.params
     let params ← Trans.params fctx f.params
-    let init_Γ := Tst.FCtx.ofParams params
+    let init_Γ := Tst.FCtx.init Δ params
     let (fctx', annos) ← Synth.Anno.func (Γ := init_Γ) fctx f.annos
     let fdecl := Tst.GDecl.fdecl {ret, name := f.name, params, annos}
     return ⟨{ctx' with calls := ctx'.calls.merge fctx'.calls}, _, some fdecl⟩
@@ -1289,12 +1254,13 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
         | none => throw <| Error.func f.name <|
           s!"Function input must have non-void, declared type"
       ) []
-    let init_Γ := Tst.FCtx.ofParams params
+    let retTy := Typ.flattenOpt ret
+    let init_Γ := Tst.FCtx.init Δ params
     let (fctx', annos) ← Synth.Anno.func (Γ := init_Γ) fctx f.annos
     let fdecl := {ret, name := f.name, params, init_Γ, annos}
 
     let ⟨fctx'', body'⟩ ←
-      Stmt.stmts (Δ := Δ) (Γ := fdecl.init_Γ) (ρ := ret) fctx' f.body
+      Stmt.stmts (Δ := Δ) (Γ := init_Γ.addFunc f.name retTy params) (ρ := ret) fctx' f.body
         |>.tryCatch (fun err => throw {err with function := some f.name})
 
     if ¬(ret.isNone || fctx''.returns)
