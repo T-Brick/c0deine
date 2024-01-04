@@ -13,6 +13,8 @@ import C0deine.Context.Temp
 import C0deine.Parser.Cst
 import C0deine.Parser.Basic
 
+import C0deine.Directive.Use
+
 import C0deine.Ast.Ast
 import C0deine.Ast.Abstractor
 
