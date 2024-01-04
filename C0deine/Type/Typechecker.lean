@@ -624,22 +624,20 @@ def expr (ctx : FuncCtx)
     let res ← nonvoid <| expr ctx P fail e
     match eq : res.type with
     | .mem (.struct name) =>
-      match ctx.structs.find? name with
+      match hsig : Δ.struct name with
       | some status =>
-        if ¬status.defined
-        then throw <| Error.texpr res.texpr s!"Struct '{name}' is not defined"
-        else
-          match status.fields.find? field with
+        if defined : status.defined then
+          match f_ty : status.fields field with
           | some tau =>
-            let str := Tst.StructSig.mk status.fields.find?
-            have hsig : Δ.struct name = .some str := sorry
-
-            let e' := .dot (res.texpr.structType name eq) field hsig sorry
+            let e' :=
+              .dot (res.texpr.structType name eq) field
+                (by rw [←defined]; exact hsig) f_ty
             if p : P e'
             then return ⟨res.calls, res.strings, tau, e', .dot res.valid p⟩
             else throw <| fail e' p
           | none => throw <| Error.expr exp <|
             s!"Invalid field '{field}' for struct type '{res.type}'"
+        else throw <| Error.texpr res.texpr s!"Struct '{name}' is not defined"
       | none => throw <| Error.texpr res.texpr s!"Struct '{name}' is not defined"
     | _ => throw <| Error.expr exp <|
       s!"Field accessor expects a struct not type '{res.type}'"
@@ -648,11 +646,9 @@ def expr (ctx : FuncCtx)
     let res ← expr ctx P fail e
     match eq : res.type with
     | .mem (.pointer <| .mem (.struct name)) =>
-      match ctx.structs.find? name with
+      match hsig : Δ.struct name with
       | some status =>
-        if ¬status.defined
-        then throw <| Error.texpr res.texpr s!"Struct '{name}' is not defined"
-        else
+        if defined : status.defined then
           let obj := res.texpr.ptrType (.mem (.struct name)) eq
           if pe : P (.deref obj) then
             let te' := Tst.Expr.deref obj
@@ -660,18 +656,18 @@ def expr (ctx : FuncCtx)
               simp [te']
               exact .deref res.valid pe
 
-            match status.fields.find? field with
+            match f_ty : status.fields field with
             | some tau =>
-              let str := Tst.StructSig.mk status.fields.find?
-              have hsig : Δ.struct name = .some str := sorry
-
-              let e' := .dot (te'.structType name (by rfl)) field hsig sorry
+              let e' :=
+                .dot (te'.structType name (by rfl)) field
+                  (by rw [←defined]; exact hsig) f_ty
               if p : P e'
               then return ⟨res.calls, res.strings, tau, e', .dot pe' p⟩
               else throw <| fail e' p
             | none => throw <| Error.expr exp <|
               s!"Invalid field '{field}' for struct type '{Typ.mem (.struct name)}'"
           else throw <| fail (.deref obj) pe
+        else throw <| Error.texpr res.texpr s!"Struct '{name}' is not defined"
       | none => throw <| Error.texpr res.texpr s!"Struct '{name}' is not defined"
     | _ => throw <| Error.expr exp <|
       s!"Arrow operator expects a struct pointer not type '{res.type}'"
@@ -771,20 +767,18 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue) : Except Error (Result Δ Γ) := 
     let res ← lvalue ctx lv
     match tyeq : res.type with
     | .mem (.struct name) =>
-      match ctx.structs.find? name with
+      match hsig : Δ.struct name with
       | some status =>
-        if ¬status.defined
-        then throw <| Error.lval lval s!"Struct '{name}' is not defined"
-        else
-          match h : status.fields.find? field with
+        if defined : status.defined then
+          match f_ty : status.fields field with
           | some tau =>
-            let str := Tst.StructSig.mk status.fields.find?
-            have hsig : Δ.struct name = .some str := sorry
-
-            let lv' := .dot (res.lval.structType name tyeq) field hsig h
+            let lv' :=
+              .dot (res.lval.structType name tyeq) field
+                (by rw [←defined]; exact hsig) f_ty
             return ⟨res.calls, tau, lv'⟩
           | none => throw <| Error.lval lval <|
             s!"Invalid field '{field}' for struct type '{res.type}'"
+        else throw <| Error.lval lval s!"Struct '{name}' is not defined"
       | none => throw <| Error.lval lval s!"Struct {name} is not defined"
     | _ => throw <| Error.lval lval <|
       s!"Field accessor expects a struct not type '{res.type}'"
@@ -793,22 +787,19 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue) : Except Error (Result Δ Γ) := 
     let res ← lvalue ctx lv
     match tyeq : res.type with
     | .mem (.pointer <| .mem (.struct name)) =>
-      match ctx.structs.find? name with
+      match hsig : Δ.struct name with
       | some status =>
-        if ¬status.defined
-        then throw <| Error.lval lval s!"Struct '{name}' is not defined"
-        else
-          match h : status.fields.find? field with
+        if defined : status.defined then
+          match f_ty : status.fields field with
           | some tau =>
-            let str := Tst.StructSig.mk status.fields.find?
-            have hsig : Δ.struct name = .some str := sorry
-
             let dref' : Tst.LValue Δ Γ _ :=
               .deref (res.lval.ptrType (.mem (.struct name)) tyeq)
-            let lv' := .dot (dref'.structType name (by rfl)) field hsig h
+            let lv' := .dot (dref'.structType name (by rfl)) field
+              (by rw [←defined]; exact hsig) f_ty
             return ⟨res.calls, tau, lv'⟩
           | none => throw <| Error.lval lval <|
             s!"Invalid field '{field}' for struct type '{res.type}'"
+        else throw <| Error.lval lval s!"Struct '{name}' is not defined"
       | none => throw <| Error.lval lval s!"Struct '{name}' is not defined"
     | _ => throw <| Error.lval lval <|
       s!"Arrow operator expects a struct pointer not type '{res.type}'"
@@ -1195,8 +1186,6 @@ structure Result.List (Δ : Tst.GCtx) where
   Δ'     : Tst.GCtx
   gdecls : (Tst.GDecl.List Δ Δ')
 
--- def Result := Except Error (GlobalCtx × Option Tst.GDecl)
--- deriving Inhabited
 
 def func (ctx : GlobalCtx)
          (extern : Bool)
@@ -1230,9 +1219,8 @@ def func (ctx : GlobalCtx)
 
 def fdecl (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDecl)
     : Except Error (Result Δ) := do
-  if extern && Symbol.main == f.name
-  then throw <| Error.func f.name <|
-    s!"Function 'main' cannot appear in headers"
+  if extern && Symbol.main == f.name then
+    throw <| Error.func f.name s!"Function 'main' cannot appear in headers"
   else
     let (ctx', fctx, ret) ← func ctx extern false f.name f.type f.params
     let params ← Trans.params fctx f.params

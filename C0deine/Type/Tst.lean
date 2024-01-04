@@ -54,15 +54,12 @@ structure Status.Var where
   type        : Typ
   initialised : Bool
 
-structure StructSig where
-  fieldTys : Symbol → Option Typ
-
 structure Status.Func where
   type    : FuncSig
   defined : Bool
 
 structure Status.Struct where
-  sig     : StructSig
+  fields : Symbol → Option Typ
   defined : Bool
 
 inductive Status.Symbol
@@ -99,7 +96,7 @@ abbrev FCtx := Symbol → Option Status.Symbol
 
 structure GCtx where
   symbols : Symbol → Option Status.Symbol := fun _ => none
-  struct  : Symbol → Option StructSig     := fun _ => none
+  struct  : Symbol → Option Status.Struct := fun _ => none
 deriving Inhabited
 
 @[inline] def FCtx.init
@@ -185,8 +182,8 @@ inductive Expr (Δ : GCtx) (Γ : FCtx) : Typ → Type
   : {τ₁ : {τ : Typ // τ = struct s}}
   → Expr Δ Γ τ₁
   → (field : Symbol)
-  → Δ.struct s = .some str
-  → str.fieldTys field = .some τ
+  → Δ.struct s = .some ⟨fields, true⟩
+  → fields field = .some τ
   → Expr Δ Γ τ
 | deref
   : {τ₁ : {τ' : Typ // τ' = ptr τ}}
@@ -328,8 +325,8 @@ inductive LValue (Δ : GCtx) (Γ : FCtx) : Typ → Type
 | dot   : {τ₁ : {τ : Typ // τ = struct s}}
         → LValue Δ Γ τ₁
         → (field : Symbol)
-        → Δ.struct s = .some str
-        → str.fieldTys field = .some τ
+        → Δ.struct s = .some ⟨fields, true⟩
+        → fields field = .some τ
         → LValue Δ Γ τ
 | deref : {τ₁ : {τ' : Typ // τ' = ptr τ}}
         → LValue Δ Γ τ₁
@@ -482,7 +479,7 @@ structure FDef (Δ : GCtx) extends FDecl Δ where
   body : List (Stmt Δ (init_Γ.addFunc name (Typ.flattenOpt ret) params) ret)
 
 def GCtx.updateStruct (Δ : GCtx) (s : SDef) : GCtx :=
-  let sig := ⟨Typed.toMap s.fields⟩
+  let sig := ⟨Typed.toMap s.fields, true⟩
   { Δ with struct := Function.update Δ.struct s.name (some sig) }
 
 def GCtx.updateFunc (Δ : GCtx) (f : FDecl Δ) (defined : Bool) : GCtx :=

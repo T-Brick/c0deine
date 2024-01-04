@@ -1,0 +1,4 @@
+//test error
+int foo() {
+  return 5;
+}
