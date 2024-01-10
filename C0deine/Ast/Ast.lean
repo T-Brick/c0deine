@@ -83,11 +83,7 @@ inductive Anno
 
 inductive Stmt
 | decl (type : Typ) (name : Ident) (init : Option Expr) (body : List Stmt)
-| assn_var (name : Ident) (v : Expr) (body : List Stmt)
-| assn (lv : LValue)
-       (op : AsnOp)
-       (h : (∀ x, lv ≠ .var x) ∨ op ≠ AsnOp.eq)
-       (v : Expr)
+| assn (lv : LValue) (op : AsnOp) (v : Expr)
 | ite (cond : Expr) (tt : List Stmt) (ff : List Stmt)
 | while (cond : Expr) (annos : List Anno) (body : List Stmt)
 | «return» (e : Option Expr)
@@ -262,9 +258,9 @@ def Stmt.toString (s : Stmt) : String :=
       | some i => s!", {i}"
     let str_body := (Stmt.listToString body).replace "\n" "\n  "
     s!"declare({type}, {name}{initStr},\n  {str_body}\n)"
-  | .assn_var name v body =>
-    s!"{name} =} {v}\n{(Stmt.listToString body)}"
-  | .assn lv op _ v => s!"{lv} {op} {v}"
+  -- | .assn_var name v body =>
+    -- s!"{name} =} {v}\n{(Stmt.listToString body)}"
+  | .assn lv op v => s!"{lv} {op} {v}"
   | .ite cond tt ff =>
     let str_tt := (Stmt.listToString tt).replace "\n" "\n  "
     let str_ff := (Stmt.listToString ff).replace "\n" "\n  "
@@ -273,7 +269,7 @@ def Stmt.toString (s : Stmt) : String :=
     let str_body := (Stmt.listToString body).replace "\n" "\n  "
     let str_anno := Anno.listToString as
     s!"while({cond})\n  {str_anno}{str_body}\nendwhile"
-  | .«return» .none => "return"
+  | .«return» .none     => s!"return"
   | .«return» (.some e) => s!"return {e}"
   | .assert e => s!"assert({e})"
   | .error e => s!"error({e})"
@@ -303,7 +299,7 @@ def Stmt.toPrettyString (s : Stmt) : String :=
       | none => ""
       | some i => s!" = {i}"
     s!"{type} {name}{initStr};"
-  | .ite cond _tt _ff => s!"if({cond}) ..."
+  | .ite cond _tt _ff       => s!"if({cond}) ..."
   | .while cond _anno _body => s!"while({cond}) ..."
   | _ => s.toString
 

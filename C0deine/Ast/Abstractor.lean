@@ -329,13 +329,7 @@ partial def Trans.simp (lang : Language)
     let op' ← Trans.asnop lang op
     let v' ← Trans.expr lang v
     let rest' ← Trans.stmts lang rest
-    if op_eq : op' ≠ .eq then
-      return .assn lv' op' (.inr op_eq) v' :: rest'
-    else
-      match is_var : lv' with
-      | .var name => return [.assn_var name v' rest']
-      | .dot _ _ | .arrow _ _ | .deref _ | .index _ _ =>
-        return .assn lv' op' (by simp [is_var]) v' :: rest'
+    return .assn lv' op' v' :: rest'
   | .post lv op =>
     if lang.under .l2
     then unsupported lang "post operators"
@@ -343,8 +337,8 @@ partial def Trans.simp (lang : Language)
       let lv' ← Trans.lvalue lang lv
       let rest' ← Trans.stmts lang rest
       match op with
-      | .incr => return .assn lv' (.aseq .plus) (by simp) (.num 1) :: rest'
-      | .decr => return .assn lv' (.aseq .minus) (by simp) (.num 1) :: rest'
+      | .incr => return .assn lv' (.aseq .plus) (.num 1) :: rest'
+      | .decr => return .assn lv' (.aseq .minus) (.num 1) :: rest'
   | .decl type name init =>
     let type' ← Trans.type_nonvoid lang type
     let init' ← init.mapM (Trans.expr lang)
@@ -371,7 +365,7 @@ partial def Trans.control (lang : Language)
       let tt' ← Trans.stmts lang [tt]
       let ff' ← Trans.stmts lang [ff]
       let rest' ← Trans.stmts lang rest
-      return (.ite cond' tt' ff') :: rest'
+      return .ite cond' tt' ff' :: rest'
   | .while cond body =>
     if lang.under .l2
     then unsupported lang "while loops"
@@ -380,7 +374,7 @@ partial def Trans.control (lang : Language)
       let cond' ← Trans.expr lang cond
       let body' ← Trans.stmts lang [body]
       let rest' ← Trans.stmts lang rest
-      return (.while cond' annos' body') :: rest'
+      return .while cond' annos' body' :: rest'
   | .«for» initOpt cond stepOpt body =>
     if lang.under .l2
     then unsupported lang "for loops"
@@ -404,16 +398,16 @@ partial def Trans.control (lang : Language)
           let rest' ← Trans.stmts lang rest
           return initBody'.append rest'
         | none => Trans.stmts lang (whileStmt :: rest)
-  | .«return» (some e) =>
+  | .return (some e) =>
     let e' ← Trans.expr lang e
     let rest' ← Trans.stmts lang rest
-    return .«return» (some e') :: rest'
-  | .«return» (none) =>
+    return .return (some e') :: rest'
+  | .return (none) =>
     if lang.under .l3
     then unsupported lang "void return statements"
     else
       let rest' ← Trans.stmts lang rest
-      return .«return» none :: rest'
+      return .return none :: rest'
   | .assert e =>
     if lang.under .l3
     then unsupported lang "assert statements"
@@ -484,10 +478,10 @@ def abstract (lang : Language)
              : Except String Ast.Prog := do
   let hast ←
     match header with
+    | none | some [] => pure []
     | some hcst =>
       if lang.under .l3
       then unsupported lang "header files"
       else hcst.mapM (Trans.gdecl lang)
-    | none => pure []
   let ast ← prog.mapM (Trans.gdecl lang)
   return ⟨hast, ast⟩

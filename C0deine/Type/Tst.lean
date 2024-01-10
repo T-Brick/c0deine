@@ -63,7 +63,7 @@ structure Status.Struct where
   defined : Bool
 
 inductive Status.Symbol
-| var   (v : Status.Var)
+| var   (v : Typ)
 | func  (f : Status.Func)
 | alias (t : Typ)
 
@@ -71,13 +71,13 @@ abbrev FCtx := Symbol → Option Status.Symbol
 
 @[inline] def FCtx.update (Γ : FCtx) (x : Symbol) (s : Status.Symbol) : FCtx :=
   Function.update Γ x (some s)
-@[inline] def FCtx.updateVar (Γ : FCtx) (x : Symbol) (s : Status.Var) : FCtx :=
-  Γ.update x (.var s)
+@[inline] def FCtx.updateVar (Γ : FCtx) (x : Symbol) (τ : Typ) : FCtx :=
+  Γ.update x (.var τ)
 @[inline] def FCtx.updateFunc
     (Γ : FCtx) (x : Symbol) (s : Status.Func) : FCtx :=
   Γ.update x (.func s)
 @[inline] def FCtx.ofParams (params : List (Typed Symbol)) : FCtx :=
-  (params.map (fun p => (p.data, Tst.Status.Symbol.var ⟨p.type, true⟩))).toMap
+  (params.map (fun p => (p.data, .var p.type))).toMap
 @[inline] def FCtx.addFunc
     (Γ : FCtx) (f : Symbol) (retTy : Typ) (params : List (Typed Symbol))
     : FCtx :=
@@ -88,11 +88,6 @@ abbrev FCtx := Symbol → Option Status.Symbol
     match params_Γ x with
     | some status => some status
     | none => if x = f then some (.func status) else Γ x
-@[inline] def FCtx.initialiseAll (Γ : FCtx) : FCtx :=
-  fun x =>
-    match Γ x with
-    | .some (.var status) => .some (.var {status with initialised := true})
-    | status => status
 
 structure GCtx where
   symbols : Symbol → Option Status.Symbol := fun _ => none
@@ -108,10 +103,15 @@ deriving Inhabited
     | none => Δ.symbols x
 
 inductive Expr (Δ : GCtx) (Γ : FCtx) : Typ → Type
-| num     : Int32  → Expr Δ Γ int
-| char    : Char   → Expr Δ Γ (.prim .char)
-| str     : String → Expr Δ Γ (.prim .string)
-| var     : (x : Symbol) → Γ x = .some (.var ⟨τ, true⟩) → Expr Δ Γ τ
+| num  : Int32 → Expr Δ Γ int
+| char : Char → Expr Δ Γ (.prim .char)
+| str  : String → Expr Δ Γ (.prim .string)
+| var
+  : {τ : Typ}
+  -- → {τ₁ : {τ' : Typ // τ' = τ}}
+  → (x : Symbol)
+  → Γ x = .some (.var τ)
+  → Expr Δ Γ τ
 | «true»  : Expr Δ Γ bool
 | «false» : Expr Δ Γ bool
 | null    : Expr Δ Γ (ptr .any)
@@ -226,101 +226,148 @@ inductive Expr (Δ : GCtx) (Γ : FCtx) : Typ → Type
     : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = struct s}) := e.typeWithEq eq
 
 /- Assert that some predicate P applies to every subexpression -/
-inductive Expr.All (P : {τ : Typ} → Expr Δ Γ τ → Bool) : Expr Δ Γ τ → Prop
-| num     : P (.num   v) → All P (.num   v)
-| char    : P (.char  c) → All P (.char  c)
-| str     : P (.str   s) → All P (.str   s)
-| var     : P (.var h x) → All P (.var h x)
-| «true»  : P (.true   ) → All P (.true  )
-| «false» : P (.false  ) → All P (.false )
-| null    : P (.null   ) → All P (.null  )
+inductive Expr.Fold {Δ : GCtx} {Γ : FCtx}
+    : (P : (τ : Typ) → α → Expr Δ Γ τ → Option α)
+    → α → Expr Δ Γ τ → α → Prop
+| num
+  : {a₁ a₂ : α}
+  → P _ a₁ (.num v) = some a₂
+  → Fold P a₁ ((.num v) : Expr Δ Γ _) a₂
+| char
+  : {a₁ a₂ : α}
+  → P _ a₁ (.char c) = some a₂
+  → Fold P a₁ ((.char c) : Expr Δ Γ _) a₂
+| str
+  : {a₁ a₂ : α}
+  → P _ a₁ (.str s) = some a₂
+  → Fold P a₁ ((.str s) : Expr Δ Γ _) a₂
+| var
+  : {a₁ a₂ : α}
+  → {h : Γ x = .some (.var τ)}
+  → P _ a₁ (.var x h) = some a₂
+  → Fold P a₁ ((.var x h) : Expr Δ Γ _) a₂
+| «true»
+  : {a₁ a₂ : α}
+  → P _ a₁ .true = some a₂
+  → Fold P a₁ (.true : Expr Δ Γ _) a₂
+| «false»
+  : {a₁ a₂ : α}
+  → P _ a₁ .false = some a₂
+  → Fold P a₁ (.false : Expr Δ Γ _) a₂
+| null
+  : {a₁ a₂ : α}
+  → P _ a₁ .null = some a₂
+  → Fold P a₁ (.null : Expr Δ Γ _) a₂
 | unop
-  : All P e
-  → P (.unop op eq e)
-  → All P (.unop op eq e)
+  : {a₁ a₂ a₃ : α}
+  → Fold P a₁ e a₂
+  → P _ a₂ (.unop op eq e) = some a₃
+  → Fold P a₁ (.unop op eq e) a₃
 | binop_int
-  : All P l
-  → All P r
-  → P (.binop_int op l r)
-  → All P (.binop_int op l r)
+  : {a₁ a₂ a₃ a₄ : α}
+  → Fold P a₁ l a₂
+  → Fold P a₂ r a₃
+  → P _ a₃ (.binop_int op l r) = some a₄
+  → Fold P a₁ (.binop_int op l r) a₄
 | binop_bool
-  : All P l
-  → All P r
-  → P (.binop_bool op l r)
-  → All P (.binop_bool op l r)
+  : {a₁ a₂ a₃ a₄ : α}
+  → Fold P a₁ l a₂
+  → Fold P a₂ r a₃
+  → P _ a₃ (.binop_bool op l r) = some a₄
+  → Fold P a₁ (.binop_bool op l r) a₄
 | binop_eq
-  : All P l
-  → All P r
-  → P (.binop_eq op eq l r h₁ h₂)
-  → All P (.binop_eq op eq l r h₁ h₂)
+  : {a₁ a₂ a₃ a₄ : α}
+  → Fold P a₁ l a₂
+  → Fold P a₂ r a₃
+  → P _ a₃ (.binop_eq op eq l r h₁ h₂) = some a₄
+  → Fold P a₁ (.binop_eq op eq l r h₁ h₂) a₄
 | binop_rel₁
-  : All P l
-  → All P r
-  → P (.binop_rel₁ op eq l r)
-  → All P (.binop_rel₁ op eq l r)
+  : {a₁ a₂ a₃ a₄ : α}
+  → Fold P a₁ l a₂
+  → Fold P a₂ r a₃
+  → P _ a₃ (.binop_rel₁ op eq l r) = some a₄
+  → Fold P a₁ (.binop_rel₁ op eq l r) a₄
 | binop_rel₂
-  : All P l
-  → All P r
-  → P (.binop_rel₂ op eq l r)
-  → All P (.binop_rel₂ op eq l r)
+  : {a₁ a₂ a₃ a₄ : α}
+  → Fold P a₁ l a₂
+  → Fold P a₂ r a₃
+  → P _ a₃ (.binop_rel₂ op eq l r) = some a₄
+  → Fold P a₁ (.binop_rel₂ op eq l r) a₄
 | ternop
-  : All P cc
-  → All P tt
-  → All P ff
-  → P (.ternop cc tt ff h₂)
-  → All P (.ternop cc tt ff h₂)
+  : {a₁ a₂ a₃ a₄ a₅ : α}
+  → Fold P a₁ cc a₂
+  → Fold P a₂ tt a₃
+  → Fold P a₃ ff a₄
+  → P _ a₄ (.ternop cc tt ff h₂) = some a₅
+  → Fold P a₁ (.ternop cc tt ff h₂) a₅
 | app
-  : {hsig : Γ f = .some (.func status)}
+  : {a₁ a₂ a₃ : α}
+  → {hsig : Γ f = .some (.func status)}
+  → {τs : Fin (status.type.arity) → Typ}
+  → {eq : ∀ i, (status.type.argTys i).equiv (τs i)}
   → {args : (i : Fin status.type.arity) → Expr Δ Γ (τs i)}
-  → (∀ i, All P (args i))
-  → P (.app f hsig τs eq args)
-  → All P (.app f hsig τs eq args)
-| alloc : P (.alloc τ₁) → All P (.alloc τ₁)
+  → (∀ i : Fin status.type.arity,
+      Fold P a₁ (args i) a₂ )
+  → P _ a₂ (.app f hsig τs eq args) = some a₃
+  → Fold P a₁ (.app f hsig τs eq args) a₃
+| alloc
+  : {a₁ a₂ : α}
+  → P _ a₁ (.alloc τ₁) = some a₂
+  → Fold P a₁ (.alloc τ₁) a₂
 | alloc_array
-  : All P e
-  → P (.alloc_array τ₁ e)
-  → All P (.alloc_array τ₁ e)
+  : {a₁ a₂ a₃ : α}
+  → Fold P a₁ e a₂
+  → P _ a₂ (.alloc_array τ₁ e) = some a₃
+  → Fold P a₁ (.alloc_array τ₁ e) a₃
 | dot
-  : All P e
-  → P (.dot e f h₁ h₂)
-  → All P (.dot e f h₁ h₂)
+  : {a₁ a₂ a₃ : α}
+  → Fold P a₁ e a₂
+  → P _ a₂ (.dot e f h₁ h₂) = some a₃
+  → Fold P a₁ (.dot e f h₁ h₂) a₃
 | deref
-  : All P e
-  → P (.deref e)
-  → All P (.deref e)
+  : {a₁ a₂ a₃ : α}
+  → Fold P a₁ e a₂
+  → P _ a₂ (.deref e) = some a₃
+  → Fold P a₁ (.deref e) a₃
 | index
-  : All P e
-  → All P indx
-  → P (.index e indx)
-  → All P (.index e indx)
+  : {a₁ a₂ a₃ : α}
+  → Fold P a₁ e a₂
+  → Fold P a₂ indx a₃
+  → P _ a₃ (.index e indx) = some a₄
+  → Fold P a₁ (.index e indx) a₄
 | result
-  : P .result
-  → All P (.result)
+  : {a₁ a₂ : α}
+  → P (τ := τ) a₁ .result = some a₂
+  → Fold P a₁ (.result : Expr Δ Γ τ) a₂
 | length
-  : All P e
-  → P (.length e)
-  → All P (.length e)
+  : {a₁ a₂ a₃ : α}
+  → Fold P a₁ e a₂
+  → P _ a₂ (.length e) = some a₃
+  → Fold P a₁ (.length e) a₃
 
-@[inline] def Expr.OnlyContract : Expr Δ Γ τ → Bool
+def Expr.All (P : {τ : Typ} → Expr Δ Γ τ → Bool) (e : Expr Δ Γ τ) : Prop :=
+  Expr.Fold (fun _ _ e => if P e then some () else none) () e ()
+
+@[inline] def Expr.only_contract : Expr Δ Γ τ → Bool
   | .result   => .true
   | .length _ => .true
   | _         => .false
-@[inline] def Expr.IsResult : Expr Δ Γ τ → Bool
+@[inline] def Expr.is_result : Expr Δ Γ τ → Bool
   | .result => .true
   | _       => .false
 
 @[inline] def Expr.no_contract : Expr Δ Γ τ → Bool :=
-  .not ∘ Tst.Expr.OnlyContract
+  .not ∘ Tst.Expr.only_contract
 @[inline] def Expr.no_result   : Expr Δ Γ τ → Bool :=
-  .not ∘ Tst.Expr.IsResult
+  .not ∘ Tst.Expr.is_result
+
 abbrev Expr.NoContract Δ Γ τ := {e : Expr Δ Γ τ // Expr.All no_contract e}
 abbrev Expr.NoResult   Δ Γ τ := {e : Expr Δ Γ τ // Expr.All no_result   e}
 
-abbrev TExpr := {Δ : GCtx} → {Γ : FCtx} → {τ : Typ} → Expr Δ Γ τ
 
 inductive LValue (Δ : GCtx) (Γ : FCtx) : Typ → Type
 | var   : (x : Symbol)
-        → (Γ x = .some (.var ⟨τ, true⟩)) ∨ (Γ x = .some (.var ⟨τ, false⟩))
+        → (Γ x = .some (.var τ))
         → LValue Δ Γ τ
 | dot   : {τ₁ : {τ : Typ // τ = struct s}}
         → LValue Δ Γ τ₁
@@ -337,6 +384,16 @@ inductive LValue (Δ : GCtx) (Γ : FCtx) : Typ → Type
         → Expr.NoContract Δ Γ τ₂
         → LValue Δ Γ τ
 
+@[inline] def LValue.is_var : LValue Δ Γ τ → Bool
+  | .var _ _ => true | _ => false
+@[inline] def LValue.get_name
+    (lval : LValue Δ Γ τ) (h₁ : lval.is_var) : Symbol :=
+  match h₂ : lval with
+  | .var name _   => name
+  | .dot _ _ _ _
+  | .deref _
+  | .index _ _    => by simp [is_var] at h₁
+
 @[inline] def LValue.typeWith {p : Typ → Prop} (e : LValue Δ Γ τ) (h : p τ)
     : LValue Δ Γ (⟨τ, h⟩ : {τ : Typ // p τ}) := e
 @[inline] def LValue.typeWithEq {τ₂ : Typ} (e : LValue Δ Γ τ) (eq : τ = τ₂)
@@ -351,6 +408,34 @@ inductive LValue (Δ : GCtx) (Γ : FCtx) : Typ → Type
     : LValue Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = arr τ'}) := e.typeWithEq eq
 @[inline] def LValue.structType (e : LValue Δ Γ τ) (s : Symbol) (eq : τ = struct s)
     : LValue Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = struct s}) := e.typeWithEq eq
+
+structure LValue.Predicate (Δ : GCtx) (Γ : FCtx) (α : Type) where
+  lval : (τ : Typ) → α → LValue Δ Γ τ → Option α
+  expr : (τ : Typ) → α → Expr Δ Γ τ → Option α
+
+/- Assert that some predicate P applies to every sub-lvalue -/
+inductive LValue.Fold : {Δ : GCtx} → {Γ : FCtx}
+  → (P : LValue.Predicate Δ Γ α) → α → LValue Δ Γ τ → α → Prop
+| var
+  : {a₁ a₂ : α}
+  → {P : LValue.Predicate Δ Γ α}
+  -- → {τ₁ : {τ' : Typ // τ' = τ}}
+  → {h : Γ x = .some (.var τ)}
+  → P.lval _ a₁ (.var x h) = some a₂
+  → Fold P a₁ ((.var x h) : LValue Δ Γ _) a₂
+| dot
+  : Fold P a₁ l a₂
+  → P.lval _ a₂ (.dot l f h₁ h₂) = some a₃
+  → Fold P a₁ (.dot l f h₁ h₂) a₃
+| deref
+  : Fold P a₁ l a₂
+  → P.lval _ a₂ (.deref l) = some a₃
+  → Fold P a₁ (.deref l) a₃
+| index
+  : Fold P a₁ l a₂
+  → Expr.Fold P.expr a₂ e.val a₃
+  → P.lval _ a₃ (.index l e) = some a₄
+  → Fold P a₁ (.index l e) a₄
 
 inductive Anno (Δ : GCtx) (Γ : FCtx) : Type
 | requires   : {τ : {τ : Typ // τ = bool}} → Expr.NoResult Δ Γ τ → Anno Δ Γ
@@ -383,31 +468,67 @@ abbrev Anno.Loop     Δ Γ := {a : Anno Δ Γ  // Anno.loop     a}
 abbrev Anno.Function Δ Γ := {a : Anno Δ Γ  // Anno.function a}
 abbrev Anno.Free     Δ Γ := {a : Anno Δ Γ  // Anno.free     a}
 
+-- todo should we check annotation too? is that useful?
+inductive Anno.Fold
+    : (P : (τ : Typ) → α → Expr Δ Γ τ → Option α)
+    → α → Anno Δ Γ → α → Prop
+| requires
+  : {a₁ a₂ : α}
+  → {τ : {τ : Typ // τ = bool}}
+  → {e : Expr.NoResult Δ Γ τ}
+  → Expr.Fold P a₁ e.val a₂
+  → Anno.Fold P a₁ (.requires e) a₂
+| ensures
+  : {a₁ a₂ : α}
+  → {τ : {τ : Typ // τ = bool}}
+  → {e : Expr Δ Γ τ}
+  → Expr.Fold P a₁ e a₂
+  → Anno.Fold P a₁ (.ensures e) a₂
+| loop_invar
+  : {a₁ a₂ : α}
+  → {τ : {τ : Typ // τ = bool}}
+  → {e : Expr.NoResult Δ Γ τ}
+  → Expr.Fold P a₁ e.val a₂
+  → Anno.Fold P a₁ (.loop_invar e) a₂
+| assert
+  : {a₁ a₂ : α}
+  → {τ : {τ : Typ // τ = bool}}
+  → {e : Expr.NoResult Δ Γ τ}
+  → Expr.Fold P a₁ e.val a₂
+  → Anno.Fold P a₁ (.assert e) a₂
+
+inductive Anno.List.Fold
+    : (P : (τ : Typ) → α → Expr Δ Γ τ → Option α)
+    → α → List (Anno Δ Γ) → α → Prop
+| nil : Anno.List.Fold P a [] a
+| cons
+  : Anno.Fold P a₁ anno a₂
+  → Anno.List.Fold P a₂ annos a₃
+  → Anno.List.Fold P a₁ (anno :: annos) a₃
+
 mutual
 inductive Stmt (Δ : GCtx) : (Γ : FCtx) → Option Typ → Type
 | decl
   : (name : Typed Symbol)
-  → (new_ctx : Γ' = Γ.updateVar name.data ⟨name.type, false⟩)
+  → (new_ctx : Γ' = Γ.updateVar name.data name.type)
   → (body : Stmt.List Δ Γ' ρ)
   → Stmt Δ Γ ρ
 | decl_init
   : (name : Typed Symbol)
   → (init : Expr.NoContract Δ Γ τ)
   → (ty_equiv : name.type.equiv τ)
-  → (new_ctx : Γ' = Γ.updateVar name.data ⟨name.type, true⟩)
+  → (new_ctx : Γ' = Γ.updateVar name.data name.type)
   → (body : Stmt.List Δ Γ' ρ)
   → Stmt Δ Γ ρ
 | assign_var
   : (lhs : LValue Δ Γ τ₁)
-  → (is_var : lhs = .var name h)
+  → (is_var : lhs.is_var)
   → (rhs : Expr.NoContract Δ Γ τ₂)
   → (ty_equiv : τ₁.equiv τ₂)
-  → (new_ctx : Γ' = Γ.updateVar name ⟨τ₁, true⟩)
-  → (body : Stmt.List Δ Γ' ρ)
   → Stmt Δ Γ ρ
 | assign
   : (lhs : LValue Δ Γ τ₁)
-  → (is_var : ∀ name h, lhs ≠ .var name h) -- elaborate away
+  → (is_var : ¬lhs.is_var)
   → (rhs : Expr.NoContract Δ Γ τ₂)
   → (ty_equiv : τ₁.equiv τ₂)
   → Stmt Δ Γ ρ
@@ -433,7 +554,9 @@ inductive Stmt (Δ : GCtx) : (Γ : FCtx) → Option Typ → Type
   → List (Anno.Loop Δ Γ)
   → Stmt.List Δ Γ ρ
   → Stmt Δ Γ ρ
-| return_void : Stmt Δ Γ none
+| return_void
+  : (is_void : ρ.isNone)
+  → Stmt Δ Γ ρ
 | return_tau
   : {τ₁ : {τ' : Typ // τ' = τ }}
   → Expr.NoContract Δ Γ τ₁
@@ -453,6 +576,10 @@ inductive Stmt.List (Δ : GCtx) : (Γ : FCtx) → Option Typ → Type
 | cons : (s : Stmt Δ Γ ρ) → Stmt.List Δ Γ ρ → Stmt.List Δ Γ ρ
 end
 
+def Stmt.List.consEnd : Stmt.List Δ Γ ρ → Stmt Δ Γ ρ → Stmt.List Δ Γ ρ
+  | .nil, s => .cons s .nil
+  | .cons x xs, s => .cons x (consEnd xs s)
+
 def Stmt.List.toList : Stmt.List Δ Γ ρ → _root_.List (Stmt Δ Γ ρ)
   | .nil => []
   | .cons stmt stmts => stmt :: toList stmts
@@ -463,10 +590,280 @@ def Stmt.List.ofList : _root_.List (Stmt Δ Γ ρ) → Stmt.List Δ Γ ρ
 
 instance : Coe (Stmt.List Δ Γ ρ) (List (Stmt Δ Γ ρ)) := ⟨Stmt.List.toList⟩
 
+/- When "folding" over statements we want to be able to first update the
+      accumulator based on the statement then fold over body. This means we
+      need to be able to see the high-level structure of the statement before
+      actually checking. This is what the `Stmt.Peek` inductive is for.
+
+  If you have/know a better solution feel free to let me know : )
+  In general I'm not confident that these are the "right" definitions (for both
+  `Peek` and `Fold`) but I'm going to go with it.
+
+  Tbh just being able to derive this from the `Stmt` type would be cool if
+  possible.
+ -/
+inductive Stmt.Peek (Δ : GCtx) (Γ : FCtx)
+| decl (name : Typed Symbol)
+| decl_init (name : Typed Symbol) (init : Expr.NoContract Δ Γ τ)
+| assign_var (lhs : LValue Δ Γ τ₁)
+             (is_var : lhs.is_var)
+             (rhs : Expr.NoContract Δ Γ τ₂)
+| assign (lhs : LValue Δ Γ τ₁)
+         (is_var : ¬lhs.is_var)
+         (rhs : Expr.NoContract Δ Γ τ₂)
+| asnop (lhs : LValue Δ Γ τ₁)
+        (op : BinOp.Int)
+        (rhs : Expr.NoContract Δ Γ τ₂)
+| expr (e : Expr.NoContract Δ Γ τ)
+| ite (cond : Expr.NoContract Δ Γ τ)
+| while (cond : Expr.NoContract Δ Γ τ) -- should have annos?
+| return_void
+| return_tau (e : Expr.NoContract Δ Γ τ)
+| assert (e : Expr.NoContract Δ Γ τ)
+| error (e : Expr.NoContract Δ Γ τ)
+| anno
+
+structure Stmt.Predicate (Δ : GCtx) (Γ : FCtx) (α : Type) where
+  init : α → Stmt.Peek Δ Γ → Option α
+  stmt : {ρ : Option Typ} → α → Stmt Δ Γ ρ → Option α
+  lval : (τ : Typ) → α → LValue Δ Γ τ → Option α
+  expr : (τ : Typ) → α → Expr Δ Γ τ → Option α
+  join : α → α → Stmt Δ Γ ρ → Option α -- should join use the Peek?
+
+@[simp] def Stmt.Predicate.toLValuePred (P : Stmt.Predicate Δ Γ α)
+    : LValue.Predicate Δ Γ α := ⟨P.lval, P.expr⟩
+
+mutual
+inductive Stmt.Fold
+    : {Δ : GCtx} → {Γ : FCtx}
+    → (P : {Γ : FCtx} → Stmt.Predicate Δ Γ α) → (a : α) → Stmt Δ Γ ρ → α → Prop
+| decl
+  : {a₁ a₂ a₃ a₄ : α}
+  → {h : Γ' = Γ.updateVar name.data name.type}
+  → {body : Stmt.List Δ Γ' ρ}
+  → P.init (Γ := Γ) a₁ (.decl name) = some a₂
+  → Stmt.List.Fold (Γ := Γ') P a₂ body a₃
+  → P.join a₂ a₃ (.decl name h body) = some a₄
+  → Stmt.Fold P a₁ ((.decl name h body) : Stmt Δ Γ ρ) a₄
+| decl_init
+  : {a₁ a₂ a₃ a₄ a₅ : α}
+  → {init : Expr.NoContract Δ Γ τ}
+  → {body : Stmt.List Δ Γ' ρ}
+  → Expr.Fold P.expr a₂ init.val a₂
+  → P.init (Γ := Γ) a₂ (.decl_init name init) = some a₃
+  → Stmt.List.Fold (Γ := Γ') P a₃ body a₄
+  → P.join a₃ a₄ (.decl_init name init eq h body) = some a₅
+  → Stmt.Fold P a₁ (.decl_init name init eq h body) a₅
+| assign_var
+  : {lhs : LValue Δ Γ τ₁}
+  → {rhs : Expr.NoContract Δ Γ τ₂}
+  → {var : lhs.is_var}
+  → {a₁ a₂ a₃ a₄ : α}
+  → Expr.Fold P.expr a₁ rhs.val a₂
+  → P.init (Γ := Γ) a₂ (.assign_var lhs var rhs) = some a₃
+  → P.stmt (ρ := ρ) a₃ (.assign_var lhs var rhs eq) = some a₄
+  → Stmt.Fold P a₁ ((.assign_var lhs var rhs eq) : Stmt Δ Γ ρ) a₄
+| assign
+  : {lhs : LValue Δ Γ τ₁}
+  → {rhs : Expr.NoContract Δ Γ τ₂}
+  → {var : ¬lhs.is_var}
+  → {a₁ a₂ a₃ a₄ a₅ : α}
+  → LValue.Fold P.toLValuePred a₁ lhs a₂
+  → P.init (Γ := Γ) a₂ (.assign lhs var rhs) = some a₃
+  → Expr.Fold P.expr a₃ rhs.val a₄
+  → P.stmt (ρ := ρ) a₄ (.assign lhs var rhs eq) = some a₅
+  → Stmt.Fold P a₁ ((.assign lhs var rhs eq) : Stmt Δ Γ ρ) a₅
+| asnop
+  : {τ₁ τ₂ : {τ : Typ // τ = int}}
+  → {lhs : LValue Δ Γ τ₁}
+  → {rhs : Expr.NoContract Δ Γ τ₂}
+  → {a₁ a₂ a₃ a₄ a₅ : α}
+  → P.init (Γ := Γ) a₁ (.asnop lhs op rhs) = some a₂
+  → LValue.Fold P.toLValuePred a₂ lhs a₃
+  → Expr.Fold P.expr a₃ rhs.val a₄
+  → P.stmt (ρ := ρ) a₄ (.asnop lhs op rhs) = some a₅
+  → Stmt.Fold P a₁ ((.asnop lhs op rhs) : Stmt Δ Γ ρ) a₅
+| expr
+  : {e : Expr.NoContract Δ Γ τ}
+  → {a₁ a₂ a₃ a₄ : α}
+  → P.init (Γ := Γ) a₁ (.expr e) = some a₂
+  → Expr.Fold P.expr a₂ e.val a₃
+  → P.stmt (ρ := ρ) a₃ (.expr e) = some a₄
+  → Stmt.Fold P a₁ ((.expr e) : Stmt Δ Γ ρ) a₄
+| ite
+  : {τ : {τ : Typ // τ = bool}}
+  → {cond : Expr.NoContract Δ Γ τ}
+  → {tt ff : Stmt.List Δ Γ ρ}
+  → {a₁ a₂ a_t a_f : α}
+  → Expr.Fold P.expr a₁ cond.val a₂
+  → P.init (Γ := Γ) a₂ (.ite cond) = some a₃
+  → Stmt.List.Fold P a₃ tt a_t
+  → Stmt.List.Fold P a₃ ff a_f
+  → P.join a_t a_f (.ite cond tt ff) = some a₄
+  → Stmt.Fold P a₁ (.ite cond tt ff) a₄
+| while
+  : {τ : {τ : Typ // τ = bool}}
+  → {cond : Expr.NoContract Δ Γ τ}
+  → {body : Stmt.List Δ Γ ρ}
+  → {a₁ a₂ a₃ a₄ a₅ a₆ : α}
+  → Expr.Fold P.expr a₁ cond.val a₂
+  → Anno.List.Fold P.expr a₂ (annos.map (·.val)) a₃
+  → P.init (Γ := Γ) a₃ (.while cond) = some a₄
+  → Stmt.List.Fold P a₄ body a₅
+  → P.join a₂ a₅ (.while cond annos body) = some a₆
+  → Stmt.Fold P a₁ (.while cond annos body) a₆
+| return_void
+  : {a₁ a₂ : α}
+  → {ρ : Option Typ}
+  → {h : ρ.isNone}
+  → {P : {Γ : FCtx} → Stmt.Predicate Δ Γ α}
+  → P.stmt (Γ := Γ) a₁ (.return_void h) = some a₂
+  → Stmt.Fold P a₁ ((.return_void h) : Stmt Δ Γ ρ) a₂
+| return_tau
+  : {τ₁ : {τ' : Typ // τ' = τ}}
+  → {e : Expr.NoContract Δ Γ τ₁}
+  → {a₁ a₂ a₃ a₄ : α}
+  → P.init (Γ := Γ) a₁ (.return_tau e) = some a₂
+  → Expr.Fold P.expr a₂ e.val a₃
+  → P.stmt a₃ (.return_tau e) = some a₄
+  → Stmt.Fold P a₁ (.return_tau e) a₄
+| assert
+  : {τ : {τ : Typ // τ = bool}}
+  → {e : Expr.NoContract Δ Γ τ}
+  → {a₁ a₂ a₃ a₄ : α}
+  → P.init (Γ := Γ) a₁ (.assert e) = some a₂
+  → Expr.Fold P.expr a₂ e.val a₃
+  → P.stmt a₃ ((.assert e) : Stmt Δ Γ ρ) = some a₄
+  → Stmt.Fold P a₁ ((.assert e) : Stmt Δ Γ ρ) a₄
+| error
+  : {τ : {τ : Typ // τ = .prim .string}}
+  → {e : Expr.NoContract Δ Γ τ}
+  → {a₁ a₂ a₃ a₄ : α}
+  → P.init (Γ := Γ) a₁ (.error e) = some a₂
+  → Expr.Fold P.expr a₂ e.val a₃
+  → P.stmt a₃ ((.error e) : Stmt Δ Γ ρ) = some a₄
+  → Stmt.Fold P a₁ ((.error e) : Stmt Δ Γ ρ) a₄
+| anno
+  : {an : Anno.Free Δ Γ}
+  → {a₁ a₂ a₃ a₄ : α}
+  → P.init (Γ := Γ) a₁ .anno = some a₂
+  → Anno.Fold P.expr a₂ an.val a₃
+  → P.stmt a₃ ((.anno an) : Stmt Δ Γ ρ) = some a₄
+  → Stmt.Fold P a₁ ((.anno an) : Stmt Δ Γ ρ) a₄
+
+inductive Stmt.List.Fold
+    : {Δ : GCtx} → {Γ : FCtx}
+    → (P : {Γ : FCtx} → Stmt.Predicate Δ Γ α)
+    → (a : α) → Stmt.List Δ Γ ρ → α → Prop
+| nil  : Stmt.List.Fold P a .nil a
+| cons : Stmt.Fold P a₁ stmt a₂
+       → Stmt.List.Fold P a₂ stmts a₃
+       → Stmt.List.Fold P a₁ (.cons stmt stmts) a₃
+end
+
+theorem Stmt.List.Fold.consEnd
+    {a₁ a₂ a₃ : α}
+    {stmt : Stmt Δ Γ ρ}
+    (stmts : Stmt.List Δ Γ ρ)
+    (hstmts : Stmt.List.Fold P a₁ stmts a₂)
+    (hstmt : Stmt.Fold P a₂ stmt a₃)
+    : Stmt.List.Fold P a₁ (stmts.consEnd stmt) a₃ := by
+  cases h : stmts with
+  | nil =>
+    simp [Stmt.List.consEnd]
+    cases hstmts with
+    | nil => exact .cons hstmt .nil
+    | cons _ _ => contradiction
+  | cons x xs =>
+    simp [Stmt.List.consEnd]
+    cases hstmts with
+    | nil => contradiction
+    | cons hx hxs => next x' xs' =>
+      have : sizeOf xs < sizeOf (List.cons x xs) := by simp
+      simp [Stmt.List.cons.inj h] at hx hxs
+      exact .cons hx (Fold.consEnd xs hxs hstmt)
+
+abbrev Initialised.Acc := Symbol → Bool
+def Initialised.Acc.empty : Acc := fun _ => false
+def Initialised.Acc.ofList : List Symbol → Acc :=
+  fun lst => fun x => x ∈ lst
+
+@[simp] def Initialised.init (acc : Acc) : Stmt.Peek Δ Γ → Acc
+  | .decl_init name _ =>
+    (fun x => if x = name.data then true else acc x)
+  | .assign_var lv h _ =>
+    let name := LValue.get_name lv h
+    (fun x => if x = name then true else acc x)
+  | _ => acc
+
+@[simp] def Initialised.stmt (acc : Acc) : Stmt Δ Γ ρ → Acc
+  | .return_tau _
+  | .return_void _
+  | .error _        => fun x => if let some _ := Γ x then true else false
+  | _ => acc
+
+@[simp] def Initialised.lval (τ : Typ) (acc : Acc) : LValue Δ Γ τ → Option Acc
+  | .var x _ => if acc x then some acc else none
+  | _        => some acc
+
+@[simp] def Initialised.expr (τ : Typ) (acc : Acc) : Expr Δ Γ τ → Option Acc
+  | .var x _ => if acc x then some acc else none
+  | _        => some acc
+
+@[simp] def Initialised.join (acc₁ acc₂ : Acc) : Stmt Δ Γ ρ → Acc
+  | .while _ _ _ => acc₁
+  | .decl_init name _ _ _ _
+  | .decl name _ _  => (fun x => if x = name.data then false else acc₂ x)
+  | _ => (fun x => acc₁ x || acc₂ x)
+
+@[simp] def Initialised.Predicate : Stmt.Predicate Δ Γ Acc :=
+  { init := fun acc s => some (init acc s)
+  , stmt := fun acc s => some (stmt acc s)
+  , lval
+  , expr
+  , join := fun acc₁ acc₂ s => some (join acc₁ acc₂ s)
+  }
+
+@[simp] def Initialised.Expr (expr : Tst.Expr Δ Γ τ) inits :=
+  Expr.Fold Initialised.expr inits expr inits
+@[simp] def Initialised.LValue (lv : Tst.LValue Δ Γ τ) inits :=
+  LValue.Fold Initialised.Predicate.toLValuePred inits lv inits
+@[simp] def Initialised.Anno (anno : Tst.Anno Δ Γ) inits :=
+  Anno.Fold Initialised.expr inits anno inits
+@[simp] def Initialised.Anno.List (annos : List (Tst.Anno Δ Γ)) inits :=
+  Anno.List.Fold Initialised.expr inits annos inits
+
+@[simp] def Initialised.Stmt (stmt : Tst.Stmt Δ Γ ρ) inits inits' :=
+  Stmt.Fold Initialised.Predicate inits stmt inits'
+@[simp] def Initialised.Stmt.List (stmt : Tst.Stmt.List Δ Γ ρ) inits inits' :=
+  Stmt.List.Fold Initialised.Predicate inits stmt inits'
+
+/-
+def Returns.stmt (acc : Bool) : Stmt Δ Γ ρ → Option Bool
+  | .return_void    => true
+  | .return_tau _ => true
+  | .error _        => true
+  | _ => acc
+def Returns.expr (τ : Typ) (acc : Bool) : Expr Δ Γ τ → Option Bool :=
+  fun _ => some acc
+def Returns.lval (τ : Typ) (acc : Bool) : LValue Δ Γ τ → Option Bool :=
+  fun _ => some acc
+def Returns.join (acc₁ acc₂ : Bool) : Stmt Δ Γ ρ → Option Bool
+  | .while _ _ _ => some acc₁
+  | .ite _ _ _   => some (acc₁ && acc₂)
+  | _            => some acc₂
+def Returns.Predicate : Stmt.Predicate Δ Γ Bool := { stmt, lval, expr, join }
+
+abbrev Returns.Stmt.List Δ Γ ρ :=
+  { stmts : Tst.Stmt.List Δ Γ ρ //
+      Stmt.List.Fold Returns.Predicate false stmts true
+  }
+-/
+
+
 structure SDef where
   name : Symbol
   fields : List (Typed Symbol)
-
 
 structure FDecl (Δ : GCtx) where
   ret    : Option Typ
@@ -474,9 +871,13 @@ structure FDecl (Δ : GCtx) where
   params : List (Typed Symbol)
   init_Γ : FCtx
   annos  : List (Anno.Function Δ init_Γ)
+  initial_init : Initialised.Acc := Initialised.Acc.ofList (params.map (·.data))
+  annos_init   : Initialised.Anno.List (annos.map (·.val)) initial_init
 
 structure FDef (Δ : GCtx) extends FDecl Δ where
-  body : List (Stmt Δ (init_Γ.addFunc name (Typ.flattenOpt ret) params) ret)
+  body : Stmt.List Δ (init_Γ.addFunc name (Typ.flattenOpt ret) params) ret
+  post_init : Initialised.Acc
+  body_init : Initialised.Stmt.List body initial_init post_init
 
 def GCtx.updateStruct (Δ : GCtx) (s : SDef) : GCtx :=
   let sig := ⟨Typed.toMap s.fields, true⟩
@@ -630,8 +1031,7 @@ partial def Stmt.toString (s : Stmt Δ Γ ρ) : String :=
   | .decl_init name init _ _ body =>
     let str_body := (Stmt.listToString body).replace "\n" "\n  "
     s!"declare({name}, {init},\n  {str_body}\n)"
-  | .assign_var lv _ v _ _ body =>
-    s!"{lv} = {v}\n{Stmt.listToString body}"
+  | .assign_var lv _ v _
   | .assign lv _ v _  => s!"{lv} = {v}"
   | .asnop lv op v  => s!"{lv} {op}= {v}"
   | .ite cond tt ff =>
@@ -642,12 +1042,12 @@ partial def Stmt.toString (s : Stmt Δ Γ ρ) : String :=
     let str_annos := Anno.listToString (annos.map (·.val))
     let str_body := (Stmt.listToString body).replace "\n" "\n  "
     s!"while{cond}\n  {str_annos}{str_body}\nendwhile"
-  | .return_void  => s!"return"
-  | .return_tau e => s!"return {e}"
-  | .assert e     => s!"assert{e}"
-  | .error e      => s!"error{e}"
-  | .expr e       => s!"{e}"
-  | .anno a       => Anno.toString a.val
+  | .return_void _ => s!"return"
+  | .return_tau e  => s!"return {e}"
+  | .assert e      => s!"assert{e}"
+  | .error e       => s!"error{e}"
+  | .expr e        => s!"{e}"
+  | .anno a        => Anno.toString a.val
 
 partial def Stmt.listToString : Stmt.List Δ Γ ρ → String
   | .nil => "nop;"

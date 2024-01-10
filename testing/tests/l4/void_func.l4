@@ -1,0 +1,12 @@
+//test return 10;
+
+void foo(int *x) {
+  *x = 10;
+}
+
+int main() {
+  int *p = alloc(int);
+  *p = 5;
+  foo(p);
+  return *p;
+}

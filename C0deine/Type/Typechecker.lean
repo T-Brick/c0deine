@@ -350,76 +350,110 @@ def Validate.callsDefined (ctx : GlobalCtx)
 
 namespace Synth.Expr
 
-structure Result.Core (P : {τ : Typ} → Tst.Expr Δ Γ τ → Bool) where
-  type    : Typ
-  texpr   : Tst.Expr Δ Γ type
-  valid   : Tst.Expr.All P texpr
+-- todo remove duplication
+structure Result.Core
+    (P : {τ : Typ} → Tst.Expr Δ Γ τ → Bool)
+    (init_set : Tst.Initialised.Acc)
+where
+  type  : Typ
+  texpr : Tst.Expr Δ Γ type
+  valid : Tst.Expr.All P texpr
+  init  : Tst.Initialised.Expr texpr init_set
 
-structure Result (P : {τ : Typ} → Tst.Expr Δ Γ τ → Bool) where
+structure Result
+    (P : {τ : Typ} → Tst.Expr Δ Γ τ → Bool)
+    (init_set : Tst.Initialised.Acc)
+where
   calls   : Tst.Calls
   strings : List String
   type    : Typ
   texpr   : Tst.Expr Δ Γ type
   valid   : Tst.Expr.All P texpr
+  init    : Tst.Initialised.Expr texpr init_set
 
-structure Result.List (P : {τ : Typ} → Tst.Expr Δ Γ τ → Bool) where
+structure Result.List
+    (P : {τ : Typ} → Tst.Expr Δ Γ τ → Bool)
+    (init_set : Tst.Initialised.Acc)
+where
   calls   : Tst.Calls
   strings : List String
-  texprs  : List (Result.Core P)
+  texprs  : List (Result.Core P init_set)
 
 
-@[inline] def ExprOutput (P : {τ : Typ} → Tst.Expr Δ Γ τ → Bool) :=
-  Except Error (Result P)
+@[inline] def ExprOutput
+    (P : {τ : Typ} → Tst.Expr Δ Γ τ → Bool)
+    (init_set : Tst.Initialised.Acc) :=
+  Except Error (Result P init_set)
 
-@[inline] def nonvoid (eres : ExprOutput P) : ExprOutput P := do
+@[inline] def nonvoid
+    (eres : ExprOutput P init_set) : ExprOutput P init_set := do
   let res ← eres
   match res.type with
   | .any => throw <| Error.texpr res.texpr <| s!"Expression cannot be void"
   | _ => return res
 
-@[inline] def small (eres : ExprOutput P) : ExprOutput P := do
+@[inline] def small (eres : ExprOutput P init_set) : ExprOutput P init_set := do
   let res ← eres
   if res.type.isSmall then return res
   else throw <| Error.texpr res.texpr <| s!"Expression cannot have large type"
 
-@[inline] def small_nonvoid (eres : ExprOutput P)
-    : ExprOutput P := do
+@[inline] def small_nonvoid
+    (eres : ExprOutput P init_set) : ExprOutput P init_set := do
    let res ← nonvoid eres
    if res.type.isSmall then return res
    else throw <| Error.texpr res.texpr <| s!"Expression cannot have large type"
 
 mutual
 def expr (ctx : FuncCtx)
+    {init_set : Tst.Initialised.Acc}
     (P : {τ : Typ} → Tst.Expr Δ Γ τ → Bool)
     (fail : {τ : Typ} → (te : Tst.Expr Δ Γ τ) → ¬P te → Error)
     (exp : Ast.Expr)
-    : ExprOutput P := do
+    : ExprOutput P init_set := do
   match exp with
   | .num n             =>
-    if p : P (.num n)
-    then return ⟨ctx.calls, ctx.strings, .prim .int, .num n, .num p⟩
+    if p : P (.num n) then
+      have p' := .num (by simp; exact p)
+      have e'_init := .num (by simp)
+      return ⟨ctx.calls, ctx.strings, .prim .int, .num n, p', e'_init⟩
     else throw <| fail (.num n) p
+
   | .char c            =>
-    if p : P (.char c)
-    then return ⟨ctx.calls, ctx.strings, .prim .char, .char c, .char p⟩
+    if p : P (.char c) then
+      have p' := .char (by simp; exact p)
+      have e'_init := .char (by simp)
+      return ⟨ctx.calls, ctx.strings, .prim .char, .char c, p', e'_init⟩
     else throw <| fail (.char c) p
+
   | .str s             =>
     let strings' := if s ∉ ctx.strings then s::ctx.strings else ctx.strings
-    if p : P (.str s)
-    then return ⟨ctx.calls, strings', .prim .string, .str s, .str p⟩
+    if p : P (.str s) then
+      have p' := .str (by simp; exact p)
+      have e'_init := .str (by simp)
+      return ⟨ctx.calls, strings', .prim .string, .str s, p', e'_init⟩
     else throw <| fail (.str s) p
+
   | .true              =>
-    if p : P .true
-    then return ⟨ctx.calls, ctx.strings, .prim .bool, .true, .true p⟩
+    if p : P .true then
+      have p' := .true (by simp; exact p)
+      have e'_init := .true (by simp)
+      return ⟨ctx.calls, ctx.strings, .prim .bool, .true, p', e'_init⟩
     else throw <| fail .true p
+
   | .false             =>
-    if p : P .false
-    then return ⟨ctx.calls, ctx.strings, .prim .bool, .false, .false p⟩
+    if p : P .false then
+      have p' := .false (by simp; exact p)
+      have e'_init := .false (by simp)
+      return ⟨ctx.calls, ctx.strings, .prim .bool, .false, p', e'_init⟩
     else throw <| fail .false p
+
   | .null              =>
-    if p : P .null
-    then return ⟨ctx.calls, ctx.strings, .mem (.pointer .any), .null, .null p⟩
+    if p : P .null then
+      have p' := .null (by simp; exact p)
+      have e'_init := .null (by simp)
+      return ⟨ctx.calls, ctx.strings, .mem (.pointer .any), .null, p', e'_init⟩
     else throw <| fail .null p
+
   | .unop op e         =>
     let res ← small_nonvoid <| expr ctx P fail e
     let op' :=
@@ -429,8 +463,10 @@ def expr (ctx : FuncCtx)
       | .bool .neg => .bool .neg
     if eq : res.type.equiv op'.type then
       let e' := Tst.Expr.unop op' eq res.texpr
-      if p : P e'
-      then return ⟨res.calls, res.strings, op'.type, e', .unop res.valid p⟩
+      if p : P e' then
+        have p' := .unop res.valid (by simp; exact p)
+        have e'_init := .unop res.init (by simp)
+        return ⟨res.calls, res.strings, op'.type, e', p', e'_init⟩
       else throw <| fail e' p
     else throw <| Error.expr exp <|
       s!"Unary operator '{op'}' expects type '{op'.type}' but got '{res.type}'"
@@ -453,8 +489,9 @@ def expr (ctx : FuncCtx)
           if p : P e' then
             let lvalid : Tst.Expr.All _ le' := resl.valid
             let rvalid : Tst.Expr.All _ re' := resr.valid
-            let p' := .binop_int lvalid rvalid p
-            return ⟨calls, strings, .prim .int, e', p'⟩
+            let p' := .binop_int lvalid rvalid (by simp; exact p)
+            have e'_init := .binop_int resl.init resr.init (by simp)
+            return ⟨calls, strings, .prim .int, e', p', e'_init⟩
           else throw <| fail e' p
         else throw <| Error.expr exp <|
           s!"Binary operator '{op}' expects type '{Typ.prim .int}' but got '{resl.type}'"
@@ -471,8 +508,9 @@ def expr (ctx : FuncCtx)
             if p : P e' then
               let lvalid : Tst.Expr.All _ le' := resl.valid
               let rvalid : Tst.Expr.All _ re' := resr.valid
-              let p' := .binop_eq lvalid rvalid p
-              return ⟨calls, strings, .prim .bool, e', p'⟩
+              let p' := .binop_eq lvalid rvalid (by simp; exact p)
+              have e'_init := .binop_eq resl.init resr.init (by simp)
+              return ⟨calls, strings, .prim .bool, e', p', e'_init⟩
             else throw <| fail e' p
           else throw <| Error.expr exp <|
             s!"Binary operator '{op}' cannot compare type '{resl.type}'"
@@ -486,8 +524,9 @@ def expr (ctx : FuncCtx)
             let re' := resr.texpr.intType req
             let e' := Tst.Expr.binop_rel₁ cop is_equality le' re'
             if p : P e' then
-              let p' := .binop_rel₁ resl.valid resr.valid p
-              return ⟨calls, strings, .prim .bool, e', p'⟩
+              let p' := .binop_rel₁ resl.valid resr.valid (by simp; exact p)
+              have e'_init := .binop_rel₁ resl.init resr.init (by simp)
+              return ⟨calls, strings, .prim .bool, e', p', e'_init⟩
             else throw <| fail e' p
           else
             if leq : resl.type = .prim .char then
@@ -496,8 +535,9 @@ def expr (ctx : FuncCtx)
               let re' := resr.texpr.charType req
               let e' := Tst.Expr.binop_rel₂ cop is_equality le' re'
               if p : P e' then
-                let p' := .binop_rel₂ resl.valid resr.valid p
-                return ⟨calls, strings, .prim .bool, e', p'⟩
+                let p' := .binop_rel₂ resl.valid resr.valid (by simp; exact p)
+                have e'_init := .binop_rel₂ resl.init resr.init (by simp)
+                return ⟨calls, strings, .prim .bool, e', p', e'_init⟩
               else throw <| fail e' p
             else throw <| Error.expr exp <|
               s!"Binary operator '{op}' expects type '{Typ.prim .int}' or '{Typ.prim .char}' but got '{resl.type}'"
@@ -512,8 +552,9 @@ def expr (ctx : FuncCtx)
           let re' := resr.texpr.boolType req
           let e' := Tst.Expr.binop_bool op' le' re'
           if p : P e' then
-            let p' := .binop_bool resl.valid resr.valid p
-            return ⟨calls, strings, .prim .bool, e', p'⟩
+            let p' := .binop_bool resl.valid resr.valid (by simp; exact p)
+            have e'_init := .binop_bool resl.init resr.init (by simp)
+            return ⟨calls, strings, .prim .bool, e', p', e'_init⟩
           else throw <| fail e' p
       throw <| Error.expr exp <|
         s!"Binary operator '{op}' expects both sides to have type '{Typ.prim .bool}' but got '{resl.type}' and '{resr.type}'"
@@ -530,9 +571,9 @@ def expr (ctx : FuncCtx)
         let cc' := resc.texpr.typeWith (p := fun t => t = .prim .bool) cbool
         let e' := .ternop cc' rest.texpr resf.texpr eq
         if p : P e' then
-          return ⟨ calls, strings, tau', e'
-                 , .ternop resc.valid rest.valid resf.valid p
-                 ⟩
+          have p' := .ternop resc.valid rest.valid resf.valid (by simp; exact p)
+          have e'_init := .ternop resc.init rest.init resf.init (by simp)
+          return ⟨calls, strings, tau', e', p', e'_init⟩
         else throw <| fail e' p
       else throw <| Error.expr exp <|
         s!"Ternary true branch has type '{rest.type}' but the false branch has type '{resf.type}'"
@@ -541,7 +582,7 @@ def expr (ctx : FuncCtx)
   | .app f args        =>
     match is_func : Γ f with
     | some (.func status) =>
-      let resargs ← exprs ctx P fail args
+      let resargs ← exprs ctx init_set P fail args
       -- false => not in contract (corrected later if we actually are)
       let calls := resargs.calls.insert f .false
 
@@ -559,7 +600,7 @@ def expr (ctx : FuncCtx)
             simp [τs]
             exact this
 
-          let args_core : (i : Fin status.type.arity) → Result.Core _ :=
+          let args_core : (i : Fin status.type.arity) → Result.Core _ _ :=
             fun i => resargs.texprs.get ⟨↑i, by simp [←len]⟩
 
           let args : (i : Fin status.type.arity) → Tst.Expr Δ Γ (τs i) :=
@@ -568,10 +609,15 @@ def expr (ctx : FuncCtx)
           have valid : (i : Fin status.type.arity) → Tst.Expr.All _ (args i) :=
             fun i => args_core i |>.valid
 
+          have init : (i : Fin status.type.arity)
+                    → Tst.Initialised.Expr (args i) _ :=
+            fun i => args_core i |>.init
+
           let e' := .app f is_func τs eq args
           if p : P e' then
-            let p' := .app valid p
-            return ⟨calls, resargs.strings, status.type.retTy, e', p'⟩
+            let p' := .app valid (by simp; exact p)
+            have e'_init := .app init (by simp)
+            return ⟨calls, resargs.strings, status.type.retTy, e', p', e'_init⟩
           else throw <| fail e' p
         else throw <| Error.expr exp <|
           s!"Arguments should have types {List.ofFn status.type.argTys} but received {List.ofFn τs}"
@@ -589,8 +635,10 @@ def expr (ctx : FuncCtx)
     | none      => throw <| Error.expr exp s!"Invalid allocation type"
     | some tau' =>
       let e' := .alloc tau'
-      if p : P e'
-      then return ⟨ctx.calls, ctx.strings, .mem (.pointer tau'), e', .alloc p⟩
+      if p : P e' then
+        have p' := .alloc (by simp; exact p)
+        have e'_init := .alloc (by simp)
+        return ⟨ctx.calls, ctx.strings, .mem (.pointer tau'), e', p', e'_init⟩
       else throw <| fail e' p
 
   | .alloc_array tau e =>
@@ -603,21 +651,26 @@ def expr (ctx : FuncCtx)
         let len' := res.texpr.intType eq
         let e' := Tst.Expr.alloc_array tau' len'
         if p : P e' then
-          let p' := .alloc_array res.valid p
-          return ⟨ctx.calls, ctx.strings, .mem (.array tau'), e', p'⟩
+          let p' := .alloc_array res.valid (by simp; exact p)
+          have e'_init := .alloc_array res.init (by simp)
+          return ⟨ctx.calls, ctx.strings, .mem (.array tau'), e', p', e'_init⟩
         else throw <| fail e' p
         else throw <| Error.expr exp <|
           s!"Array length expected an '{Typ.prim .int}' but got '{res.type}'"
 
   | .var name          =>
     match h : Γ name with
-    | some (.var status) =>
-      if is_init : status.initialised then
-        let e' := .var name (by simp [←is_init]; exact h)
-        if p : P e'
-        then return ⟨ctx.calls, ctx.strings, status.type, e', .var p⟩
-        else throw <| fail e' p
-      else throw <| Error.expr exp s!"Variable not initialised"
+    | some (.var tau) =>
+      match is_init : init_set name with
+      | true =>
+          let e' := .var name h
+          if p : P e' then
+            have p' := .var (by simp; exact p)
+            have e'_init :=
+              .var (by simp [Tst.Initialised.expr]; exact is_init)
+            return ⟨ctx.calls, ctx.strings, tau, e', p', e'_init⟩
+          else throw <| fail e' p
+      | false => throw <| Error.expr exp s!"Variable not initialised"
     | _ => throw <| Error.expr exp s!"Variable not declared"
 
   | .dot e field       =>
@@ -632,8 +685,10 @@ def expr (ctx : FuncCtx)
             let e' :=
               .dot (res.texpr.structType name eq) field
                 (by rw [←defined]; exact hsig) f_ty
-            if p : P e'
-            then return ⟨res.calls, res.strings, tau, e', .dot res.valid p⟩
+            if p : P e' then
+              have p' := .dot res.valid (by simp; exact p)
+              have e'_init := .dot res.init (by simp)
+              return ⟨res.calls, res.strings, tau, e', p', e'_init⟩
             else throw <| fail e' p
           | none => throw <| Error.expr exp <|
             s!"Invalid field '{field}' for struct type '{res.type}'"
@@ -651,18 +706,23 @@ def expr (ctx : FuncCtx)
         if defined : status.defined then
           let obj := res.texpr.ptrType (.mem (.struct name)) eq
           if pe : P (.deref obj) then
-            let te' := Tst.Expr.deref obj
+            let te' := Tst.Expr.deref obj         -- todo better names
             have pe' : Tst.Expr.All P te' := by
               simp [te']
-              exact .deref res.valid pe
+              exact .deref res.valid (by simp; exact pe)
+            have pe'_init : Tst.Initialised.Expr te' init_set := by
+              simp [te']
+              exact .deref res.init (by simp)
 
             match f_ty : status.fields field with
             | some tau =>
               let e' :=
                 .dot (te'.structType name (by rfl)) field
                   (by rw [←defined]; exact hsig) f_ty
-              if p : P e'
-              then return ⟨res.calls, res.strings, tau, e', .dot pe' p⟩
+              if p : P e' then
+                have p' := .dot pe' (by simp; exact p)
+                have e'_init := .dot pe'_init (by simp)
+                return ⟨res.calls, res.strings, tau, e', p', e'_init⟩
               else throw <| fail e' p
             | none => throw <| Error.expr exp <|
               s!"Invalid field '{field}' for struct type '{Typ.mem (.struct name)}'"
@@ -679,8 +739,10 @@ def expr (ctx : FuncCtx)
       s!"Cannot dereference a null pointer"
     | .mem (.pointer tau)  =>
       let e' := .deref (res.texpr.ptrType tau eq)
-      if p : P e'
-      then return ⟨res.calls, res.strings, tau, e', .deref res.valid p⟩
+      if p : P e' then
+        have p' := .deref res.valid (by simp; exact p)
+        have e'_init := .deref res.init (by simp)
+        return ⟨res.calls, res.strings, tau, e', p', e'_init⟩
       else throw <| fail e' p
     | _ => throw <| Error.expr e <|
       s!"Cannot dereference a non-pointer type '{res.type}'"
@@ -694,8 +756,10 @@ def expr (ctx : FuncCtx)
     | .mem (.array tau) =>
       if ieq : resi.type = .prim .int then
         let e' := .index (resa.texpr.arrType tau aeq) (resi.texpr.intType ieq)
-        if p : P e'
-        then return ⟨calls, strings, tau, e', .index resa.valid resi.valid p⟩
+        if p : P e' then
+          have p' := .index resa.valid resi.valid (by simp; exact p)
+          have e'_init := .index resa.init resi.init (by simp)
+          return ⟨calls, strings, tau, e', p', e'_init⟩
         else throw <| fail e' p
       else throw <| Error.expr exp <|
       s!"Array indices must be type '{Typ.prim .int}' not type '{resi.type}'"
@@ -705,8 +769,10 @@ def expr (ctx : FuncCtx)
   | .result           =>
     match ctx.ret_type with
     | .some tau =>
-      if p : P (τ := tau) .result
-      then return ⟨ctx.calls, ctx.strings, tau, .result, .result p⟩
+      if p : P (τ := tau) .result then
+        have p' := .result (by simp; exact p)
+        have e'_init := .result (by simp [Tst.Initialised.expr])
+        return ⟨ctx.calls, ctx.strings, tau, .result, p', e'_init⟩
       else throw <| fail .result p
     | .none     => throw <| Error.expr exp <|
       s!"Cannot use result when function's return type is void"
@@ -717,24 +783,28 @@ def expr (ctx : FuncCtx)
     | .mem (.array tau) =>
       let e' := .length (res.texpr.arrType tau eq)
       if p : P e' then
-        return ⟨res.calls, res.strings, .prim .int, e', .length res.valid p⟩
+        have p' := .length res.valid (by simp; exact p)
+        have e'_init := .length res.init (by simp)
+        return ⟨res.calls, res.strings, .prim .int, e', p', e'_init⟩
       else throw <| fail e' p
     | _ => throw <| Error.expr exp <|
       s!"Can only check the length of arrays not of type '{res.type}'"
 
 def exprs (ctx : FuncCtx)
+          (init_set : Tst.Initialised.Acc)
           (P : {τ : Typ} → Tst.Expr Δ Γ τ → Bool)
           (fail : {τ : Typ} → (te : Tst.Expr Δ Γ τ) → ¬P te → Error)
           (exps : List Ast.Expr)
-          : Except Error (Result.List P) := do
+          : Except Error (Result.List P init_set) := do
   match exps with
   | [] => return ⟨ctx.calls, ctx.strings, []⟩
   | e :: es =>
-    let rese ← small_nonvoid <| expr ctx P fail e
-    let reses ← exprs ctx P fail es
+    let rese ← small_nonvoid <| expr ctx (init_set := init_set) P fail e
+    let reses ← exprs ctx init_set P fail es
     let calls   := rese.calls.merge reses.calls
     let strings := rese.strings ∪ reses.strings
-    let texprs  := ⟨rese.type, rese.texpr, rese.valid⟩ :: reses.texprs
+    let texprs  :=
+      ⟨rese.type, rese.texpr, rese.valid, rese.init⟩ :: reses.texprs
     return ⟨calls, strings, texprs⟩
 end
 
@@ -742,24 +812,31 @@ end Synth.Expr
 
 namespace Synth.LValue
 
-structure Result (Δ : Tst.GCtx) (Γ : Tst.FCtx) where
+structure Result
+    (Δ : Tst.GCtx) (Γ : Tst.FCtx) (init_set : Tst.Initialised.Acc)
+where
   calls : Tst.Calls
   type : Typ
   lval : Tst.LValue Δ Γ type
+  init : Tst.Initialised.LValue lval init_set
 
-def small (res : Except Error (Result Δ Γ)) : Except Error (Result Δ Γ) := do
+def small (res : Except Error (Result Δ Γ init_set))
+    : Except Error (Result Δ Γ init_set) := do
   if (← res).type.isSmall
   then return (← res)
   else throw <| Error.msg s!"LValue has large type"
 
-def lvalue (ctx : FuncCtx) (lval : Ast.LValue) : Except Error (Result Δ Γ) := do
+set_option maxHeartbeats 300000 in
+def lvalue (ctx : FuncCtx) (lval : Ast.LValue)
+    : Except Error (Result Δ Γ init_set) := do
   match lval with
   | .var var =>
     match h : Γ var with
-    | some (.var status) =>
-      if is_init : status.initialised then
-        let lv' := .var var (by simp [←is_init]; exact .inl h)
-        return ⟨ctx.calls, status.type, lv'⟩
+    | some (.var tau) =>
+      if is_init : init_set var then
+        let lv' := .var var h
+        have lv'_init := .var (by simp [Tst.Initialised.lval]; exact is_init)
+        return ⟨ctx.calls, tau, lv', lv'_init⟩
       else throw <| Error.lval lval s!"Variable not initialised"
     | _ => throw <| Error.lval lval s!"Variable not declared"
 
@@ -775,7 +852,8 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue) : Except Error (Result Δ Γ) := 
             let lv' :=
               .dot (res.lval.structType name tyeq) field
                 (by rw [←defined]; exact hsig) f_ty
-            return ⟨res.calls, tau, lv'⟩
+            have lv'_init := .dot res.init (by simp)
+            return ⟨res.calls, tau, lv', lv'_init⟩
           | none => throw <| Error.lval lval <|
             s!"Invalid field '{field}' for struct type '{res.type}'"
         else throw <| Error.lval lval s!"Struct '{name}' is not defined"
@@ -794,21 +872,24 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue) : Except Error (Result Δ Γ) := 
           | some tau =>
             let dref' : Tst.LValue Δ Γ _ :=
               .deref (res.lval.ptrType (.mem (.struct name)) tyeq)
+            have dref'_init : Tst.Initialised.LValue dref' init_set :=
+              .deref res.init (by simp)
             let lv' := .dot (dref'.structType name (by rfl)) field
               (by rw [←defined]; exact hsig) f_ty
-            return ⟨res.calls, tau, lv'⟩
+            have lv'_init := .dot dref'_init (by simp)
+            return ⟨res.calls, tau, lv', lv'_init⟩
           | none => throw <| Error.lval lval <|
             s!"Invalid field '{field}' for struct type '{res.type}'"
         else throw <| Error.lval lval s!"Struct '{name}' is not defined"
       | none => throw <| Error.lval lval s!"Struct '{name}' is not defined"
     | _ => throw <| Error.lval lval <|
       s!"Arrow operator expects a struct pointer not type '{res.type}'"
-
   | .deref lv =>
     let res ← lvalue ctx lv
     match tyeq : res.type with
     | .mem (.pointer tau)  =>
-      return ⟨res.calls, tau, .deref (res.lval.ptrType tau tyeq)⟩
+      have lv'_init := .deref res.init (by simp)
+      return ⟨res.calls, tau, .deref (res.lval.ptrType tau tyeq), lv'_init⟩
     | _ => throw <| Error.lval lval <|
       s!"Cannot dereference a non-pointer type '{res.type}'"
 
@@ -821,7 +902,8 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue) : Except Error (Result Δ Γ) := 
     | .mem (.array tau), .prim .int =>
       let indx' := ⟨resi.texpr.intType tyi_eq, resi.valid⟩
       let lv' := .index (resa.lval.arrType tau tya_eq) indx'
-      return ⟨calls, tau, lv'⟩
+      have lv'_init := .index resa.init (by simp; exact resi.init) (by simp)
+      return ⟨calls, tau, lv', lv'_init⟩
     | .mem (.array _tau), _ => throw <| Error.lval lval <|
       s!"Array indices must be type '{Typ.prim .int}' not type '{resi.type}'"
     | _, _ => throw <| Error.lval lval <|
@@ -831,18 +913,38 @@ end Synth.LValue
 
 namespace Synth.Anno
 
+structure Result
+    (Δ : Tst.GCtx) (Γ : Tst.FCtx)
+    (P : Tst.Anno Δ Γ → Bool)
+    (init_set : Tst.Initialised.Acc)
+where
+  anno : {a : Tst.Anno Δ Γ // P a}
+  init : Tst.Initialised.Anno anno.val init_set
+
+structure Result.List
+    (Δ : Tst.GCtx) (Γ : Tst.FCtx)
+    (P : Tst.Anno Δ Γ → Bool)
+    (init_set : Tst.Initialised.Acc)
+where
+  ctx   : FuncCtx
+  annos : List {a : Tst.Anno Δ Γ // P a}
+  init  : Tst.Initialised.Anno.List (annos.map (·.val)) init_set
+
 def func (ctx : FuncCtx) (as : List Ast.Anno)
-    : Except Error (FuncCtx × List (Tst.Anno.Function Δ Γ)) := do
+    : Except Error (Result.List Δ Γ Tst.Anno.function init_set) := do
   match as with
-  | []                  => return (ctx, [])
+  | []                  => return ⟨ctx, [], .nil⟩
   | .requires e :: rest =>
     let res ← Synth.Expr.small_nonvoid <|
-      Synth.Expr.expr ctx Tst.Expr.no_result Error.no_result e
+      Synth.Expr.expr (init_set := init_set) ctx Tst.Expr.no_result Error.no_result e
     if tyeq : res.type = .prim .bool then
       let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
-      let (ctx', rest') ← func {ctx with calls := calls'} rest
+      let ⟨ctx', rest', rest'_init⟩ ←
+        func {ctx with calls := calls'} (init_set := init_set) rest
       let e' := ⟨res.texpr.boolType tyeq, res.valid⟩
-      return ⟨ctx', ⟨.requires e', by simp⟩ :: rest'⟩
+      let anno' := ⟨.requires e', by simp⟩
+      have anno'_init := .requires (by simp; exact res.init)
+      return ⟨ctx', anno' :: rest', .cons anno'_init rest'_init⟩
     else
       throw <| Error.expr e <|
         s!"Requires must have type {Typ.prim .bool} not type '{res.type}'"
@@ -852,8 +954,10 @@ def func (ctx : FuncCtx) (as : List Ast.Anno)
       Synth.Expr.expr ctx (fun _ => true) (fun _ np => by simp at np) e
     if tyeq : res.type = .prim .bool then
       let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
-      let (ctx', rest') ← func {ctx with calls := calls'} rest
-      return ⟨ctx', ⟨.ensures (res.texpr.boolType tyeq), by simp⟩ :: rest'⟩
+      let ⟨ctx', rest', rest'_init⟩ ← func {ctx with calls := calls'} rest
+      let anno' := ⟨.ensures (res.texpr.boolType tyeq), by simp⟩
+      have anno'_init := .ensures res.init
+      return ⟨ctx', anno' :: rest', .cons anno'_init rest'_init⟩
     else
       throw <| Error.expr e <|
         s!"Ensures must have type {Typ.prim .bool} not type '{res.type}'"
@@ -864,9 +968,9 @@ def func (ctx : FuncCtx) (as : List Ast.Anno)
     throw <| Error.msg "Assert cannot annotate functions"
 
 def loop (ctx : FuncCtx) (as : List Ast.Anno)
-    : Except Error (FuncCtx × List (Tst.Anno.Loop Δ Γ)) := do
+    : Except Error (Result.List Δ Γ Tst.Anno.loop init_set) := do
   match as with
-  | []            => return (ctx, [])
+  | []            => return ⟨ctx, [], .nil⟩
   | .requires _   :: _    => throw <| Error.msg "Requires can only annotate functions"
   | .ensures  _   :: _    => throw <| Error.msg "Ensures can only annotate functions"
   | .loop_invar e :: rest =>
@@ -874,9 +978,11 @@ def loop (ctx : FuncCtx) (as : List Ast.Anno)
       Synth.Expr.expr ctx Tst.Expr.no_result Error.no_result e
     if tyeq : res.type = .prim .bool then
       let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
-      let (ctx', rest') ← loop {ctx with calls := calls'} rest
+      let ⟨ctx', rest', rest'_init⟩ ← loop {ctx with calls := calls'} rest
       let e' := ⟨res.texpr.boolType tyeq, res.valid⟩
-      return (ctx', ⟨.loop_invar e', by simp⟩ :: rest')
+      let anno' := ⟨.loop_invar e', by simp⟩
+      have anno'_init := .loop_invar (by simp; exact res.init)
+      return ⟨ctx', anno' :: rest', .cons anno'_init rest'_init⟩
     else
       throw <| Error.expr e <|
         s!"Loop invariants must have type {Typ.prim .bool} not type '{res.type}'"
@@ -884,7 +990,7 @@ def loop (ctx : FuncCtx) (as : List Ast.Anno)
   | .assert _ :: _       => throw <| Error.msg "Assert cannot annotate loops"
 
 def free (ctx : FuncCtx) (a : Ast.Anno)
-    : Except Error (FuncCtx × (Tst.Anno.Free Δ Γ)) := do
+    : Except Error (FuncCtx × Result Δ Γ Tst.Anno.free init_set) := do
   match a with
   | .requires _   => throw <| Error.msg "Requires can only annotate functions"
   | .ensures  _   => throw <| Error.msg "Ensures can only annotate functions"
@@ -895,9 +1001,10 @@ def free (ctx : FuncCtx) (a : Ast.Anno)
       Synth.Expr.expr ctx Tst.Expr.no_result Error.no_result e
     if tyeq : res.type = .prim .bool then
       let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
-      return ⟨{ctx with calls := calls'},
-        ⟨.assert ⟨res.texpr.boolType tyeq, res.valid⟩, by simp⟩
-      ⟩
+      let ctx' := {ctx with calls := calls'}
+      let anno' := ⟨.assert ⟨res.texpr.boolType tyeq, res.valid⟩, by simp⟩
+      have anno'_init := .assert res.init
+      return ⟨ctx', anno', anno'_init⟩
     else
       throw <| Error.expr e <|
         s!"Assert must have type {Typ.prim .bool} not type '{res.type}'"
@@ -906,13 +1013,23 @@ end Synth.Anno
 
 namespace Stmt
 
-structure Result (Δ : Tst.GCtx) (Γ : Tst.FCtx) (ρ : Option Typ) where
-  ctx  : FuncCtx
-  stmt : Tst.Stmt Δ Γ ρ
+structure Result
+    (Δ : Tst.GCtx) (Γ : Tst.FCtx) (ρ : Option Typ)
+    (init_set : Tst.Initialised.Acc)
+where
+  ctx       : FuncCtx
+  stmt      : Tst.Stmt Δ Γ ρ
+  init_set' : Tst.Initialised.Acc
+  init      : Tst.Initialised.Stmt stmt init_set init_set'
 
-structure Result.List (Δ : Tst.GCtx) (Γ : Tst.FCtx) (ρ : Option Typ) where
+structure Result.List
+    (Δ : Tst.GCtx) (Γ : Tst.FCtx) (ρ : Option Typ)
+    (init_set : Tst.Initialised.Acc)
+where
   ctx   : FuncCtx
   stmts : Tst.Stmt.List Δ Γ ρ
+  init_set' : Tst.Initialised.Acc
+  init      : Tst.Initialised.Stmt.List stmts init_set init_set'
 
 @[inline] private def wrapError
     (stmt : Ast.Stmt)
@@ -920,8 +1037,13 @@ structure Result.List (Δ : Tst.GCtx) (Γ : Tst.FCtx) (ρ : Option Typ) where
     : Except Error α :=
   res.tryCatch (fun err => throw {err with statement := some stmt})
 
+set_option maxHeartbeats 2000000 in -- can probs reduce this a bunch
 mutual
-def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Except Error (Result Δ Γ ρ) := do
+def stmt
+    {Δ : Tst.GCtx} {Γ : Tst.FCtx} {ρ : Option Typ}
+    {init_set : Tst.Initialised.Acc}
+    (ctx : FuncCtx) (stm : Ast.Stmt)
+    : Except Error (Result Δ Γ ρ init_set) := do
   let handle      := wrapError stm
   let handleLV    := wrapError stm
   let handleAnno  := wrapError stm
@@ -941,24 +1063,32 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Except Error (Result Δ Γ ρ) := do
         let ctx' ← Validate.var ctx name tau (init.isSome)
         match init with
         | none =>
-          let Γ' := Γ.updateVar name ⟨tau, false⟩
-          let res ← stmts (Γ := Γ')
+          let Γ' := Γ.updateVar name tau -- false
+          let name' : Typ.Typed Symbol := ⟨tau, name⟩
+          let init_set_body :=
+            Tst.Initialised.init (Δ := Δ) (Γ := Γ) init_set (.decl name')
+
+          let res ← stmts (Γ := Γ') (init_set := init_set_body)
               {ctx' with calls := ctx.calls, strings := ctx.strings} body
           let symbols' := -- restore old symbol status
             match ctx.symbols.find? name with
             | some status => res.ctx.symbols.insert name status
             | none => res.ctx.symbols.erase name
           let calledOldCtx := { res.ctx with symbols := symbols' }
-          let name' : Typ.Typed Symbol := ⟨tau, name⟩
 
-          return ⟨calledOldCtx, .decl name' (by simp) res.stmts⟩
+          let stmt' := .decl name' (by simp) res.stmts
+          let init_set' :=
+            Tst.Initialised.join init_set_body res.init_set' stmt'
+          have stmt'_init := .decl (by simp) res.init (by simp)
+
+          return ⟨calledOldCtx, stmt', init_set', stmt'_init⟩
 
         | some e =>
           let res_init ← handle <| Synth.Expr.small_nonvoid <|
             Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
           -- types must be equivalent on both sides
           if ty_equiv : tau.equiv res_init.type then
-            let init' := ⟨res_init.texpr, res_init.valid⟩
+            let e_init' := ⟨res_init.texpr, res_init.valid⟩
 
             -- if we are assigning something to struct type, must be defined
             if let Typ.mem (.struct sname) := res_init.type then
@@ -969,80 +1099,101 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Except Error (Result Δ Γ ρ) := do
               | _ => throw <| Error.stmt stm <|
                 s!"Expression '{res_init.texpr}' has undefined/undeclared type '{res_init.type}'"
 
-            let Γ' := Γ.updateVar name ⟨tau, true⟩
+            let Γ' := Γ.updateVar name tau
+            let name' := ⟨tau, name⟩
+            let init_set_body :=
+              Tst.Initialised.init init_set (.decl_init name' e_init')
+
             let calls := res_init.calls.merge ctx'.calls
             let strings := res_init.strings ∪ ctx'.strings
-            let res ← stmts (Γ := Γ') {ctx' with calls, strings} body
+
+            let res ← stmts (Γ := Γ') (init_set := init_set_body)
+              {ctx' with calls, strings} body
             let symbols' := -- restore old symbol status
               match ctx.symbols.find? name with
               | some status => res.ctx.symbols.insert name status
               | none => res.ctx.symbols.erase name
             let calledOldCtx := { res.ctx with symbols := symbols' }
-            let name' := ⟨tau, name⟩
+
             let stmt' :=
-              .decl_init name' init' (by simp; exact ty_equiv) (by simp)
-                res.stmts
-            return ⟨calledOldCtx, stmt'⟩
+              .decl_init name' e_init' ty_equiv (by simp) res.stmts
+            let init_set' :=
+              Tst.Initialised.join init_set_body res.init_set' stmt'
+            have stmt'_init :=
+              .decl_init (a₂ := init_set)
+                res_init.init (by simp) res.init (by simp)
+
+            return ⟨calledOldCtx, stmt', init_set', stmt'_init⟩
           else throw <| Error.stmt stm <|
             s!"Variable '{name}' has mismatched types. Declaration expects '{tau}' but {res_init.texpr} has type '{res_init.type}'"
 
-  | .assn_var var e body =>
-    match h : Γ var with
-    | none => throwS s!"Variable '{var}' must be declared before assignment"
-    | some (.var vstatus) =>
-      let res ← handle <| Synth.Expr.small_nonvoid <|
-          Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
-      let ctx := {ctx with calls := res.calls, strings := res.strings}
+  | .assn lv op e =>
+    match h : lv, op with
+    | .var var, .eq =>
+      match h : Γ var with
+      | none => throwS s!"Variable '{var}' must be declared before assignment"
+      | some (.var tau) =>
+        let res ← handle <| Synth.Expr.small_nonvoid <|
+            Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
+        let ctx := {ctx with calls := res.calls, strings := res.strings}
 
-      if ty_equiv : vstatus.type.equiv res.type then
-        let Γ' := Γ.updateVar var ⟨vstatus.type, true⟩
-        let ctx' :=
-          if vstatus.initialised then ctx else
-            let symbols' :=
-              ctx.symbols.insert var (.var ⟨vstatus.type, true⟩)
-            { ctx with symbols := symbols' }
+        if ty_equiv : tau.equiv res.type then
+          let Γ' := Γ.updateVar var tau
+          let ctx' := ctx
+            -- if /- initialised -/true then ctx else
+              -- let symbols' :=
+                -- ctx.symbols.insert var (.var ⟨tau, true⟩)
+              -- { ctx with symbols := symbols' }
 
-        let lv' := Tst.LValue.var (τ := vstatus.type) var (by
-            if init : vstatus.initialised
-            then simp [←init]; exact .inl h
-            else simp at init; simp [←init]; exact .inr h
-          )
-        let e' : Tst.Expr.NoContract Δ Γ _ := ⟨res.texpr, res.valid⟩
+          let lv' := Tst.LValue.var (τ := tau) var (h)
+          let e' : Tst.Expr.NoContract Δ Γ _ := ⟨res.texpr, res.valid⟩
+          have is_var := by simp [lv']; rfl
+          let stmt' := .assign_var lv' is_var e' (ty_equiv)
+          let init_set' :=
+            Tst.Initialised.init init_set (.assign_var lv' is_var e')
+          have stmt'_init :=
+            .assign_var (a₂ := init_set) (a₃ := init_set')
+              res.init (by simp) (by simp)
 
-        let res ← stmts (Γ := Γ') ctx' body
+          return ⟨ctx', stmt', init_set', stmt'_init⟩
+        else throwS s!"Assignment of '{var}' expects type '{tau}' but got '{res.type}'"
+      | some (.func _)  => throwS s!"Cannot assign to function '{var}'"
+      | some (.alias _) => throwS s!"Cannot assign to type alias '{var}'"
+    | _ , _ =>
+      let resl ← handleLV <| Synth.LValue.small <| Synth.LValue.lvalue ctx lv
+      let resr ← handle <| Synth.Expr.small_nonvoid <|
+        Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
+      let ctx := { ctx with calls := resl.calls.merge resr.calls
+                          , strings := resr.strings
+                  }
+      match op_eq : op with
+      | .eq =>
+        if ty_equiv : resl.type.equiv resr.type then
+          have : ¬resl.lval.is_var := by sorry
+          let e' := ⟨resr.texpr, resr.valid⟩
 
-        let stmt' :=
-          .assign_var lv' (by simp [lv']; rfl) e' (ty_equiv) (by simp) res.stmts
-        return ⟨res.ctx, stmt'⟩
-      else throwS s!"Assignment of '{var}' expects type '{vstatus.type}' but got '{res.type}'"
-    | some (.func _)  => throwS s!"Cannot assign to function '{var}'"
-    | some (.alias _) => throwS s!"Cannot assign to type alias '{var}'"
+          let stmt' := .assign resl.lval this e' ty_equiv
+          let init_set' :=
+            Tst.Initialised.init init_set (.assign resl.lval this e')
+          have stmt'_init := .assign resl.init (by simp) resr.init (by simp)
 
-  | .assn lv op h e =>
-    let resl ← handleLV <| Synth.LValue.small <| Synth.LValue.lvalue ctx lv
-    let resr ← handle <| Synth.Expr.small_nonvoid <|
-      Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
-    let ctx := { ctx with calls := resl.calls.merge resr.calls
-                        , strings := resr.strings
-                }
-    match op_eq : op with
-    | .eq =>
-      if ty_equiv : resl.type.equiv resr.type then
-        have : ∀ name h, resl.lval ≠ .var name h := by
-          intro b name h'
-          simp [op_eq] at h
-          sorry
-        return ⟨ctx, .assign resl.lval this ⟨resr.texpr, resr.valid⟩ ty_equiv⟩
-      else throwS s!"Left side of assignment has type '{resl.type}' doesn't match the right side '{resr.type}'"
-    | .aseq binop =>
-      if l_eq : resl.type = .prim .int then
-        if r_eq : resr.type = .prim .int then
-          let lv' := resl.lval.intType l_eq
-          let e'  := ⟨resr.texpr.intType r_eq, resr.valid⟩
-          let stmt' := .asnop lv' (Trans.int_binop binop) e'
-          return ⟨ctx, stmt'⟩
-        else throwS s!"Assignment with operations must have type '{Typ.prim .int}' but right side is '{resr.type}'"
-      else throwS s!"Assignment with operations must have type '{Typ.prim .int}'  but left side is '{resl.type}'"
+          return ⟨ctx, stmt', init_set', stmt'_init⟩
+        else throwS s!"Left side of assignment has type '{resl.type}' doesn't match the right side '{resr.type}'"
+      | .aseq binop =>
+        if l_eq : resl.type = .prim .int then
+          if r_eq : resr.type = .prim .int then
+            let lv' := resl.lval.intType l_eq
+            let e'  := ⟨resr.texpr.intType r_eq, resr.valid⟩
+            let op' := Trans.int_binop binop
+
+            let stmt' := .asnop lv' op' e'
+            let init_set' :=
+              Tst.Initialised.init init_set (.asnop resl.lval op' e')
+            have stmt'_init := .asnop (by simp) resl.init resr.init (by simp)
+
+            return ⟨ctx, stmt', init_set', stmt'_init⟩
+          else throwS s!"Assignment with operations must have type '{Typ.prim .int}' but right side is '{resr.type}'"
+        else throwS s!"Assignment with operations must have type '{Typ.prim .int}'  but left side is '{resl.type}'"
 
   | .ite cond tt ff =>
     let resc ← handle <| Synth.Expr.small_nonvoid <|
@@ -1050,34 +1201,54 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Except Error (Result Δ Γ ρ) := do
     let ctx' := {ctx with calls := resc.calls, strings := resc.strings}
     match c_eq : resc.type with
     | .prim .bool =>
-      let ⟨ctx1, tt'⟩ ← stmts ctx' tt
-      let ⟨ctx2, ff'⟩ ← stmts ctx' ff
+      let rest ← stmts ctx' tt
+      let resf ← stmts ctx' ff
       let cond' := ⟨resc.texpr.boolType c_eq, resc.valid⟩
-      return ⟨ctx1.join ctx2, .ite cond' tt' ff'⟩
+
+      let stmt' := .ite cond' rest.stmts resf.stmts
+      let init_set' := Tst.Initialised.init init_set (.ite cond')
+      let init_set'' := Tst.Initialised.join rest.init_set' resf.init_set' stmt'
+      have stmt'_init :=
+        .ite (a₂ := init_set) (a₃ := init_set')
+          resc.init (by simp) rest.init resf.init (by simp)
+
+      return ⟨rest.ctx.join resf.ctx, stmt', init_set'', stmt'_init⟩
     | _ => throwS s!"If condition must be of type '{Typ.prim .bool}' not '{resc.type}'"
 
   | .while cond annos body =>
     let resc ← handle <| Synth.Expr.small_nonvoid <|
       Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract cond
-    let (ctx', annos') ← handleAnnos <| Synth.Anno.loop ctx annos
+    let resa ← handleAnnos <| Synth.Anno.loop ctx annos
     match c_eq : resc.type with
     | .prim .bool =>
-      let ⟨ctx'', body'⟩ ←
-        stmts ctx' body
-      let cond' := ⟨resc.texpr.boolType c_eq, resc.valid⟩
-      let ctx''' :=
-        { ctx with calls   := ctx''.calls.merge resc.calls
-                 , strings := ctx''.strings ∪ resc.strings
+      let resb ← stmts resa.ctx body
+      let cond' : Tst.Expr.NoContract _ _ _ :=
+        ⟨resc.texpr.boolType c_eq, resc.valid⟩
+      let ctx'' :=
+        { ctx with calls   := resb.ctx.calls.merge resc.calls
+                 , strings := resb.ctx.strings ∪ resc.strings
         }
-      return ⟨ctx''', .while cond' annos' body'⟩
+
+      let stmt' := Tst.Stmt.while cond' resa.annos resb.stmts
+      let init_set' := Tst.Initialised.init init_set (.while cond')
+      let init_set'' := Tst.Initialised.join init_set resb.init_set' stmt'
+      have stmt'_init :=
+        Tst.Stmt.Fold.while (P := Tst.Initialised.Predicate) (cond := cond')
+          (a₂ := init_set) (a₃ := init_set) (a₄ := init_set')
+          resc.init resa.init (by simp) resb.init (by simp)
+
+      return ⟨ctx'', stmt', init_set'', stmt'_init⟩
     | _ => throwS s!"Loop condition must be of type '{Typ.prim .bool}' not '{resc.type}'"
 
   | .return .none =>
-    match ρ with
+    match is_void : ρ with
     | some _ => throw <| Error.stmt stm <|
         s!"Expected return type is '{ctx.ret_type}'" -- todo change this msg?
     | none =>
-      return ⟨{ctx with returns := true}, .return_void⟩
+      let stmt' := .return_void (by simp)
+      let init_set' := Tst.Initialised.stmt init_set stmt'
+      have stmt'_init := .return_void (by simp)
+      return ⟨{ctx with returns := true}, stmt', init_set', stmt'_init⟩
 
   | .return (.some e) =>
     match ρ with
@@ -1102,18 +1273,30 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Except Error (Result Δ Γ ρ) := do
                              , calls
                              , strings
                     }
-        return ⟨ctx', .return_tau e'⟩
+
+        let stmt' := .return_tau e'
+        let init_set' := Tst.Initialised.stmt init_set stmt'
+        have stmt'_init :=
+          .return_tau (a₂ := init_set) (by simp) res.init (by simp)
+
+        return ⟨ctx', stmt', init_set', stmt'_init⟩
       else throw <| Error.stmt stm <|
         s!"Expected return type was '{ctx.ret_type}' but got '{res.type}'"
 
   | .assert e =>
-    let res ← handle <| Synth.Expr.small_nonvoid <|
+    let res ← handle <| Synth.Expr.small_nonvoid (init_set := init_set) <|
       Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
     match tyeq : res.type with
     | .prim .bool =>
       let e'   := ⟨res.texpr.boolType tyeq, res.valid⟩
       let ctx' := { ctx with calls := res.calls, strings := res.strings }
-      return ⟨ctx', .assert e'⟩
+
+      let stmt' := .assert e'
+      let init_set' := Tst.Initialised.stmt init_set stmt'
+      have stmt'_init :=
+        .assert (a₂ := init_set) (by simp) (by exact res.init) (by simp)
+
+      return ⟨ctx', stmt', init_set', stmt'_init⟩
     | _ => throwS s!"Assert condition must be of type '{Typ.prim .bool}' not '{res.type}'"
 
   | .error e =>
@@ -1139,7 +1322,13 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Except Error (Result Δ Γ ρ) := do
                            , strings := res.strings
                            , returns := true
                   }
-      return ⟨ctx', .error e'⟩
+
+      let stmt' := .error e'
+      let init_set' := Tst.Initialised.stmt init_set stmt'
+      have stmt'_init :=
+        .error (a₂ := init_set) (by simp) (by exact res.init) (by simp)
+
+      return ⟨ctx', stmt', init_set', stmt'_init⟩
     | _ => throwS s!"Error condition must be of type '{Typ.prim .string}' not '{res.type}'"
 
   | .exp e =>
@@ -1147,29 +1336,46 @@ def stmt (ctx : FuncCtx) (stm : Ast.Stmt) : Except Error (Result Δ Γ ρ) := do
       Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
     let e'   := ⟨res.texpr, res.valid⟩
     let ctx' := {ctx with calls := res.calls, strings := res.strings}
-    return ⟨ctx', .expr e'⟩
+
+    let stmt' := .expr e'
+    let init_set' := Tst.Initialised.stmt init_set stmt'
+    have stmt'_init :=
+      .expr (a₂ := init_set) (by simp) (by exact res.init) (by simp)
+
+    return ⟨ctx', stmt', init_set', stmt'_init⟩
 
   | .anno a =>
-    let (ctx', a') ← handleAnno <| Synth.Anno.free ctx a
-    return ⟨ctx', .anno a'⟩
+    let (ctx', res) ← handleAnno <| Synth.Anno.free (init_set := init_set) ctx a
+
+    let stmt' := Tst.Stmt.anno res.anno
+    let init_set' := Tst.Initialised.stmt init_set stmt'
+    have stmt'_init :=
+      Tst.Stmt.Fold.anno (a₂ := init_set)
+        (by simp) (by exact res.init) (by simp)
+
+    return ⟨ctx', stmt', init_set', stmt'_init⟩
 
 def stmts (ctx : FuncCtx)
           (body : List Ast.Stmt)
-          : Except Error (Result.List Δ Γ ρ) := do
+          : Except Error (Result.List Δ Γ ρ init_set) := do
   match body with
-  | [] => return ⟨ctx, .nil⟩
+  | [] => return ⟨ctx, .nil, init_set, .nil⟩
   | b::bs =>
     let resb ← stmt ctx b
     /- We need to typecheck after returns but we disregard the result.
        TOOD: think about how this could be structurally enforced.
      -/
     if resb.ctx.returns then
-      let Γ' := Γ.initialiseAll
-      let resbs : (Result.List Δ Γ' ρ) ← stmts (Γ := Γ') resb.ctx bs
-      return ⟨resbs.ctx, .cons resb.stmt .nil⟩
+      let resbs : (Result.List Δ Γ ρ _) ←
+        stmts (init_set := resb.init_set') resb.ctx bs
+      let stmts' := .cons resb.stmt .nil
+      have stmts'_init := .cons resb.init .nil
+      return ⟨resbs.ctx, stmts', resb.init_set', stmts'_init⟩
     else
-      let resbs ← stmts resb.ctx bs
-      return ⟨resbs.ctx, .cons resb.stmt resbs.stmts⟩
+      let resbs ← stmts (init_set := resb.init_set') resb.ctx bs
+      let stmts' := .cons resb.stmt resbs.stmts
+      have stmts'_init := .cons resb.init resbs.init
+      return ⟨resbs.ctx, stmts', resbs.init_set', stmts'_init⟩
 end
 
 end Stmt
@@ -1225,9 +1431,17 @@ def fdecl (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDecl)
     let (ctx', fctx, ret) ← func ctx extern false f.name f.type f.params
     let params ← Trans.params fctx f.params
     let init_Γ := Tst.FCtx.init Δ params
-    let (fctx', annos) ← Synth.Anno.func (Γ := init_Γ) fctx f.annos
-    let fdecl := Tst.GDecl.fdecl {ret, name := f.name, params, annos}
-    return ⟨{ctx' with calls := ctx'.calls.merge fctx'.calls}, _, some fdecl⟩
+    let init_set := Tst.Initialised.Acc.ofList (params.map (·.data))
+    let res ← Synth.Anno.func (Γ := init_Γ) (init_set := init_set) fctx f.annos
+    let fdecl := Tst.GDecl.fdecl
+      { ret
+      , name := f.name
+      , params
+      , annos := res.annos
+      , initial_init := init_set
+      , annos_init   := res.init
+      }
+    return ⟨{ctx' with calls := ctx'.calls.merge res.ctx.calls}, _, some fdecl⟩
 
 def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
     : Except Error (Result Δ) := do
@@ -1244,28 +1458,58 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
       ) []
     let retTy := Typ.flattenOpt ret
     let init_Γ := Tst.FCtx.init Δ params
-    let (fctx', annos) ← Synth.Anno.func (Γ := init_Γ) fctx f.annos
-    let fdecl := {ret, name := f.name, params, init_Γ, annos}
+    let init_set := Tst.Initialised.Acc.ofList (params.map (·.data))
+    let resa ← Synth.Anno.func (Γ := init_Γ) (init_set := init_set) fctx f.annos
+    let fdecl : Tst.FDecl Δ :=
+      { ret
+      , name := f.name
+      , params
+      , init_Γ
+      , annos := resa.annos
+      , initial_init := init_set
+      , annos_init   := resa.init
+      }
 
-    let ⟨fctx'', body'⟩ ←
-      Stmt.stmts (Δ := Δ) (Γ := init_Γ.addFunc f.name retTy params) (ρ := ret) fctx' f.body
+    let Γ := init_Γ.addFunc f.name retTy params
+    let res : Stmt.Result.List Δ _ ret _ ←
+      Stmt.stmts (Δ := Δ) (Γ := Γ) (ρ := ret)
+        (init_set := init_set) resa.ctx f.body
         |>.tryCatch (fun err => throw {err with function := some f.name})
 
-    if ¬(ret.isNone || fctx''.returns)
+    if ¬(ret.isNone || res.ctx.returns)
     then throw <| Error.func f.name <|
         s!"Function does not return on some paths"
 
+    let funcCalls := ctx'.funcCalls.insert f.name res.ctx.calls
+    let calls     := ctx'.calls.merge res.ctx.calls
+    let strings   := ctx'.strings ∪ res.ctx.strings
+
     let body'' :=
-      if ret_none : none = ret then
-        body'.toList.append
-          [cast (by simp [ret_none]; rfl) Tst.Stmt.return_void]
-      else body'.toList
+      if ret_none : ret.isNone then
+        res.stmts.consEnd (Tst.Stmt.return_void ret_none)
+      else res.stmts
+    -- have body''_init :=
+      -- if ret_none : ret = none then
+        -- Tst.Stmt.List.Fold.consEnd (stmt := Tst.Stmt.return_void ret_none)
+          -- res.stmts res.init (.return_void (by simp))
+      -- else res.init
 
-    let funcCalls := ctx'.funcCalls.insert f.name fctx''.calls
-    let calls     := ctx'.calls.merge fctx''.calls
-    let strings   := ctx'.strings ∪ fctx''.strings
-
-    let fdef := Tst.GDecl.fdef ⟨fdecl, body''⟩
+    let fdef := Tst.GDecl.fdef
+      { toFDecl := fdecl
+      , body := body''
+      , post_init :=
+          if ret_none : ret.isNone then
+            Tst.Initialised.stmt res.init_set'
+              (Tst.Stmt.return_void (Δ := Δ) (Γ := Γ) ret_none)
+          else res.init_set'
+      , body_init := by
+          if ret_none : ret.isNone then
+            simp [body'', ret_none]
+            exact Tst.Stmt.List.Fold.consEnd
+                    (a₂ := res.init_set')
+                    res.stmts res.init (.return_void (by simp))
+          else simp [body'', ret_none]; exact res.init
+      }
     return ⟨{ctx' with calls, funcCalls, strings}, _, some fdef⟩
 
 def tydef (ctx : GlobalCtx) (t : Ast.TyDef) : Except Error (Result Δ) := do

@@ -626,10 +626,10 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
       Env.Func.new_var (← Env.Prog.toFunc (Typ.tempSize name.type)) name
     let (istmts, res) ← texpr past init.val
     stmts (.move t res :: istmts) body.toList
-  | .assign_var (τ₁ := τ₁) (name := name) lhs is_var rhs _ _ body =>
-    let dest ← Env.Func.var name
+  | .assign_var (τ₁ := τ₁) lhs is_var rhs _ =>
+    let dest ← Env.Func.var (lhs.get_name is_var)
     let (stms, src) ← texpr past rhs.val
-    stmts (.move dest src :: stms) body.toList
+    return .move dest src :: stms
 
   | .assign (τ₁ := τ₁) tlv _ rhs _ =>
     let lhs' := Elab.lvalue tlv
@@ -733,7 +733,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
     let () ← Env.Func.addBlock block afterLoop .afterLoop
     return []
 
-  | .return_void =>
+  | .return_void _ =>
     let exit := .return none
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
@@ -829,7 +829,7 @@ def gdecl (header : Bool) (glbl : Tst.GDecl Δ Δ') : Env.Prog (Option Func) := 
     let args ← dec_args fdef.params
     let entry ← Env.Prog.freshLabel
     let (_remain, blocks) ←
-      Env.Prog.startFunc entry .funcEntry (stmts [] fdef.body)
+      Env.Prog.startFunc entry .funcEntry (stmts [] fdef.body.toList)
     let () ← Env.Prog.addFunc fdef.name label
     let res ← fdef.ret.mapM Typ.tempSize
     return some ⟨label, entry, args, blocks, res, sorry⟩
