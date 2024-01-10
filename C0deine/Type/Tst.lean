@@ -102,13 +102,26 @@ deriving Inhabited
     | some status => some status
     | none => Δ.symbols x
 
+/- TST expressions are similar to the AST expressions but they are also encoded
+   with type information such that an ill-typed TST-expression cannot be
+   constructed. Another way of thinking about it is that these are both a
+   representation of the language and the static rules themselves.
+
+   One difference from the traditional static semantic rules is that we use
+   "Fording" in some places. A traditional rule would specify that would have
+   some type (e.g. `binop_int : int → int → int`). In our case this can cause
+   problems when generating the TST and proving properties about it. So instead
+   we allow sub-expressions to be any type, and then later require a proof that
+   they are equal/equivalent to the required type (e.g.
+   `binop_int : τ₁ → τ₁ = int → τ₂ → τ₂ = int → int`). We are allowing any type,
+   so long as it's the correct one ("Any color [...], so long as it's black").
+ -/
 inductive Expr (Δ : GCtx) (Γ : FCtx) : Typ → Type
-| num  : Int32 → Expr Δ Γ int
-| char : Char → Expr Δ Γ (.prim .char)
+| num  : Int32  → Expr Δ Γ int
+| char : Char   → Expr Δ Γ (.prim .char)
 | str  : String → Expr Δ Γ (.prim .string)
 | var
   : {τ : Typ}
-  -- → {τ₁ : {τ' : Typ // τ' = τ}}
   → (x : Symbol)
   → Γ x = .some (.var τ)
   → Expr Δ Γ τ
@@ -306,7 +319,7 @@ inductive Expr.Fold {Δ : GCtx} {Γ : FCtx}
   → {τs : Fin (status.type.arity) → Typ}
   → {eq : ∀ i, (status.type.argTys i).equiv (τs i)}
   → {args : (i : Fin status.type.arity) → Expr Δ Γ (τs i)}
-  → (∀ i : Fin status.type.arity,
+  → (∀ i : Fin status.type.arity, -- nb not sequential nor joins
       Fold P a₁ (args i) a₂ )
   → P _ a₂ (.app f hsig τs eq args) = some a₃
   → Fold P a₁ (.app f hsig τs eq args) a₃
@@ -783,6 +796,8 @@ theorem Stmt.List.Fold.consEnd
       simp [Stmt.List.cons.inj h] at hx hxs
       exact .cons hx (Fold.consEnd xs hxs hstmt)
 
+
+/- Used for verifying that all variables are initialised when used -/
 abbrev Initialised.Acc := Symbol → Bool
 def Initialised.Acc.empty : Acc := fun _ => false
 def Initialised.Acc.ofList : List Symbol → Acc :=
@@ -838,27 +853,94 @@ def Initialised.Acc.ofList : List Symbol → Acc :=
 @[simp] def Initialised.Stmt.List (stmt : Tst.Stmt.List Δ Γ ρ) inits inits' :=
   Stmt.List.Fold Initialised.Predicate inits stmt inits'
 
-/-
-def Returns.stmt (acc : Bool) : Stmt Δ Γ ρ → Option Bool
-  | .return_void    => true
-  | .return_tau _ => true
-  | .error _        => true
+
+/- Used for verifying that all control flow paths return -/
+@[simp] def Returns.init (acc : Bool) : Stmt.Peek Δ Γ → Bool
   | _ => acc
-def Returns.expr (τ : Typ) (acc : Bool) : Expr Δ Γ τ → Option Bool :=
+@[simp] def Returns.stmt (acc : Bool) : Stmt Δ Γ ρ → Bool
+  | .return_void _
+  | .return_tau _
+  | .error _       => true
+  | _ => acc
+@[simp] def Returns.expr (τ : Typ) (acc : Bool) : Expr Δ Γ τ → Option Bool :=
   fun _ => some acc
-def Returns.lval (τ : Typ) (acc : Bool) : LValue Δ Γ τ → Option Bool :=
+@[simp] def Returns.lval (τ : Typ) (acc : Bool) : LValue Δ Γ τ → Option Bool :=
   fun _ => some acc
-def Returns.join (acc₁ acc₂ : Bool) : Stmt Δ Γ ρ → Option Bool
+@[simp] def Returns.join (acc₁ acc₂ : Bool) : Stmt Δ Γ ρ → Option Bool
   | .while _ _ _ => some acc₁
   | .ite _ _ _   => some (acc₁ && acc₂)
   | _            => some acc₂
-def Returns.Predicate : Stmt.Predicate Δ Γ Bool := { stmt, lval, expr, join }
-
-abbrev Returns.Stmt.List Δ Γ ρ :=
-  { stmts : Tst.Stmt.List Δ Γ ρ //
-      Stmt.List.Fold Returns.Predicate false stmts true
+@[simp] def Returns.Predicate : Stmt.Predicate Δ Γ Bool :=
+  { init := fun acc s => some (init acc s)
+  , stmt := fun acc s => some (stmt acc s)
+  , lval
+  , expr
+  , join
   }
--/
+
+@[simp] def Returns.Stmt (stmt : Tst.Stmt Δ Γ ρ) rets rets' :=
+  Stmt.Fold Returns.Predicate rets stmt rets'
+@[simp] def Returns.Stmt.List (stmts : Tst.Stmt.List Δ Γ ρ) rets rets' :=
+  Stmt.List.Fold Returns.Predicate rets stmts rets'
+
+@[simp] theorem Returns.expr_fold
+  : ∀ acc (e : Expr Δ Γ τ), Expr.Fold Returns.expr acc e acc := by
+  intro acc e
+  have p : ∀ τ (e' : Expr Δ Γ τ), Returns.expr τ acc e' = some acc := by simp
+  induction e with -- is there a better way to do with?
+  | num _       => exact .num          (p _ _)
+  | char _      => exact .char         (p _ _)
+  | str _       => exact .str          (p _ _)
+  | var _ _     => exact .var          (p _ _)
+  | «true»      => exact .true         (p _ _)
+  | «false»     => exact .false        (p _ _)
+  | null        => exact .null         (p _ _)
+  | unop        => next ih          => exact .unop ih                 (p _ _)
+  | binop_int   => next ih₁ ih₂     => exact .binop_int   ih₁ ih₂     (p _ _)
+  | binop_bool  => next ih₁ ih₂     => exact .binop_bool  ih₁ ih₂     (p _ _)
+  | binop_eq    => next ih₁ ih₂     => exact .binop_eq    ih₁ ih₂     (p _ _)
+  | binop_rel₁  => next ih₁ ih₂     => exact .binop_rel₁  ih₁ ih₂     (p _ _)
+  | binop_rel₂  => next ih₁ ih₂     => exact .binop_rel₂  ih₁ ih₂     (p _ _)
+  | ternop      => next ih₁ ih₂ ih₃ => exact .ternop      ih₁ ih₂ ih₃ (p _ _)
+  | app         => next ih          => exact .app         ih          (p _ _)
+  | alloc       => next             => exact .alloc                   (p _ _)
+  | alloc_array => next ih          => exact .alloc_array ih          (p _ _)
+  | dot         => next ih          => exact .dot         ih          (p _ _)
+  | deref       => next ih          => exact .deref       ih          (p _ _)
+  | index       => next ih₁ ih₂     => exact .index       ih₁ ih₂     (p _ _)
+  | result      => next             => exact .result                  (p _ _)
+  | length      => next ih          => exact .length      ih          (p _ _)
+
+@[simp] theorem Returns.lval_fold
+  : ∀ acc (lv : LValue Δ Γ τ),
+    LValue.Fold (Δ := Δ) (Γ := Γ) Predicate.toLValuePred acc lv acc := by
+  intro acc lv
+  simp
+  induction lv with -- is there a better way to do with?
+  | var   => exact .var (by simp)
+  | dot   => next ih => exact .dot   ih (by simp)
+  | deref => next ih => exact .deref ih (by simp)
+  | index _ e => next ih =>
+    have : Expr.Fold Predicate.toLValuePred.expr acc e.val acc := by simp
+    exact .index (a₃ := acc) ih this (by simp)
+
+@[simp] theorem Returns.anno_fold
+  : ∀ acc (anno : Anno Δ Γ),
+    Anno.Fold (Δ := Δ) (Γ := Γ) Returns.expr acc anno acc := by
+  intro acc anno
+  cases anno with
+  | requires   => exact .requires   (by simp)
+  | ensures    => exact .ensures    (by simp)
+  | loop_invar => exact .loop_invar (by simp)
+  | assert     => exact .assert     (by simp)
+
+@[simp] theorem Returns.anno_list_fold
+  : ∀ acc (annos : List (Anno Δ Γ)),
+    Anno.List.Fold (Δ := Δ) (Γ := Γ) Returns.expr acc annos acc := by
+  intro acc annos
+  induction annos with
+  | nil => exact .nil
+  | cons _ _ ih => exact .cons (by simp) ih
 
 
 structure SDef where
@@ -878,6 +960,7 @@ structure FDef (Δ : GCtx) extends FDecl Δ where
   body : Stmt.List Δ (init_Γ.addFunc name (Typ.flattenOpt ret) params) ret
   post_init : Initialised.Acc
   body_init : Initialised.Stmt.List body initial_init post_init
+  body_rets : Returns.Stmt.List body false true
 
 def GCtx.updateStruct (Δ : GCtx) (s : SDef) : GCtx :=
   let sig := ⟨Typed.toMap s.fields, true⟩

@@ -1016,20 +1016,26 @@ namespace Stmt
 structure Result
     (Δ : Tst.GCtx) (Γ : Tst.FCtx) (ρ : Option Typ)
     (init_set : Tst.Initialised.Acc)
+    (rets : Bool)
 where
   ctx       : FuncCtx
   stmt      : Tst.Stmt Δ Γ ρ
   init_set' : Tst.Initialised.Acc
   init      : Tst.Initialised.Stmt stmt init_set init_set'
+  rets'     : Bool
+  returns   : Tst.Returns.Stmt stmt rets rets'
 
 structure Result.List
     (Δ : Tst.GCtx) (Γ : Tst.FCtx) (ρ : Option Typ)
     (init_set : Tst.Initialised.Acc)
+    (rets : Bool)
 where
   ctx   : FuncCtx
   stmts : Tst.Stmt.List Δ Γ ρ
   init_set' : Tst.Initialised.Acc
   init      : Tst.Initialised.Stmt.List stmts init_set init_set'
+  rets'     : Bool
+  returns   : Tst.Returns.Stmt.List stmts rets rets'
 
 @[inline] private def wrapError
     (stmt : Ast.Stmt)
@@ -1042,8 +1048,8 @@ mutual
 def stmt
     {Δ : Tst.GCtx} {Γ : Tst.FCtx} {ρ : Option Typ}
     {init_set : Tst.Initialised.Acc}
-    (ctx : FuncCtx) (stm : Ast.Stmt)
-    : Except Error (Result Δ Γ ρ init_set) := do
+    (ctx : FuncCtx) (rets : Bool) (stm : Ast.Stmt)
+    : Except Error (Result Δ Γ ρ init_set rets) := do
   let handle      := wrapError stm
   let handleLV    := wrapError stm
   let handleAnno  := wrapError stm
@@ -1069,19 +1075,20 @@ def stmt
             Tst.Initialised.init (Δ := Δ) (Γ := Γ) init_set (.decl name')
 
           let res ← stmts (Γ := Γ') (init_set := init_set_body)
-              {ctx' with calls := ctx.calls, strings := ctx.strings} body
+              {ctx' with calls := ctx.calls, strings := ctx.strings} rets body
           let symbols' := -- restore old symbol status
             match ctx.symbols.find? name with
             | some status => res.ctx.symbols.insert name status
             | none => res.ctx.symbols.erase name
-          let calledOldCtx := { res.ctx with symbols := symbols' }
+          let oldCtx := { res.ctx with symbols := symbols' }
 
           let stmt' := .decl name' (by simp) res.stmts
           let init_set' :=
             Tst.Initialised.join init_set_body res.init_set' stmt'
           have stmt'_init := .decl (by simp) res.init (by simp)
+          have stmt'_rets := .decl (by simp) res.returns (by simp)
 
-          return ⟨calledOldCtx, stmt', init_set', stmt'_init⟩
+          return ⟨oldCtx, stmt', init_set', stmt'_init, res.rets', stmt'_rets⟩
 
         | some e =>
           let res_init ← handle <| Synth.Expr.small_nonvoid <|
@@ -1108,12 +1115,12 @@ def stmt
             let strings := res_init.strings ∪ ctx'.strings
 
             let res ← stmts (Γ := Γ') (init_set := init_set_body)
-              {ctx' with calls, strings} body
+              {ctx' with calls, strings} rets body
             let symbols' := -- restore old symbol status
               match ctx.symbols.find? name with
               | some status => res.ctx.symbols.insert name status
               | none => res.ctx.symbols.erase name
-            let calledOldCtx := { res.ctx with symbols := symbols' }
+            let oldCtx := { res.ctx with symbols := symbols' }
 
             let stmt' :=
               .decl_init name' e_init' ty_equiv (by simp) res.stmts
@@ -1122,8 +1129,11 @@ def stmt
             have stmt'_init :=
               .decl_init (a₂ := init_set)
                 res_init.init (by simp) res.init (by simp)
+            have stmt'_rets :=
+              .decl_init (a₂ := rets) (a₃ := rets) (a₄ := res.rets')
+                (by simp) (by simp) res.returns (by simp)
 
-            return ⟨calledOldCtx, stmt', init_set', stmt'_init⟩
+            return ⟨oldCtx, stmt', init_set', stmt'_init, res.rets', stmt'_rets⟩
           else throw <| Error.stmt stm <|
             s!"Variable '{name}' has mismatched types. Declaration expects '{tau}' but {res_init.texpr} has type '{res_init.type}'"
 
@@ -1154,8 +1164,10 @@ def stmt
           have stmt'_init :=
             .assign_var (a₂ := init_set) (a₃ := init_set')
               res.init (by simp) (by simp)
+          have stmt'_rets :=
+            .assign_var (a₂ := rets) (a₃ := rets) (by simp) (by simp) (by simp)
 
-          return ⟨ctx', stmt', init_set', stmt'_init⟩
+          return ⟨ctx', stmt', init_set', stmt'_init, rets, stmt'_rets⟩
         else throwS s!"Assignment of '{var}' expects type '{tau}' but got '{res.type}'"
       | some (.func _)  => throwS s!"Cannot assign to function '{var}'"
       | some (.alias _) => throwS s!"Cannot assign to type alias '{var}'"
@@ -1176,8 +1188,12 @@ def stmt
           let init_set' :=
             Tst.Initialised.init init_set (.assign resl.lval this e')
           have stmt'_init := .assign resl.init (by simp) resr.init (by simp)
+          have stmt'_rets :=
+            .assign (a₂ := rets) (a₃ := rets) (a₄ := rets)
+              (Tst.Returns.lval_fold rets resl.lval)
+              (by simp) (by simp) (by simp)
 
-          return ⟨ctx, stmt', init_set', stmt'_init⟩
+          return ⟨ctx, stmt', init_set', stmt'_init, rets, stmt'_rets⟩
         else throwS s!"Left side of assignment has type '{resl.type}' doesn't match the right side '{resr.type}'"
       | .aseq binop =>
         if l_eq : resl.type = .prim .int then
@@ -1190,8 +1206,11 @@ def stmt
             let init_set' :=
               Tst.Initialised.init init_set (.asnop resl.lval op' e')
             have stmt'_init := .asnop (by simp) resl.init resr.init (by simp)
+            have stmt'_rets :=
+              .asnop (a₂ := rets) (a₃ := rets) (a₄ := rets)
+                (by simp) (Tst.Returns.lval_fold rets lv') (by simp) (by simp)
 
-            return ⟨ctx, stmt', init_set', stmt'_init⟩
+            return ⟨ctx, stmt', init_set', stmt'_init, rets, stmt'_rets⟩
           else throwS s!"Assignment with operations must have type '{Typ.prim .int}' but right side is '{resr.type}'"
         else throwS s!"Assignment with operations must have type '{Typ.prim .int}'  but left side is '{resl.type}'"
 
@@ -1201,8 +1220,8 @@ def stmt
     let ctx' := {ctx with calls := resc.calls, strings := resc.strings}
     match c_eq : resc.type with
     | .prim .bool =>
-      let rest ← stmts ctx' tt
-      let resf ← stmts ctx' ff
+      let rest ← stmts ctx' rets tt
+      let resf ← stmts ctx' rets ff
       let cond' := ⟨resc.texpr.boolType c_eq, resc.valid⟩
 
       let stmt' := .ite cond' rest.stmts resf.stmts
@@ -1211,8 +1230,12 @@ def stmt
       have stmt'_init :=
         .ite (a₂ := init_set) (a₃ := init_set')
           resc.init (by simp) rest.init resf.init (by simp)
+      let rets' := rest.rets' && resf.rets'
+      have stmt'_rets :=
+        .ite (a₂ := rets) (a₃ := rets) (a₄ := rets')
+          (by simp) (by simp) rest.returns resf.returns (by simp)
 
-      return ⟨rest.ctx.join resf.ctx, stmt', init_set'', stmt'_init⟩
+      return ⟨rest.ctx.join resf.ctx, stmt', init_set'', stmt'_init, rets', stmt'_rets⟩
     | _ => throwS s!"If condition must be of type '{Typ.prim .bool}' not '{resc.type}'"
 
   | .while cond annos body =>
@@ -1221,7 +1244,7 @@ def stmt
     let resa ← handleAnnos <| Synth.Anno.loop ctx annos
     match c_eq : resc.type with
     | .prim .bool =>
-      let resb ← stmts resa.ctx body
+      let resb ← stmts resa.ctx rets body
       let cond' : Tst.Expr.NoContract _ _ _ :=
         ⟨resc.texpr.boolType c_eq, resc.valid⟩
       let ctx'' :=
@@ -1236,8 +1259,12 @@ def stmt
         Tst.Stmt.Fold.while (P := Tst.Initialised.Predicate) (cond := cond')
           (a₂ := init_set) (a₃ := init_set) (a₄ := init_set')
           resc.init resa.init (by simp) resb.init (by simp)
+      have stmt'_rets :=
+        Tst.Stmt.Fold.while (P := Tst.Returns.Predicate) (cond := cond')
+          (a₂ := rets) (a₃ := rets) (a₄ := rets) (a₆ := rets)
+          (by simp) (by simp) (by simp) resb.returns (by simp)
 
-      return ⟨ctx'', stmt', init_set'', stmt'_init⟩
+      return ⟨ctx'', stmt', init_set'', stmt'_init, rets, stmt'_rets⟩
     | _ => throwS s!"Loop condition must be of type '{Typ.prim .bool}' not '{resc.type}'"
 
   | .return .none =>
@@ -1245,10 +1272,12 @@ def stmt
     | some _ => throw <| Error.stmt stm <|
         s!"Expected return type is '{ctx.ret_type}'" -- todo change this msg?
     | none =>
+      let ctx' := {ctx with returns := true}
       let stmt' := .return_void (by simp)
       let init_set' := Tst.Initialised.stmt init_set stmt'
       have stmt'_init := .return_void (by simp)
-      return ⟨{ctx with returns := true}, stmt', init_set', stmt'_init⟩
+      have stmt'_rets := .return_void (by simp)
+      return ⟨ctx', stmt', init_set', stmt'_init, true, stmt'_rets⟩
 
   | .return (.some e) =>
     match ρ with
@@ -1278,8 +1307,10 @@ def stmt
         let init_set' := Tst.Initialised.stmt init_set stmt'
         have stmt'_init :=
           .return_tau (a₂ := init_set) (by simp) res.init (by simp)
+        have stmt'_rets :=
+          .return_tau (a₂ := rets) (a₃ := rets) (by simp) (by simp) (by simp)
 
-        return ⟨ctx', stmt', init_set', stmt'_init⟩
+        return ⟨ctx', stmt', init_set', stmt'_init, true, stmt'_rets⟩
       else throw <| Error.stmt stm <|
         s!"Expected return type was '{ctx.ret_type}' but got '{res.type}'"
 
@@ -1295,8 +1326,11 @@ def stmt
       let init_set' := Tst.Initialised.stmt init_set stmt'
       have stmt'_init :=
         .assert (a₂ := init_set) (by simp) (by exact res.init) (by simp)
+      have stmt'_rets :=
+        .assert (a₂ := rets) (a₃ := rets) (a₄ := rets)
+          (by simp) (by simp) (by simp)
 
-      return ⟨ctx', stmt', init_set', stmt'_init⟩
+      return ⟨ctx', stmt', init_set', stmt'_init, rets, stmt'_rets⟩
     | _ => throwS s!"Assert condition must be of type '{Typ.prim .bool}' not '{res.type}'"
 
   | .error e =>
@@ -1327,8 +1361,10 @@ def stmt
       let init_set' := Tst.Initialised.stmt init_set stmt'
       have stmt'_init :=
         .error (a₂ := init_set) (by simp) (by exact res.init) (by simp)
+      have stmt'_rets :=
+        .error (a₂ := rets) (a₃ := rets) (by simp) (by simp) (by simp)
 
-      return ⟨ctx', stmt', init_set', stmt'_init⟩
+      return ⟨ctx', stmt', init_set', stmt'_init, true, stmt'_rets⟩
     | _ => throwS s!"Error condition must be of type '{Typ.prim .string}' not '{res.type}'"
 
   | .exp e =>
@@ -1341,8 +1377,10 @@ def stmt
     let init_set' := Tst.Initialised.stmt init_set stmt'
     have stmt'_init :=
       .expr (a₂ := init_set) (by simp) (by exact res.init) (by simp)
+    have stmt'_rets :=
+      .expr (a₂ := rets) (a₃ := rets) (by simp) (by simp) (by simp)
 
-    return ⟨ctx', stmt', init_set', stmt'_init⟩
+    return ⟨ctx', stmt', init_set', stmt'_init, rets, stmt'_rets⟩
 
   | .anno a =>
     let (ctx', res) ← handleAnno <| Synth.Anno.free (init_set := init_set) ctx a
@@ -1352,30 +1390,38 @@ def stmt
     have stmt'_init :=
       Tst.Stmt.Fold.anno (a₂ := init_set)
         (by simp) (by exact res.init) (by simp)
+    have stmt'_rets :=
+      .anno (a₂ := rets) (a₃ := rets) (by simp) (by simp) (by simp)
 
-    return ⟨ctx', stmt', init_set', stmt'_init⟩
+    return ⟨ctx', stmt', init_set', stmt'_init, rets, stmt'_rets⟩
+
 
 def stmts (ctx : FuncCtx)
+          (rets : Bool)
           (body : List Ast.Stmt)
-          : Except Error (Result.List Δ Γ ρ init_set) := do
+          : Except Error (Result.List Δ Γ ρ init_set rets) := do
   match body with
-  | [] => return ⟨ctx, .nil, init_set, .nil⟩
+  | [] => return ⟨ctx, .nil, init_set, .nil, false, sorry⟩
   | b::bs =>
-    let resb ← stmt ctx b
+    let resb ← stmt ctx rets b
     /- We need to typecheck after returns but we disregard the result.
        TOOD: think about how this could be structurally enforced.
      -/
-    if resb.ctx.returns then
-      let resbs : (Result.List Δ Γ ρ _) ←
-        stmts (init_set := resb.init_set') resb.ctx bs
+    if resb.rets' then
+      let resbs : (Result.List Δ Γ ρ _ _) ←
+        stmts (init_set := resb.init_set') resb.ctx resb.rets' bs
       let stmts' := .cons resb.stmt .nil
       have stmts'_init := .cons resb.init .nil
-      return ⟨resbs.ctx, stmts', resb.init_set', stmts'_init⟩
+      have stmts'_rets := .cons resb.returns .nil
+      let ctx := resbs.ctx -- use later context bc we care about string/calls
+      return ⟨ctx, stmts', resb.init_set', stmts'_init, resb.rets', stmts'_rets⟩
     else
-      let resbs ← stmts (init_set := resb.init_set') resb.ctx bs
+      let resbs ← stmts (init_set := resb.init_set') resb.ctx resb.rets' bs
       let stmts' := .cons resb.stmt resbs.stmts
       have stmts'_init := .cons resb.init resbs.init
-      return ⟨resbs.ctx, stmts', resbs.init_set', stmts'_init⟩
+      have stmts'_rets := .cons resb.returns resbs.returns
+      let ctx := resbs.ctx
+      return ⟨ctx, stmts', resbs.init_set', stmts'_init, resbs.rets', stmts'_rets⟩
 end
 
 end Stmt
@@ -1471,14 +1517,14 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
       }
 
     let Γ := init_Γ.addFunc f.name retTy params
-    let res : Stmt.Result.List Δ _ ret _ ←
+    let res : Stmt.Result.List Δ _ ret _ _ ←
       Stmt.stmts (Δ := Δ) (Γ := Γ) (ρ := ret)
-        (init_set := init_set) resa.ctx f.body
+        (init_set := init_set) resa.ctx false f.body
         |>.tryCatch (fun err => throw {err with function := some f.name})
 
-    if ¬(ret.isNone || res.ctx.returns)
-    then throw <| Error.func f.name <|
-        s!"Function does not return on some paths"
+    if rets_valid : ¬(ret.isNone || res.rets') then
+      throw <| Error.func f.name s!"Function does not return on some paths"
+    else
 
     let funcCalls := ctx'.funcCalls.insert f.name res.ctx.calls
     let calls     := ctx'.calls.merge res.ctx.calls
@@ -1488,11 +1534,6 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
       if ret_none : ret.isNone then
         res.stmts.consEnd (Tst.Stmt.return_void ret_none)
       else res.stmts
-    -- have body''_init :=
-      -- if ret_none : ret = none then
-        -- Tst.Stmt.List.Fold.consEnd (stmt := Tst.Stmt.return_void ret_none)
-          -- res.stmts res.init (.return_void (by simp))
-      -- else res.init
 
     let fdef := Tst.GDecl.fdef
       { toFDecl := fdecl
@@ -1505,10 +1546,20 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
       , body_init := by
           if ret_none : ret.isNone then
             simp [body'', ret_none]
-            exact Tst.Stmt.List.Fold.consEnd
-                    (a₂ := res.init_set')
+            exact Tst.Stmt.List.Fold.consEnd (a₂ := res.init_set')
                     res.stmts res.init (.return_void (by simp))
           else simp [body'', ret_none]; exact res.init
+      , body_rets := by
+          if ret_none : ret.isNone then
+            simp [body'', ret_none]
+            exact Tst.Stmt.List.Fold.consEnd (a₂ := res.rets') (a₃ := true)
+                    res.stmts res.returns (.return_void (by simp))
+          else
+            have := res.returns
+            simp [ret_none] at rets_valid
+            simp [body'', ret_none]
+            rw [rets_valid] at this
+            exact this
       }
     return ⟨{ctx' with calls, funcCalls, strings}, _, some fdef⟩
 
