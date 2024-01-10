@@ -829,7 +829,7 @@ def Initialised.Acc.ofList : List Symbol → Acc :=
   | .while _ _ _ => acc₁
   | .decl_init name _ _ _ _
   | .decl name _ _  => (fun x => if x = name.data then false else acc₂ x)
-  | _ => (fun x => acc₁ x || acc₂ x)
+  | _ => (fun x => acc₁ x && acc₂ x)
 
 @[simp] def Initialised.Predicate : Stmt.Predicate Δ Γ Acc :=
   { init := fun acc s => some (init acc s)
