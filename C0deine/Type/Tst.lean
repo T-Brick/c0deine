@@ -1113,7 +1113,7 @@ partial def Stmt.toString (s : Stmt Δ Γ ρ) : String :=
     s!"declare({name},\n  {str_body}\n)"
   | .decl_init name init _ _ body =>
     let str_body := (Stmt.listToString body).replace "\n" "\n  "
-    s!"declare({name}, {init},\n  {str_body}\n)"
+    s!"declare_init({name}, {init},\n  {str_body}\n)"
   | .assign_var lv _ v _
   | .assign lv _ v _  => s!"{lv} = {v}"
   | .asnop lv op v  => s!"{lv} {op}= {v}"

@@ -9,7 +9,7 @@ import Cli
 
 namespace C0deine.Top
 
-def version := "0.0.1"
+def version := "v24.01.0"
 
 open Cli Directive
 
@@ -173,6 +173,8 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
 
   let vprintln : {α : Type} → [ToString α] → α → IO Unit :=
     fun s => do if config.verbose then IO.println s
+  let vcprintln : {α : Type} → [ToString α] → Bool → α → IO Unit :=
+    fun b s => do if b || config.verbose then IO.println s
 
   let config := parsed.config
   let ctx := parsed.ctx
@@ -192,19 +194,19 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   | .ok tst =>
 
   vprintln "typechecked!"
-  vprintln tst
+  vcprintln (p.hasFlag "dump-tst") tst
 
   if config.typecheckOnly then return 0
 
   vprintln "ir translation..."
   let (irtree, _ctx) := IrTree.Trans.prog config tst ctx
   vprintln "ir tree!"
-  vprintln irtree
+  vcprintln (p.hasFlag "dump-ir") irtree
 
   vprintln "building cfgs..."
   let cfgs := IrTree.Prog.to_cfgs irtree
   vprintln "cfgs!"
-  vprintln cfgs
+  vcprintln (p.hasFlag "dump-cfg") cfgs
 
   if ¬config.emit.isWasmFormat then
     IO.println s!"Emit language {config.emit} not yet supported"
@@ -213,7 +215,7 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   vprintln "relooping cfgs..."
   let relooped := cfgs.map ControlFlow.Relooper.reloop
   vprintln "relooped!"
-  vprintln relooped
+  vcprintln (p.hasFlag "dump-cfg") relooped
 
   vprintln "wasm translation..."
   let wasm := Target.Wasm.Trans.prog irtree (relooped.filterMap (·))
@@ -225,14 +227,14 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   if let .wat := config.emit then
     outputText config wasm_module_cst.toString
   if let .wasm := config.emit then
-    vprintln wasm_module_cst
+    vcprintln (p.hasFlag "dump-wat") wasm_module_cst
     match (Wasm.Text.Module.trans wasm_module_cst).run ⟨{}, []⟩ with
     | (.error e, _state) =>
       IO.println "Internal WASM translation error!"
       IO.println ("\n".intercalate e.log.reverse)
       return 1
     | (.ok wasm_module_ast, _) =>
-      vprintln (toString (wasm_module_ast : Wasm.Text.Module))
+      -- vprintln (toString (wasm_module_ast : Wasm.Text.Module))
       let arr_byte := (Wasm.Binary.Module.toOpcode wasm_module_ast).toArray
       outputBinary config ⟨arr_byte⟩
 
@@ -255,9 +257,13 @@ def topCmd : Cmd := `[Cli|
     -- O1, O1;                    "Compile with optimizations"
     "unsafe";                  "Assume code does not make memory/division errors"
     "unsafe-assert-check";     "Requires checking asserts when unsafe"
-    d, "dyn-check";            "Check contracts dynamically"
+    d, "dyn-check";            "Check contracts dynamically (not implemented)"
     "no-purity-check";         "Disables contract purity checking"
     "wasm-import-calloc";      "WASM outputs require importing 'c0deine.calloc' and 'c0deine.free'"
+    "dump-tst";                "Dumps the TST to stdout"
+    "dump-ir";                 "Dumps the IR to stdout"
+    "dump-cfg";                "Dumps the CFG information to stdout"
+    "dump-wat";                "Dumps the WAT to stdout"
     "dump-wasm";               "Dumps the WASM bytecode to stdout"
     "cl-program";              "Program is passed in as a string in the input instead of as a filepath"
 
