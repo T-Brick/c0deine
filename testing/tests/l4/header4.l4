@@ -1,0 +1,9 @@
+//test error
+#use "header0.h0"
+#use "header2.h0"
+
+// header4.h0 declares conflicting definition
+
+int main() {
+  return 0;
+}

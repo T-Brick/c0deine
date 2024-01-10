@@ -4,6 +4,9 @@ import C0deine.Parser.Basic
 
 namespace C0deine.Directive.Use
 
+def mkAbsolute (file : System.FilePath) : IO System.FilePath := do
+  if file.isRelative then return (←IO.currentDir).join file else return file
+
 def searchDirs (dirs : List System.FilePath)
                (file : String) : IO (Option System.FilePath) :=
   match dirs with
@@ -31,9 +34,9 @@ def find_lib (config : Config) (s : String) : IO (List Config.Library) := do
 
     match src_path?, head_path? with
     | .some src_path, .some head_path =>
-      return [.head head_path, .src src_path]
-    | .some src_path, .none  => return [.src src_path]
-    | .none, .some head_path => return [.head head_path]
+      return [.head (← mkAbsolute head_path), .src (← mkAbsolute src_path)]
+    | .some src_path, .none  => return [.src (← mkAbsolute src_path)]
+    | .none, .some head_path => return [.head (← mkAbsolute head_path)]
     | .none, .none           => panic s!"Could not find library: {s}"
 
 
@@ -75,8 +78,9 @@ partial def find_files_from_file
     (files : List System.FilePath)
     : IO (List Config.Library) := do
   match files with
-  | [] => return acc
+  | [] => return acc.eraseDups
   | l :: rest =>
+    let l ← mkAbsolute l
     if l ∈ imported then find_files_from_file config imported acc rest else
 
     if !(← l.pathExists) then

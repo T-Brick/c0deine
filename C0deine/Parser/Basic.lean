@@ -656,15 +656,10 @@ def cdir : C0Parser s Directive :=
   withContext "<directive>" do
   char '#'
   (do kw_use; ws_no_newline
-      let l ← liblit; ws_no_newline
-      char '\n'
-      return .use_lib l)
-  <|> (do kw_use; ws_no_newline
-          let l ← strlit; ws_no_newline
-          char '\n'
-          return .use_str l)
+      (do let l ← liblit; ws_no_newline; char '\n'; return .use_lib l)
+      <|> (do let l ← strlit; ws_no_newline; char '\n'; return .use_str l) )
   <|> (do dropMany (do let _ ← charMatching (· ≠ '\n'))
-          return .unknown)
+          return .unknown )
 
 def gdecl : C0Parser s GDecl :=
   first

@@ -116,12 +116,12 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
 
   let inputs : List System.FilePath ← do
     if cl_program then pure [] else
-    let inputs : List System.FilePath :=
-      p.variableArgsAs! String |>.toList
+    let inputs : List System.FilePath ←
+      p.variableArgsAs! String |>.toList |>.mapM (Use.mkAbsolute)
     if inputs.isEmpty then panic! "Must provide a file input"
     pure inputs
 
-  let src? : Option String :=
+  let cl_src? : Option String :=
     if cl_program then
       " ".intercalate (p.variableArgsAs! String |>.toList)
       |>.replace "\\\\n" "$newline"   -- convert `\\n` to `$newline`
@@ -136,6 +136,9 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
       panic! s!"Input path is a directory: {input}"
   )
 
+  let libSearchDirs := libSearchDirs ++ (inputs.filterMap (·.parent))
+    |>.eraseDups
+
   let config : Config :=
     mkConfig p libSearchDirs (inputs.get? 0 |>.getD "default.c0")
   let inputsCat := inputs.map (Config.Library.src)
@@ -145,7 +148,7 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   let files := inputs ++ libs
 
   let sources ←
-    match src? with
+    match cl_src? with
     | some src => Use.find_files_from_source config [] cats files src
     | none     => Use.find_files_from_file config [] cats files
 
@@ -163,7 +166,7 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
 
   -- if program was passed on the command line load it here
   let parsed ← do
-    match src? with
+    match cl_src? with
     | .some src => Use.parseSource parsed src
     | .none     => pure parsed
 

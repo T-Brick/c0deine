@@ -1,0 +1,7 @@
+//test typecheck
+#use "header0.h0"
+#use "header2.h0"
+
+int main() {
+  return 0;
+}

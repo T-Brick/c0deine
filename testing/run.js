@@ -156,8 +156,17 @@ const parseExpectedResult = function(filename, k, next) {
   });
 }
 
-const compile = function(filename, result, exe, next) {
-  exec('sh compile.sh ' + filename,
+const compile = function(filename, header, result, exe, next) {
+  var cmd = 'sh compile.sh';
+  if(result["typecheck"] || result["compile"]) {
+    cmd = cmd + ' -t'
+  }
+  if(header !== undefined) {
+    cmd = cmd + ' -l"' + header + '"'
+  }
+  cmd = cmd + ' "' + filename + '" ';
+
+  exec(cmd,
     (error, stdout, stderr) => {
       if(result === undefined) {
         if(error !== null) {
@@ -208,9 +217,9 @@ const run = function(filename, imports, expect, k) {
   k();
 }
 
-const evalTest = function(filename, k) {
+const evalTest = function(filename, header, k) {
   parseExpectedResult(filename, res => {
-    compile(filename, res, () => {
+    compile(filename, header, res, () => {
       if(res["typecheck"]) {
         passTest(filename, "Typechecked", "Typechecked")
         return k();
@@ -268,7 +277,14 @@ const main = function() {
             || file.endsWith(".l2")
             || file.endsWith(".l1")
             || file.endsWith(".c0")) {
-          evalTest(path.join(dir, file), () => {
+
+          var header = file.slice(0, -2) + "h0";
+          header = path.join(dir, header);
+          if(!fs.existsSync(header) || !fs.lstatSync(header).isFile()) {
+            header = undefined;
+          }
+
+          evalTest(path.join(dir, file), header, () => {
             iter(llist.tl())
           });
         } else {

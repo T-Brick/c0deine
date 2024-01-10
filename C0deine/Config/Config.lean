@@ -28,6 +28,12 @@ def Config.Library.ofPath (p : System.FilePath) : Option Config.Library :=
     if ext.startsWith "h" then .head p else .src p
   )
 
+instance : ToString Config.Library where
+  toString
+    | .std std h => s!"std:  {std} {h}"
+    | .src f     => s!"src:  {f}"
+    | .head h    => s!"head: {h}"
+
 structure Config where
   verbose       : Bool
   lang          : Language

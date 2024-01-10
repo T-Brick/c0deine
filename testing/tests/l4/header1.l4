@@ -1,0 +1,7 @@
+//test error
+#use "header0.h0"
+
+// header0.h0 declares foo
+int foo(int x) {
+  return x;
+}
