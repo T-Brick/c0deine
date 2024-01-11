@@ -6,6 +6,7 @@
    - Thea Brick
  -/
 import Numbers
+import C0deine.AuxDefs
 import C0deine.Context.Symbol
 import C0deine.Utils.Comparison
 
@@ -202,8 +203,8 @@ instance : ToString AsnOp where toString := AsnOp.toString
 mutual
 partial def Expr.toString : Expr → String
   | num v => s!"{v}"
-  | char c => s!"'{c}'"
-  | str s => s!"\"{s}\""
+  | char c => s!"'{c.toString.sanitise}'"
+  | str s => s!"\"{s.sanitise}\""
   | «true» => "true"
   | «false» => "false"
   | null => "NULL"

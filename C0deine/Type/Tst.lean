@@ -1048,8 +1048,8 @@ instance : ToString BinOp where toString := BinOp.toString
 
 def Expr.toString : Expr Δ Γ τ → String
   | .num v       => s!"({v} : {τ})"
-  | .char c      => s!"('{c}' : {τ})"
-  | .str s       => s!"(\"{s}\" : {τ})"
+  | .char c      => s!"('{c.toString.sanitise}' : {τ})"
+  | .str s       => s!"(\"{s.sanitise}\" : {τ})"
   | .«true»      => s!"(true : {τ})"
   | .«false»     => s!"(false : {τ})"
   | .null        => s!"(NULL : {τ})"
@@ -1171,7 +1171,7 @@ instance : ToString Prog where
     let calls_str  := prog.calls.toList.map (fun (f, pure) =>
         if pure then s!"{f} (pure)" else s!"{f}")
       |> String.intercalate "\n  "
-    let string_str := prog.strings.map (·.replace "\n" "\n    ")
+    let string_str := prog.strings.map (·.sanitise)
       |> String.intercalate "\n  - "
     let prog_str := prog.header.toStrings ++ prog.body.toStrings
       |> "\n\n".intercalate

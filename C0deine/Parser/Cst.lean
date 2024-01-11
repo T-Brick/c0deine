@@ -5,6 +5,7 @@
    - Thea Brick
  -/
 import Numbers
+import C0deine.AuxDefs
 import C0deine.Context.Symbol
 
 namespace C0deine.Cst
@@ -256,8 +257,8 @@ instance : ToString PostOp where toString := PostOp.toString
 mutual
 partial def Expr.toString : Expr → String
   | .num v  => s!"{v}"
-  | .char c => s!"'{c}'"
-  | .str s  => s!"\"{s}\""
+  | .char c => s!"'{c.toString.sanitise}'"
+  | .str s  => s!"\"{s.sanitise}\""
   | .true   => "true"
   | .false  => "false"
   | .null   => "NULL"

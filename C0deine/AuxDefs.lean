@@ -61,6 +61,22 @@ def String.toInt32! (s : String) : Int32 :=
   | some v => v
   | none   => panic "Int32 expected"
 
+def String.sanitise (s : String) : String :=
+  s.foldl (fun acc c =>
+    if c.toNat = 0 then acc ++ "\\0"
+    else if c = '\n' then acc ++ "\\n"
+    else if c = '\t' then acc ++ "\\t"
+    else if c.toNat = 0x0B then acc ++ "\\v"
+    else if c.toNat = 0x08 then acc ++ "\\b"
+    else if c = '\r' then acc ++ "\\r"
+    else if c.toNat = 0x0C then acc ++ "\\f"
+    else if c.toNat = 0x07 then acc ++ "\\a"
+    else if c = '\\' then acc ++ "\\\\"
+    else if c = '\'' then acc ++ "\\'"
+    else if c = '"' then acc ++ "\\\""
+    else acc ++ c.toString
+  ) ""
+
 def UInt64.max (n m : UInt64) : UInt64 :=
   if n > m then n else m
 
