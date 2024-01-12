@@ -52,6 +52,8 @@ defined above as well as some behaviour clarifications:
 
 - The keyword `error` from C0 is now reserved in all languages (not just C0).
 - The compiler `#use` directive from C0 can be used in L3/L4.
+- Currently C0deine doesn't run purity checks on contracts. Thus, contracts
+  cannot be dynamically checked.
 - A bug in the `cc0` reference compiler means some operations occur out of order
   when using assign-ops:
   ```c

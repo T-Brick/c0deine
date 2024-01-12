@@ -1,6 +1,7 @@
 # C0deine
 C0deine is a reference compiler for c0. It is written in Lean 4, which allows us
-to express the formal semantics in the same language as the compiler itself.
+to express the formal semantics in the same language as the compiler itself. You
+can try it out in your browser [here](https://www.theabrick.com/c0/).
 
 Currently, we are working to target Web Assembly. We plan to also target C, and
 x86-64 assembly. No phases of the compiler are currently proven correct, but we
