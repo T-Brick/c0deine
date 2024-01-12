@@ -110,8 +110,13 @@ def calloc_func : Module.Field := .funcs
           br 0
         end
       end
+      i32.const 0           -- need to zero out the memory
+      i32.load
       i32.const 0
-      i32.load              -- pointer we want to return
+      local.get 0
+      memory.fill
+      i32.const 0           -- address we want to return
+      i32.load
       i32.const 0
       local.get 1
       i32.store             -- update free pointer

@@ -7,7 +7,8 @@ const path = require('path');
 
 var args = process.argv.slice(2);
 
-var quiet = 0;
+const quiet = 0;
+const freshMemory = false;
 
 var failed = 0;
 var success = 0;
@@ -224,7 +225,9 @@ const evalTest = function(filename, header, k) {
         passTest(filename, "Typechecked", "Typechecked")
         return k();
       }
-      memory = new WebAssembly.Memory({ initial: 1 })
+      if(freshMemory) {
+        memory = new WebAssembly.Memory({ initial: 1 });
+      }
       const check_imports = {
         c0deine: {
           memory: memory,
