@@ -86,7 +86,11 @@ def main (args : List String) : IO UInt32 := do
         , "-lleanrt"
         , "-sFORCE_FILESYSTEM"
         ] ++ (if is_web
-              then #["-sMODULARIZE", "-sEXPORT_NAME=c0deine"]
+              then #[ "-sMODULARIZE"
+                    , "-sEXPORT_NAME=c0deine"
+                    , "--embed-file"
+                    , "libs"
+                    ]
               else #["-sNODERAWFS"]
              ) ++
        #[ "-lnodefs.js"
@@ -98,8 +102,6 @@ def main (args : List String) : IO UInt32 := do
         , "-fwasm-exceptions"
         , "-pthread"
         , "-flto"
-        , "--embed-file"
-        , "libs"
         , "-Oz"    -- takes much much longer to compile but optimises for size
         ]
     }
