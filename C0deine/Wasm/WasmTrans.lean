@@ -250,7 +250,24 @@ partial def find_cjump
   | .some (.cjump t _ tt ff) => .some (t, tt, ff)
   | _ => .none
 
+open Wasm.Text.Notation in
+def debugger (config : Wasm.Config) (l : Label) : List Instr :=
+  if config.include_debug then
+    [wat_instr_list|
+      block
+        i32.const ↑(Unsigned.ofNat l.id)
+        call ↑Label.debug.toWasmIdent
+        i32.eqz
+        br_if 0         -- if the debug function returns nonzero abort
+        ↑Error.assert
+        call ↑Label.abort.toWasmIdent
+        unreachable
+      end
+    ]
+  else []
+
 partial def func_body
+    (config : Wasm.Config)
     (f : IrTree.Func)
     (shape : ControlFlow.Relooper.Shape)
     : List Instr :=
@@ -273,7 +290,7 @@ where
         | .some n => traverse n (.some block.exit) loopBreak
         | .none   => ([], .none)
 
-      ( body_instr ++ exit_instr ++ next_instr
+      ( debugger config l ++ body_instr ++ exit_instr ++ next_instr
       , match next_exit with | .none => .some block.exit | _ => next_exit
       )
     | .none =>
@@ -363,8 +380,11 @@ partial def find_used_temps (instrs : List Instr) : List Ident :=
     | _ => acc
   ) [] |>.eraseDups
 
-def func (f : IrTree.Func) (shape : ControlFlow.Relooper.Shape) : Module.Function :=
-  let body := func_body f shape
+def func (config : Wasm.Config)
+         (f : IrTree.Func)
+         (shape : ControlFlow.Relooper.Shape)
+         : Module.Function :=
+  let body := func_body config f shape
 
   let params : List Wasm.Text.Typ.Param :=
     f.args.map (fun st => (.some st.temp.toWasmIdent, .num .i32))
@@ -383,10 +403,11 @@ def func (f : IrTree.Func) (shape : ControlFlow.Relooper.Shape) : Module.Functio
   , body    := body
   }
 
-def prog (prog : IrTree.Prog)
+def prog (config : Wasm.Config)
+         (prog : IrTree.Prog)
          (shapes : List (ControlFlow.Relooper.Shape))
          : List Module.Function :=
-  List.zip prog.funcs shapes |>.map (fun (f, s) => func f s)
+  List.zip prog.funcs shapes |>.map (fun (f, s) => func config f s)
 
 /- Computes the data section of the WASM module, as described in `langs.md`. -/
 def data (prog : IrTree.Prog) : Module.Data :=

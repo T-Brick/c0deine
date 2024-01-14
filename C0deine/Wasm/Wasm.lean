@@ -170,6 +170,13 @@ def error_import : Module.Field := .imports
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
+def debug_import : Module.Field := .imports
+  ⟨ c0deine
+  , ⟨"debug"  , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  , .func (.some Label.debug.toWasmIdent)
+          (.elab_param_res [(.none, .num .i32)] [.num .i32])
+  ⟩
+
 def memory_import : Module.Field := .imports
   ⟨ c0deine
   , ⟨"memory" , by simp [String.length, Wasm.Vec.max_length]; linarith⟩

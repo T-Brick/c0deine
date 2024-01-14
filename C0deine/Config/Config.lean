@@ -43,9 +43,7 @@ structure Config where
   stdLibs       : List Language.StdLib
   typecheckOnly : Bool
   optimisation  : Nat
-  -- WIP: if false then don't check array bounds, shifts, etc.
   safe : Bool
-  -- WIP: whether asserts should be checked while in unsafe mode
   checkAssertsWhenUnsafe : Bool
   -- WIP: dynamically check contracts during runtime
   dynCheckContracts : Bool

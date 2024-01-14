@@ -63,6 +63,13 @@ def mkConfig (p : Parsed)
       dumpWasmHex            := p.hasFlag "dump-wasm"
   }
 
+def mkWasmConfig (p : Parsed) : Wasm.Config :=
+  let dconfig : Wasm.Config := default
+  { dconfig with
+      import_calloc := p.hasFlag "wasm-import-calloc"
+      include_debug := p.hasFlag "wasm-debugger"
+  }
+
 def outputText (config : Config) (data : String) : IO Unit :=
   match config.output with
   | .none   => IO.println data
@@ -177,6 +184,7 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     fun b s => do if b || config.verbose then IO.println s
 
   let config := parsed.config
+  let wasm_config := mkWasmConfig p
   let ctx := parsed.ctx
   -- vprintln cst
   vprintln "abstracting"
@@ -218,10 +226,10 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   vcprintln (p.hasFlag "dump-cfg") relooped
 
   vprintln "wasm translation..."
-  let wasm := Target.Wasm.Trans.prog irtree (relooped.filterMap (·))
+  let wasm := Target.Wasm.Trans.prog wasm_config irtree (relooped.filterMap (·))
   let data := Target.Wasm.Trans.data irtree
   let libs := config.stdLibs.map (·.toWasmLib)
-  let wasm_module_cst := Target.Wasm.mkModule default libs wasm data
+  let wasm_module_cst := Target.Wasm.mkModule wasm_config libs wasm data
   vprintln "wasm!"
 
   if let .wat := config.emit then
@@ -259,6 +267,7 @@ def topCmd : Cmd := `[Cli|
     "unsafe-assert-check";     "Requires checking asserts when unsafe"
     d, "dyn-check";            "Check contracts dynamically (not implemented)"
     "no-purity-check";         "Disables contract purity checking"
+    "wasm-debugger";           "Include calls to c0deine.debug in WASM"
     "wasm-import-calloc";      "WASM outputs require importing 'c0deine.calloc' and 'c0deine.free'"
     "dump-tst";                "Dumps the TST to stdout"
     "dump-ir";                 "Dumps the IR to stdout"

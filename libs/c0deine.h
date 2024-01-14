@@ -88,3 +88,15 @@ void *calloc(unsigned int size);
    `(import "c0deine" "free" (func $free (param i32)) )`
 */
 void free(void *ptr);
+
+
+/* `debug` is passed the current label that the program has entered. If it
+   returns anything that isn't 0, abort will be called (indicating an assertion
+   error) and the program will terminate.
+
+  By default this is not a required import, and it is only included and called
+  when the `--wasm-debugger` flag is used.
+
+  `(import "c0deine" "debug" (func $debug (param i32) (result i32)))`
+*/
+int debug(int lbl);

@@ -1,0 +1,11 @@
+//test abort
+
+// debugger should abort us
+
+int main() {
+  int i = 0;
+  while(true) {
+    i++;
+  }
+  return 0;
+}

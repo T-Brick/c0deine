@@ -33,6 +33,7 @@ def mkImports (config : Wasm.Config)
   , if config.import_abort  then .some abort_import  else .none
   , if config.import_calloc then .some calloc_import else .none
   , if config.import_calloc then .some free_import   else .none
+  , if config.include_debug then .some debug_import  else .none
   , match config.main with | .import => .some main_import | _ => .none
   ].filterMap (·) ++ libs.bind (·.imports)
 

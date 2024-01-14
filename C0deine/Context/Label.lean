@@ -25,13 +25,12 @@ instance : Hashable Label where hash l := hash l.id
 
 def main   : Label := ⟨0, "main"⟩
 def calloc : Label := ⟨1, "calloc"⟩
-def abort  : Label := ⟨2, "abort"⟩
-def fpe    : Label := ⟨3, "sigfpe"⟩
-def memerr : Label := ⟨4, "sigusr2"⟩
-def error  : Label := ⟨5, "error"⟩
-def free   : Label := ⟨6, "free"⟩
+def free   : Label := ⟨2, "free"⟩
+def abort  : Label := ⟨3, "abort"⟩
+def error  : Label := ⟨4, "error"⟩
+def debug  : Label := ⟨5, "debug"⟩
 
-def startId := 7
+def startId := 6
 
 @[reducible] def Map (α : Type) := Std.HashMap Label α
 

@@ -31,6 +31,7 @@ const imports = {
     result: res => { console.log((res | 0)) },
     abort:  sig => { console.log("abort: " + (sig | 0)) },
     error:  str => { console.log("error:  " + c0_parse_str(str)); },
+    debug:  lbl => { console.log("debug:  entered label " + lbl); return 0; },
   },
   conio: {
     print:    str => { process.stdout.write(c0_parse_str(str)); },

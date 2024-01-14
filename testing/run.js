@@ -9,7 +9,10 @@ var args = process.argv.slice(2);
 
 const quiet = 0;
 const freshMemory = false;
+const checkTimeouts = true;
+const maxEnterLabel = 10000; // maximum number of times a label can be entered
 
+var labelMap = {} // tracking number of times we've reached a label
 var failed = 0;
 var success = 0;
 
@@ -32,12 +35,20 @@ const log_c0_error = function(str) {
   console.log(msg);
 }
 
-const print_imports = {c0deine: {
-  memory: memory,
-  result: res => { console.log((res | 0)) },
-  abort:  sig => { console.log("abort: " + (sig | 0)) },
-  error:  log_c0_error,
-}};
+const c0_debug = function(lbl) {
+  if(checkTimeouts) {
+    if(labelMap[lbl + ""] === undefined) {
+      labelMap[lbl + ""] = 1;
+    } else {
+      labelMap[lbl + ""] = labelMap[lbl + ""] + 1;
+    }
+    if(labelMap[lbl + ""] > maxEnterLabel) {
+      console.log("Exceeded maximum label entry on " + lbl);
+      return 1;
+    }
+  }
+  return 0;
+}
 
 const buildLazyList = function(list) {
   if(list === undefined || list === null || list.length === 0) {
@@ -159,13 +170,16 @@ const parseExpectedResult = function(filename, k, next) {
 
 const compile = function(filename, header, result, exe, next) {
   var cmd = 'sh compile.sh';
+  cmd = cmd + ' "' + filename + '" ';
   if(result["typecheck"] || result["compile"]) {
     cmd = cmd + ' -t'
   }
   if(header !== undefined) {
     cmd = cmd + ' -l"' + header + '"'
   }
-  cmd = cmd + ' "' + filename + '" ';
+  if(checkTimeouts) {
+    cmd = cmd + ' --wasm-debugger';
+  }
 
   exec(cmd,
     (error, stdout, stderr) => {
@@ -215,6 +229,7 @@ const run = function(filename, imports, expect, k) {
       failTest(filename, resultToString(expect), "\n" + e + "\n")
     }
   }
+  labelMap = {};
   k();
 }
 
@@ -234,6 +249,7 @@ const evalTest = function(filename, header, k) {
           result: result(filename, res),
           abort:  abort(filename, res),
           error:  error(filename, res),
+          debug:  c0_debug,
         },
         conio: {
           print:    str => { process.stdout.write(c0_parse_str(str)); },
@@ -256,8 +272,12 @@ const main = function() {
   }
 
   if(fs.lstatSync(args[0]).isFile()) {
-    const filename = args[0]
-    evalTest(filename, () => {});
+    const filename = args[0];
+    var header = filename.slice(0, -2) + "h0";
+    if(!fs.existsSync(header) || !fs.lstatSync(header).isFile()) {
+      header = undefined;
+    }
+    evalTest(filename, header, () => {});
     return;
   }
 
@@ -301,6 +321,14 @@ const main = function() {
 }
 
 main();
+
+const print_imports = {c0deine: {
+  memory: memory,
+  result: res => { console.log((res | 0)) },
+  abort:  sig => { console.log("abort: " + (sig | 0)) },
+  error:  log_c0_error,
+  debug:  lbl => { console.log("debug:  entered label " + lbl); return 0; },
+}};
 
 /* Uncomment if you'd rather run one specific test without passing through
     the testing framework. Useful for debugging specific WAT files that you

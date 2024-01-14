@@ -64,11 +64,13 @@ structure Config where
   import_calloc : Bool
   import_abort  : Bool
   main          : Config.Main
+  include_debug : Bool
 
 instance : Inhabited Config where default :=
   { import_calloc := false
   , import_abort  := true
   , main          := .start
+  , include_debug := false
   }
 
 end Wasm
