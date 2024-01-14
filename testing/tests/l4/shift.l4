@@ -1,0 +1,6 @@
+//test div-by-zero
+int main() {
+  int x = 10;
+  x <<= 64;
+  return 20;
+}

@@ -648,7 +648,12 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
       | .inl pure =>
         return .move dest ⟨.prim .int, .binop pure lhs rhs⟩ :: stms
       | .inr impure =>
-        return .effect dest impure lhs rhs :: stms
+        let shift := -- include bounds check
+          match impure with
+          | .lsh | .rsh => [.check (.shift rhs)]
+          | .mod => [.check (.mod lhs rhs)]
+          | .div => []
+        return .effect dest impure lhs rhs :: shift ++ stms
     | _ => /- must be a pointer -/
       let lhs' := Elab.lvalue tlv
       let (stms1, dest, checks) ← Addr.taddr past lhs' 0 false
