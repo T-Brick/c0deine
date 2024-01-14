@@ -10,7 +10,7 @@ var args = process.argv.slice(2);
 const quiet = 0;
 const freshMemory = false;
 const checkTimeouts = true;
-const maxEnterLabel = 10000; // maximum number of times a label can be entered
+const maxEnterLabel = 100000000; // maximum number of times a label is entered
 
 var labelMap = {} // tracking number of times we've reached a label
 var failed = 0;
