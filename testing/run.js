@@ -18,6 +18,14 @@ var success = 0;
 
 var memory = new WebAssembly.Memory({ initial: 1 });
 
+const conio = {
+  print:    str => { process.stdout.write(c0_parse_str(str)); },
+  println:  str => { process.stdout.write(c0_parse_str(str) + "\n"); },
+  flush:    ()  => { process.stdout.flush(); setTimeout(() => {}, 0); },
+  eof:      ()  => { console.log("TODO: eof unimplemented!"); },
+  readline: ()  => { console.log("TODO: readline unimplemented!"); },
+}
+
 const c0_parse_str = function(address) {
   const bytes = new Uint8Array(memory.buffer.slice(address | 0));
   var i = 0;
@@ -322,13 +330,18 @@ const main = function() {
 
 main();
 
-const print_imports = {c0deine: {
-  memory: memory,
-  result: res => { console.log((res | 0)) },
-  abort:  sig => { console.log("abort: " + (sig | 0)) },
-  error:  log_c0_error,
-  debug:  lbl => { console.log("debug:  entered label " + lbl); return 0; },
-}};
+const print_imports = {
+  c0deine: {
+    memory: memory,
+    result: res => { console.log((res | 0)) },
+    abort:  sig => { console.log("abort: " + (sig | 0)) },
+    error:  log_c0_error,
+    debug:  lbl => { console.log("debug:  entered label " + lbl);
+                     setTimeout(() => { return 0 }, 0);
+                   },
+  },
+  conio: conio,
+};
 
 /* Uncomment if you'd rather run one specific test without passing through
     the testing framework. Useful for debugging specific WAT files that you
