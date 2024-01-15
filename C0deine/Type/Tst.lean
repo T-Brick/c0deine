@@ -48,18 +48,14 @@ deriving Inhabited
 structure FuncSig where
   arity  : Nat
   argTys : Fin arity → Typ
-  retTy  : Typ    -- use .any  if void
-
-structure Status.Var where
-  type        : Typ
-  initialised : Bool
+  retTy  : Typ    -- use .any if void
 
 structure Status.Func where
   type    : FuncSig
   defined : Bool
 
 structure Status.Struct where
-  fields : Symbol → Option Typ
+  fields  : Symbol → Option Typ
   defined : Bool
 
 inductive Status.Symbol
@@ -67,6 +63,7 @@ inductive Status.Symbol
 | func  (f : Status.Func)
 | alias (t : Typ)
 
+-- use Status.Symbol to prevent collisions with funcs/tydefs
 abbrev FCtx := Symbol → Option Status.Symbol
 
 @[inline] def FCtx.update (Γ : FCtx) (x : Symbol) (s : Status.Symbol) : FCtx :=
@@ -116,7 +113,7 @@ deriving Inhabited
    `binop_int : τ₁ → τ₁ = int → τ₂ → τ₂ = int → int`). We are allowing any type,
    so long as it's the correct one ("Any color [...], so long as it's black").
  -/
-inductive Expr (Δ : GCtx) (Γ : FCtx) : Typ → Type
+inductive Expr (Δ : GCtx) (Γ : FCtx) : (τ : Typ) → Type
 | num  : Int32  → Expr Δ Γ int
 | char : Char   → Expr Δ Γ (.prim .char)
 | str  : String → Expr Δ Γ (.prim .string)
@@ -152,7 +149,7 @@ inductive Expr (Δ : GCtx) (Γ : FCtx) : Typ → Type
   → op.isEquality
   → (l : Expr Δ Γ τ₁)
   → (r : Expr Δ Γ τ₂)
-  → τ₁.equiv τ2
+  → τ₁.equiv τ₂
   → τ₁.is_eqtype ∨ τ₂.is_eqtype
   → Expr Δ Γ bool
 | binop_rel₁
@@ -238,7 +235,7 @@ inductive Expr (Δ : GCtx) (Γ : FCtx) : Typ → Type
 @[inline] def Expr.structType (e : Expr Δ Γ τ) (s : Symbol) (eq : τ = struct s)
     : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = struct s}) := e.typeWithEq eq
 
-/- Assert that some predicate P applies to every subexpression -/
+/- Assert that P can be folded to some value through every sub-expression -/
 inductive Expr.Fold {Δ : GCtx} {Γ : FCtx}
     : (P : (τ : Typ) → α → Expr Δ Γ τ → Option α)
     → α → Expr Δ Γ τ → α → Prop
@@ -365,14 +362,14 @@ def Expr.All (P : {τ : Typ} → Expr Δ Γ τ → Bool) (e : Expr Δ Γ τ) : P
   | .result   => .true
   | .length _ => .true
   | _         => .false
-@[inline] def Expr.is_result : Expr Δ Γ τ → Bool
+@[inline] def Expr.has_result : Expr Δ Γ τ → Bool
   | .result => .true
   | _       => .false
 
 @[inline] def Expr.no_contract : Expr Δ Γ τ → Bool :=
   .not ∘ Tst.Expr.only_contract
 @[inline] def Expr.no_result   : Expr Δ Γ τ → Bool :=
-  .not ∘ Tst.Expr.is_result
+  .not ∘ Tst.Expr.has_result
 
 abbrev Expr.NoContract Δ Γ τ := {e : Expr Δ Γ τ // Expr.All no_contract e}
 abbrev Expr.NoResult   Δ Γ τ := {e : Expr Δ Γ τ // Expr.All no_result   e}
@@ -813,7 +810,7 @@ def Initialised.Acc.ofList : List Symbol → Acc :=
 
 @[simp] def Initialised.stmt (acc : Acc) : Stmt Δ Γ ρ → Acc
   | .return_tau _
-  | .return_void _
+  | .return_void _     -- end of controlflow initialises all decl'd variables
   | .error _        => fun x => if let some _ := Γ x then true else false
   | _ => acc
 
@@ -867,12 +864,12 @@ def Initialised.Acc.ofList : List Symbol → Acc :=
 @[simp] def Returns.lval (τ : Typ) (acc : Bool) : LValue Δ Γ τ → Option Bool :=
   fun _ => some acc
 @[simp] def Returns.join (acc₁ acc₂ : Bool) : Stmt Δ Γ ρ → Option Bool
-  | .while _ _ _ => some acc₁
+  | .while _ _ _ => some acc₁ -- acc₂ is the result of the body, we disregard
   | .ite _ _ _   => some (acc₁ && acc₂)
   | _            => some acc₂
 @[simp] def Returns.Predicate : Stmt.Predicate Δ Γ Bool :=
-  { init := fun acc s => some (init acc s)
-  , stmt := fun acc s => some (stmt acc s)
+  { init := fun acc s => (some (init acc s))
+  , stmt := fun acc s => (some (stmt acc s))
   , lval
   , expr
   , join
@@ -888,13 +885,13 @@ def Initialised.Acc.ofList : List Symbol → Acc :=
   intro acc e
   have p : ∀ τ (e' : Expr Δ Γ τ), Returns.expr τ acc e' = some acc := by simp
   induction e with -- is there a better way to do with?
-  | num _       => exact .num          (p _ _)
-  | char _      => exact .char         (p _ _)
-  | str _       => exact .str          (p _ _)
-  | var _ _     => exact .var          (p _ _)
-  | «true»      => exact .true         (p _ _)
-  | «false»     => exact .false        (p _ _)
-  | null        => exact .null         (p _ _)
+  | num _       => exact .num   (p _ _)
+  | char _      => exact .char  (p _ _)
+  | str _       => exact .str   (p _ _)
+  | var _ _     => exact .var   (p _ _)
+  | «true»      => exact .true  (p _ _)
+  | «false»     => exact .false (p _ _)
+  | null        => exact .null  (p _ _)
   | unop        => next ih          => exact .unop ih                 (p _ _)
   | binop_int   => next ih₁ ih₂     => exact .binop_int   ih₁ ih₂     (p _ _)
   | binop_bool  => next ih₁ ih₂     => exact .binop_bool  ih₁ ih₂     (p _ _)
