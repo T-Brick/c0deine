@@ -38,13 +38,6 @@ deriving Inhabited
   | .int _  => .prim .int
   | .bool _ => .prim .bool
 
-@[inline] private def int    := Typ.prim .int
-@[inline] private def bool   := Typ.prim .bool
-@[inline] private def ptr    := Typ.mem ∘ .pointer
-@[inline] private def arr    := Typ.mem ∘ .array
-@[inline] private def struct := Typ.mem ∘ .struct
-
-
 structure FuncSig where
   arity  : Nat
   argTys : Fin arity → Typ
@@ -113,37 +106,38 @@ deriving Inhabited
    `binop_int : τ₁ → τ₁ = int → τ₂ → τ₂ = int → int`). We are allowing any type,
    so long as it's the correct one ("Any color [...], so long as it's black").
  -/
+open Typ.Notation in
 inductive Expr (Δ : GCtx) (Γ : FCtx) : (τ : Typ) → Type
-| num  : Int32  → Expr Δ Γ int
-| char : Char   → Expr Δ Γ (.prim .char)
-| str  : String → Expr Δ Γ (.prim .string)
+| num  : Int32  → Expr Δ Γ (int)
+| char : Char   → Expr Δ Γ (char)
+| str  : String → Expr Δ Γ (string)
 | var
   : {τ : Typ}
   → (x : Symbol)
   → Γ x = .some (.var τ)
   → Expr Δ Γ τ
-| «true»  : Expr Δ Γ bool
-| «false» : Expr Δ Γ bool
-| null    : Expr Δ Γ (ptr .any)
+| «true»  : Expr Δ Γ (bool)
+| «false» : Expr Δ Γ (bool)
+| null    : Expr Δ Γ (any *)
 | unop
   : (op : UnOp)
   → τ.equiv op.type
   → (e : Expr Δ Γ τ)
   → Expr Δ Γ op.type
 | binop_int
-  : {τ₁ : {τ : Typ // τ = int}}
-  → {τ₂ : {τ : Typ // τ = int}}
+  : {τ₁ : {τ : Typ // τ = (int)}}
+  → {τ₂ : {τ : Typ // τ = (int)}}
   → (op : BinOp.Int)
   → (l : Expr Δ Γ τ₁)
   → (r : Expr Δ Γ τ₂)
-  → Expr Δ Γ int
+  → Expr Δ Γ (int)
 | binop_bool
-  : {τ₁ : {τ : Typ // τ = bool}}
-  → {τ₂ : {τ : Typ // τ = bool}}
+  : {τ₁ : {τ : Typ // τ = (bool)}}
+  → {τ₂ : {τ : Typ // τ = (bool)}}
   → (op : BinOp.Bool)
   → (l : Expr Δ Γ τ₁)
   → (r : Expr Δ Γ τ₂)
-  → Expr Δ Γ bool
+  → Expr Δ Γ (bool)
 | binop_eq
   : (op : Comparator)
   → op.isEquality
@@ -151,25 +145,25 @@ inductive Expr (Δ : GCtx) (Γ : FCtx) : (τ : Typ) → Type
   → (r : Expr Δ Γ τ₂)
   → τ₁.equiv τ₂
   → τ₁.is_eqtype ∨ τ₂.is_eqtype
-  → Expr Δ Γ bool
+  → Expr Δ Γ (bool)
 | binop_rel₁
-  : {τ₁ : {τ : Typ // τ = int}}
-  → {τ₂ : {τ : Typ // τ = int}}
+  : {τ₁ : {τ : Typ // τ = (int)}}
+  → {τ₂ : {τ : Typ // τ = (int)}}
   → (op : Comparator)
   → ¬op.isEquality
   → (l : Expr Δ Γ τ₁)
   → (r : Expr Δ Γ τ₂)
-  → Expr Δ Γ bool
+  → Expr Δ Γ (bool)
 | binop_rel₂
-  : {τ₁ : {τ : Typ // τ = char}}
-  → {τ₂ : {τ : Typ // τ = char}}
+  : {τ₁ : {τ : Typ // τ = (char)}}
+  → {τ₂ : {τ : Typ // τ = (char)}}
   → (op : Comparator)
   → ¬op.isEquality
   → (l : Expr Δ Γ τ₁)
   → (r : Expr Δ Γ τ₂)
-  → Expr Δ Γ bool
+  → Expr Δ Γ (bool)
 | ternop
-  : {τ₁ : {τ : Typ // τ = bool}}
+  : {τ₁ : {τ : Typ // τ = (bool)}}
   → (cond : Expr Δ Γ τ₁)
   → (tt : Expr Δ Γ τ₂)
   → (ff : Expr Δ Γ τ₃)
@@ -182,61 +176,65 @@ inductive Expr (Δ : GCtx) (Γ : FCtx) : (τ : Typ) → Type
   → (eq : ∀ i, (status.type.argTys i).equiv (τs i))
   → (args : (i : Fin status.type.arity) → Expr Δ Γ (τs i))
   → Expr Δ Γ status.type.retTy
-| alloc : (τ : Typ) → Expr Δ Γ (ptr τ)
+| alloc : (τ : Typ) → Expr Δ Γ (τ*)
 | alloc_array
-  : {τ₁ : {τ : Typ // τ = int}}
+  : {τ₁ : {τ : Typ // τ = (int)}}
   → (τ : Typ)
   → Expr Δ Γ τ₁
-  → Expr Δ Γ (arr τ)
+  → Expr Δ Γ (τ[])
 | dot
-  : {τ₁ : {τ : Typ // τ = struct s}}
+  : {τ₁ : {τ : Typ // τ = (struct s)}}
   → Expr Δ Γ τ₁
   → (field : Symbol)
   → Δ.struct s = .some ⟨fields, true⟩
   → fields field = .some τ
   → Expr Δ Γ τ
 | deref
-  : {τ₁ : {τ' : Typ // τ' = ptr τ}}
+  : {τ₁ : {τ' : Typ // τ' = (τ*)}}
   → Expr Δ Γ τ₁
   → Expr Δ Γ τ
 | index
-  : {τ₁ : {τ' : Typ // τ' = arr τ}}
-  → {τ₂ : {τ : Typ // τ = int}}
+  : {τ₁ : {τ' : Typ // τ' = (τ[])}}
+  → {τ₂ : {τ : Typ // τ = (int)}}
   → Expr Δ Γ τ₁
   → Expr Δ Γ τ₂
   → Expr Δ Γ τ
 | result : Expr Δ Γ τ
 | length
-  : {τ₁ : {τ' : Typ // τ' = arr τ}}
+  : {τ₁ : {τ' : Typ // τ' = (τ[])}}
   → Expr Δ Γ τ₁
-  → Expr Δ Γ int
+  → Expr Δ Γ (int)
 
-@[inline] def Expr.typeWith {p : Typ → Prop} (e : Expr Δ Γ τ) (h : p τ)
+namespace Expr
+open Typ.Notation
+
+@[inline] def typeWith {p : Typ → Prop} (e : Expr Δ Γ τ) (h : p τ)
     : Expr Δ Γ (⟨τ, h⟩ : {τ : Typ // p τ}) := e
-@[inline] def Expr.typeWithEq {τ₂ : Typ} (e : Expr Δ Γ τ) (eq : τ = τ₂)
+@[inline] def typeWithEq {τ₂ : Typ} (e : Expr Δ Γ τ) (eq : τ = τ₂)
     : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = τ₂}) :=
   e.typeWith (p := fun t => t = τ₂) eq
-@[inline] def Expr.typeWithEquiv {τ₂ : Typ} (e : Expr Δ Γ τ) (eq : τ.equiv τ₂)
+@[inline] def typeWithEquiv {τ₂ : Typ} (e : Expr Δ Γ τ) (eq : τ.equiv τ₂)
     : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ.equiv τ₂}) :=
   e.typeWith (p := fun t => t.equiv τ₂) eq
 
-@[inline] def Expr.intType (e : Expr Δ Γ τ) (eq : τ = int)
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = int}) := e.typeWithEq eq
-@[inline] def Expr.boolType (e : Expr Δ Γ τ) (eq : τ = bool)
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = bool}) := e.typeWithEq eq
-@[inline] def Expr.charType (e : Expr Δ Γ τ) (eq : τ = .prim .char)
+
+@[inline] def intType (e : Expr Δ Γ τ) (eq : τ = (int))
+    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (int)}) := e.typeWithEq eq
+@[inline] def boolType (e : Expr Δ Γ τ) (eq : τ = (bool))
+    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (bool)}) := e.typeWithEq eq
+@[inline] def charType (e : Expr Δ Γ τ) (eq : τ = .prim .char)
     : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = .prim .char}) := e.typeWithEq eq
-@[inline] def Expr.stringType (e : Expr Δ Γ τ) (eq : τ = .prim .string)
+@[inline] def stringType (e : Expr Δ Γ τ) (eq : τ = .prim .string)
     : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = .prim .string}) := e.typeWithEq eq
-@[inline] def Expr.ptrType (e : Expr Δ Γ τ) (τ' : Typ) (eq : τ = ptr τ')
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = ptr τ'}) := e.typeWithEq eq
-@[inline] def Expr.arrType (e : Expr Δ Γ τ) (τ' : Typ) (eq : τ = arr τ')
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = arr τ'}) := e.typeWithEq eq
-@[inline] def Expr.structType (e : Expr Δ Γ τ) (s : Symbol) (eq : τ = struct s)
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = struct s}) := e.typeWithEq eq
+@[inline] def ptrType (e : Expr Δ Γ τ) (τ' : Typ) (eq : τ = (τ'*))
+    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (τ'*)}) := e.typeWithEq eq
+@[inline] def arrType (e : Expr Δ Γ τ) (τ' : Typ) (eq : τ = (τ'[]))
+    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (τ'[])}) := e.typeWithEq eq
+@[inline] def structType (e : Expr Δ Γ τ) (s : Symbol) (eq : τ = (struct s))
+    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (struct s)}) := e.typeWithEq eq
 
 /- Assert that P can be folded to some value through every sub-expression -/
-inductive Expr.Fold {Δ : GCtx} {Γ : FCtx}
+inductive Fold {Δ : GCtx} {Γ : FCtx}
     : (P : (τ : Typ) → α → Expr Δ Γ τ → Option α)
     → α → Expr Δ Γ τ → α → Prop
 | num
@@ -355,48 +353,54 @@ inductive Expr.Fold {Δ : GCtx} {Γ : FCtx}
   → P _ a₂ (.length e) = some a₃
   → Fold P a₁ (.length e) a₃
 
-def Expr.All (P : {τ : Typ} → Expr Δ Γ τ → Bool) (e : Expr Δ Γ τ) : Prop :=
+def All (P : {τ : Typ} → Expr Δ Γ τ → Bool) (e : Expr Δ Γ τ) : Prop :=
   Expr.Fold (fun _ _ e => if P e then some () else none) () e ()
 
-@[inline] def Expr.only_contract : Expr Δ Γ τ → Bool
+@[inline] def only_contract : Expr Δ Γ τ → Bool
   | .result   => .true
   | .length _ => .true
   | _         => .false
-@[inline] def Expr.has_result : Expr Δ Γ τ → Bool
+@[inline] def has_result : Expr Δ Γ τ → Bool
   | .result => .true
   | _       => .false
 
-@[inline] def Expr.no_contract : Expr Δ Γ τ → Bool :=
-  .not ∘ Tst.Expr.only_contract
-@[inline] def Expr.no_result   : Expr Δ Γ τ → Bool :=
-  .not ∘ Tst.Expr.has_result
+@[inline] def no_contract : Expr Δ Γ τ → Bool :=
+  .not ∘ only_contract
+@[inline] def no_result   : Expr Δ Γ τ → Bool :=
+  .not ∘ has_result
 
-abbrev Expr.NoContract Δ Γ τ := {e : Expr Δ Γ τ // Expr.All no_contract e}
-abbrev Expr.NoResult   Δ Γ τ := {e : Expr Δ Γ τ // Expr.All no_result   e}
+abbrev NoContract Δ Γ τ := {e : Expr Δ Γ τ // All no_contract e}
+abbrev NoResult   Δ Γ τ := {e : Expr Δ Γ τ // All no_result   e}
 
+end Expr
 
+open Typ.Notation in
 inductive LValue (Δ : GCtx) (Γ : FCtx) : Typ → Type
 | var   : (x : Symbol)
         → (Γ x = .some (.var τ))
         → LValue Δ Γ τ
-| dot   : {τ₁ : {τ : Typ // τ = struct s}}
+| dot   : {τ₁ : {τ : Typ // τ = (struct s)}}
         → LValue Δ Γ τ₁
         → (field : Symbol)
         → Δ.struct s = .some ⟨fields, true⟩
         → fields field = .some τ
         → LValue Δ Γ τ
-| deref : {τ₁ : {τ' : Typ // τ' = ptr τ}}
+| deref : {τ₁ : {τ' : Typ // τ' = (τ*)}}
         → LValue Δ Γ τ₁
         → LValue Δ Γ τ
-| index : {τ₁ : {τ' : Typ // τ' = arr τ}}
-        → {τ₂ : {τ : Typ // τ = int}}
+| index : {τ₁ : {τ' : Typ // τ' = (τ[])}}
+        → {τ₂ : {τ : Typ // τ = (int)}}
         → LValue Δ Γ τ₁
         → Expr.NoContract Δ Γ τ₂
         → LValue Δ Γ τ
 
-@[inline] def LValue.is_var : LValue Δ Γ τ → Bool
+namespace LValue
+
+open Typ.Notation
+
+@[inline] def is_var : LValue Δ Γ τ → Bool
   | .var _ _ => true | _ => false
-@[inline] def LValue.get_name
+@[inline] def get_name
     (lval : LValue Δ Γ τ) (h₁ : lval.is_var) : Symbol :=
   match h₂ : lval with
   | .var name _   => name
@@ -404,27 +408,27 @@ inductive LValue (Δ : GCtx) (Γ : FCtx) : Typ → Type
   | .deref _
   | .index _ _    => by simp [is_var] at h₁
 
-@[inline] def LValue.typeWith {p : Typ → Prop} (e : LValue Δ Γ τ) (h : p τ)
+@[inline] def typeWith {p : Typ → Prop} (e : LValue Δ Γ τ) (h : p τ)
     : LValue Δ Γ (⟨τ, h⟩ : {τ : Typ // p τ}) := e
-@[inline] def LValue.typeWithEq {τ₂ : Typ} (e : LValue Δ Γ τ) (eq : τ = τ₂)
+@[inline] def typeWithEq {τ₂ : Typ} (e : LValue Δ Γ τ) (eq : τ = τ₂)
     : LValue Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = τ₂}) :=
   e.typeWith (p := fun t => t = τ₂) eq
 
-@[inline] def LValue.intType (e : LValue Δ Γ τ) (eq : τ = int)
-    : LValue Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = int}) := e.typeWithEq eq
-@[inline] def LValue.ptrType (e : LValue Δ Γ τ) (τ' : Typ) (eq : τ = ptr τ')
-    : LValue Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = ptr τ'}) := e.typeWithEq eq
-@[inline] def LValue.arrType (e : LValue Δ Γ τ) (τ' : Typ) (eq : τ = arr τ')
-    : LValue Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = arr τ'}) := e.typeWithEq eq
-@[inline] def LValue.structType (e : LValue Δ Γ τ) (s : Symbol) (eq : τ = struct s)
-    : LValue Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = struct s}) := e.typeWithEq eq
+@[inline] def intType (e : LValue Δ Γ τ) (eq : τ = (int))
+    : LValue Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (int)}) := e.typeWithEq eq
+@[inline] def ptrType (e : LValue Δ Γ τ) (τ' : Typ) (eq : τ = (τ'*))
+    : LValue Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (τ'*)}) := e.typeWithEq eq
+@[inline] def arrType (e : LValue Δ Γ τ) (τ' : Typ) (eq : τ = (τ'[]))
+    : LValue Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (τ'[])}) := e.typeWithEq eq
+@[inline] def structType (e : LValue Δ Γ τ) (s : Symbol) (eq : τ = (struct s))
+    : LValue Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (struct s)}) := e.typeWithEq eq
 
-structure LValue.Predicate (Δ : GCtx) (Γ : FCtx) (α : Type) where
+structure Predicate (Δ : GCtx) (Γ : FCtx) (α : Type) where
   lval : (τ : Typ) → α → LValue Δ Γ τ → Option α
   expr : (τ : Typ) → α → Expr Δ Γ τ → Option α
 
 /- Assert that some predicate P applies to every sub-lvalue -/
-inductive LValue.Fold : {Δ : GCtx} → {Γ : FCtx}
+inductive Fold : {Δ : GCtx} → {Γ : FCtx}
   → (P : LValue.Predicate Δ Γ α) → α → LValue Δ Γ τ → α → Prop
 | var
   : {a₁ a₂ : α}
@@ -447,11 +451,14 @@ inductive LValue.Fold : {Δ : GCtx} → {Γ : FCtx}
   → P.lval _ a₃ (.index l e) = some a₄
   → Fold P a₁ (.index l e) a₄
 
+end LValue
+
+open Typ.Notation in
 inductive Anno (Δ : GCtx) (Γ : FCtx) : Type
-| requires   : {τ : {τ : Typ // τ = bool}} → Expr.NoResult Δ Γ τ → Anno Δ Γ
-| ensures    : {τ : {τ : Typ // τ = bool}} → Expr          Δ Γ τ → Anno Δ Γ
-| loop_invar : {τ : {τ : Typ // τ = bool}} → Expr.NoResult Δ Γ τ → Anno Δ Γ
-| assert     : {τ : {τ : Typ // τ = bool}} → Expr.NoResult Δ Γ τ → Anno Δ Γ
+| requires   : {τ : {τ : Typ // τ = (bool)}} → Expr.NoResult Δ Γ τ → Anno Δ Γ
+| ensures    : {τ : {τ : Typ // τ = (bool)}} → Expr          Δ Γ τ → Anno Δ Γ
+| loop_invar : {τ : {τ : Typ // τ = (bool)}} → Expr.NoResult Δ Γ τ → Anno Δ Γ
+| assert     : {τ : {τ : Typ // τ = (bool)}} → Expr.NoResult Δ Γ τ → Anno Δ Γ
 
 -- only requires/ensures can annotate functions
 @[inline, reducible] def Anno.function : Anno Δ Γ → Bool
@@ -479,30 +486,31 @@ abbrev Anno.Function Δ Γ := {a : Anno Δ Γ  // Anno.function a}
 abbrev Anno.Free     Δ Γ := {a : Anno Δ Γ  // Anno.free     a}
 
 -- todo should we check annotation too? is that useful?
+open Typ.Notation in
 inductive Anno.Fold
     : (P : (τ : Typ) → α → Expr Δ Γ τ → Option α)
     → α → Anno Δ Γ → α → Prop
 | requires
   : {a₁ a₂ : α}
-  → {τ : {τ : Typ // τ = bool}}
+  → {τ : {τ : Typ // τ = (bool)}}
   → {e : Expr.NoResult Δ Γ τ}
   → Expr.Fold P a₁ e.val a₂
   → Anno.Fold P a₁ (.requires e) a₂
 | ensures
   : {a₁ a₂ : α}
-  → {τ : {τ : Typ // τ = bool}}
+  → {τ : {τ : Typ // τ = (bool)}}
   → {e : Expr Δ Γ τ}
   → Expr.Fold P a₁ e a₂
   → Anno.Fold P a₁ (.ensures e) a₂
 | loop_invar
   : {a₁ a₂ : α}
-  → {τ : {τ : Typ // τ = bool}}
+  → {τ : {τ : Typ // τ = (bool)}}
   → {e : Expr.NoResult Δ Γ τ}
   → Expr.Fold P a₁ e.val a₂
   → Anno.Fold P a₁ (.loop_invar e) a₂
 | assert
   : {a₁ a₂ : α}
-  → {τ : {τ : Typ // τ = bool}}
+  → {τ : {τ : Typ // τ = (bool)}}
   → {e : Expr.NoResult Δ Γ τ}
   → Expr.Fold P a₁ e.val a₂
   → Anno.Fold P a₁ (.assert e) a₂
@@ -516,6 +524,7 @@ inductive Anno.List.Fold
   → Anno.List.Fold P a₂ annos a₃
   → Anno.List.Fold P a₁ (anno :: annos) a₃
 
+open Typ.Notation in
 mutual
 inductive Stmt (Δ : GCtx) : (Γ : FCtx) → Option Typ → Type
 | decl
@@ -543,8 +552,8 @@ inductive Stmt (Δ : GCtx) : (Γ : FCtx) → Option Typ → Type
   → (ty_equiv : τ₁.equiv τ₂)
   → Stmt Δ Γ ρ
 | asnop
-  : {τ₁ : {τ : Typ // τ = int}}
-  → {τ₂ : {τ : Typ // τ = int}}
+  : {τ₁ : {τ : Typ // τ = .prim .int}}
+  → {τ₂ : {τ : Typ // τ = .prim .int}}
   → (lhs : LValue Δ Γ τ₁)
   → BinOp.Int
   → (rhs : Expr.NoContract Δ Γ τ₂)
@@ -553,13 +562,13 @@ inductive Stmt (Δ : GCtx) : (Γ : FCtx) → Option Typ → Type
   : Expr.NoContract Δ Γ τ
   → Stmt Δ Γ ρ
 | ite
-  : {τ : {τ : Typ // τ = bool}}
+  : {τ : {τ : Typ // τ = (bool)}}
   → (cond : Expr.NoContract Δ Γ τ)
   → (tt : Stmt.List Δ Γ ρ)
   → (ff : Stmt.List Δ Γ ρ)
   → Stmt Δ Γ ρ
 | while
-  : {τ : {τ : Typ // τ = bool}}
+  : {τ : {τ : Typ // τ = (bool)}}
   → (cond : Expr.NoContract Δ Γ τ)
   → List (Anno.Loop Δ Γ)
   → Stmt.List Δ Γ ρ
@@ -572,11 +581,11 @@ inductive Stmt (Δ : GCtx) : (Γ : FCtx) → Option Typ → Type
   → Expr.NoContract Δ Γ τ₁
   → Stmt Δ Γ (some τ)
 | assert
-  : {τ : {τ : Typ // τ = bool}}
+  : {τ : {τ : Typ // τ = (bool)}}
   → Expr.NoContract Δ Γ τ
   → Stmt Δ Γ ρ
 | error
-  : {τ : {τ : Typ // τ = .prim .string}}
+  : {τ : {τ : Typ // τ = (string)}}
   → Expr.NoContract Δ Γ τ
   → Stmt Δ Γ ρ
 | anno : Anno.Free Δ Γ → Stmt Δ Γ ρ
@@ -591,11 +600,11 @@ def Stmt.List.consEnd : Stmt.List Δ Γ ρ → Stmt Δ Γ ρ → Stmt.List Δ Γ
   | .cons x xs, s => .cons x (consEnd xs s)
 
 def Stmt.List.toList : Stmt.List Δ Γ ρ → _root_.List (Stmt Δ Γ ρ)
-  | .nil => []
+  | .nil => .nil
   | .cons stmt stmts => stmt :: toList stmts
 
 def Stmt.List.ofList : _root_.List (Stmt Δ Γ ρ) → Stmt.List Δ Γ ρ
-  | [] => .nil
+  | .nil => .nil
   | stmt :: stmts => cons stmt (ofList stmts)
 
 instance : Coe (Stmt.List Δ Γ ρ) (List (Stmt Δ Γ ρ)) := ⟨Stmt.List.toList⟩
@@ -643,6 +652,7 @@ structure Stmt.Predicate (Δ : GCtx) (Γ : FCtx) (α : Type) where
 @[simp] def Stmt.Predicate.toLValuePred (P : Stmt.Predicate Δ Γ α)
     : LValue.Predicate Δ Γ α := ⟨P.lval, P.expr⟩
 
+open Typ.Notation in
 mutual
 inductive Stmt.Fold
     : {Δ : GCtx} → {Γ : FCtx}
@@ -684,7 +694,7 @@ inductive Stmt.Fold
   → P.stmt (ρ := ρ) a₄ (.assign lhs var rhs eq) = some a₅
   → Stmt.Fold P a₁ ((.assign lhs var rhs eq) : Stmt Δ Γ ρ) a₅
 | asnop
-  : {τ₁ τ₂ : {τ : Typ // τ = int}}
+  : {τ₁ τ₂ : {τ : Typ // τ = (int)}}
   → {lhs : LValue Δ Γ τ₁}
   → {rhs : Expr.NoContract Δ Γ τ₂}
   → {a₁ a₂ a₃ a₄ a₅ : α}
@@ -701,7 +711,7 @@ inductive Stmt.Fold
   → P.stmt (ρ := ρ) a₃ (.expr e) = some a₄
   → Stmt.Fold P a₁ ((.expr e) : Stmt Δ Γ ρ) a₄
 | ite
-  : {τ : {τ : Typ // τ = bool}}
+  : {τ : {τ : Typ // τ = (bool)}}
   → {cond : Expr.NoContract Δ Γ τ}
   → {tt ff : Stmt.List Δ Γ ρ}
   → {a₁ a₂ a_t a_f : α}
@@ -712,7 +722,7 @@ inductive Stmt.Fold
   → P.join a_t a_f (.ite cond tt ff) = some a₄
   → Stmt.Fold P a₁ (.ite cond tt ff) a₄
 | while
-  : {τ : {τ : Typ // τ = bool}}
+  : {τ : {τ : Typ // τ = (bool)}}
   → {cond : Expr.NoContract Δ Γ τ}
   → {body : Stmt.List Δ Γ ρ}
   → {a₁ a₂ a₃ a₄ a₅ a₆ : α}
@@ -738,7 +748,7 @@ inductive Stmt.Fold
   → P.stmt a₃ (.return_tau e) = some a₄
   → Stmt.Fold P a₁ (.return_tau e) a₄
 | assert
-  : {τ : {τ : Typ // τ = bool}}
+  : {τ : {τ : Typ // τ = (bool)}}
   → {e : Expr.NoContract Δ Γ τ}
   → {a₁ a₂ a₃ a₄ : α}
   → P.init (Γ := Γ) a₁ (.assert e) = some a₂
@@ -746,7 +756,7 @@ inductive Stmt.Fold
   → P.stmt a₃ ((.assert e) : Stmt Δ Γ ρ) = some a₄
   → Stmt.Fold P a₁ ((.assert e) : Stmt Δ Γ ρ) a₄
 | error
-  : {τ : {τ : Typ // τ = .prim .string}}
+  : {τ : {τ : Typ // τ = (string)}}
   → {e : Expr.NoContract Δ Γ τ}
   → {a₁ a₂ a₃ a₄ : α}
   → P.init (Γ := Γ) a₁ (.error e) = some a₂

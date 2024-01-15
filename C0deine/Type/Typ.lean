@@ -172,6 +172,20 @@ def intersect (t1 : Typ) (t2 : Typ) : Typ :=
   | _, .any => t1
   | _, _    => t1
 
+namespace Notation
+
+scoped notation:50 "int"         => Typ.prim Typ.Primitive.int
+scoped notation:50 "bool"        => Typ.prim Typ.Primitive.bool
+scoped notation:50 "char"        => Typ.prim Typ.Primitive.char
+scoped notation:50 "string"      => Typ.prim Typ.Primitive.string
+scoped notation:50 "any"         => Typ.any
+scoped notation:50 "any" "*"     => Typ.mem (Typ.Memory.pointer Typ.any)
+scoped notation:50 τ:51 "*"      => Typ.mem (Typ.Memory.pointer τ)
+scoped notation:50 τ:51 "[]"     => Typ.mem (Typ.Memory.array τ)
+scoped notation:50 "struct" τ:51 => Typ.mem (Typ.Memory.struct τ)
+
+end Notation
+
 inductive Typed (α : Type) where
 | mk : (type : Typ) → (data : α) → Typed α
 deriving Inhabited, DecidableEq
