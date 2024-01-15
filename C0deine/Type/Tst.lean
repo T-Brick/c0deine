@@ -186,8 +186,8 @@ inductive Expr (Δ : GCtx) (Γ : FCtx) : (τ : Typ) → Type
   : {τ₁ : {τ : Typ // τ = (struct s)}}
   → Expr Δ Γ τ₁
   → (field : Symbol)
-  → Δ.struct s = .some ⟨fields, true⟩
-  → fields field = .some τ
+  → Δ.struct s = .some ⟨struct_fields, true⟩
+  → struct_fields field = .some τ
   → Expr Δ Γ τ
 | deref
   : {τ₁ : {τ' : Typ // τ' = (τ*)}}
