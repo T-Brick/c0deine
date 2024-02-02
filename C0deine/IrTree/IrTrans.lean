@@ -680,7 +680,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
   | .ite (τ := τ) cond tt ff =>
     let tLbl  ← Env.Func.freshLabel
     let fLbl  ← Env.Func.freshLabel
-    let after ← Env.Func.freshLabel
+    let l_after ← Env.Func.freshLabel
 
     let (cstms, cond') ← texpr past cond.val
     let cond_temp ← Env.Func.freshTemp
@@ -694,24 +694,24 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
     let () ← Env.Func.addBlock block tLbl .thenClause
 
     let tt' ← stmts [] tt.toList
-    let exit := .jump after
+    let exit := .jump l_after
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
     let block := ⟨curLabel, curType, tt'.reverse, exit⟩
     let () ← Env.Func.addBlock block fLbl .elseClause
 
     let ff' ← stmts [] ff.toList
-    let exit := .jump after
+    let exit := .jump l_after
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
     let block := ⟨curLabel, curType, ff'.reverse, exit⟩
-    let () ← Env.Func.addBlock block after .afterITE
+    let () ← Env.Func.addBlock block l_after .afterITE
     return []
 
   | .while (τ := τ) cond _annos body =>
     let loopGuard ← Env.Func.freshLabel
     let loopBody  ← Env.Func.freshLabel
-    let afterLoop ← Env.Func.freshLabel
+    let l_afterLoop ← Env.Func.freshLabel
 
     let exit := .jump loopGuard
     let curLabel ← Env.Func.curBlockLabel
@@ -724,7 +724,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
     let scond_temp := ⟨← Env.Prog.toFunc (Typ.tempSize τ), cond_temp⟩
     let condT := .move scond_temp cond'
 
-    let exit := .cjump cond_temp (some true) loopBody afterLoop
+    let exit := .cjump cond_temp (some true) loopBody l_afterLoop
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
     let block := ⟨curLabel, curType, (condT :: cstms).reverse, exit⟩
@@ -735,7 +735,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
     let curLabel ← Env.Func.curBlockLabel
     let curType ← Env.Func.curBlockType
     let block := ⟨curLabel, curType, body'.reverse, exit⟩
-    let () ← Env.Func.addBlock block afterLoop .afterLoop
+    let () ← Env.Func.addBlock block l_afterLoop .afterLoop
     return []
 
   | .return_void _ =>
@@ -759,7 +759,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
 
   | .assert (τ := τ) e =>
     if ¬(←Env.Func.unsafe) || (←Env.Func.checkAssertsWhenUnsafe) then
-      let after ← Env.Func.freshLabel
+      let l_after ← Env.Func.freshLabel
       let assertLbl := Label.abort
 
       let (stms, e') ← texpr past e.val
@@ -767,24 +767,24 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
       let scond_temp := ⟨← Env.Prog.toFunc (Typ.tempSize τ), cond_temp⟩
       let condT := .move scond_temp e'
 
-      let exit := .cjump cond_temp (some true) after assertLbl
+      let exit := .cjump cond_temp (some true) l_after assertLbl
       let curLabel ← Env.Func.curBlockLabel
       let curType  ← Env.Func.curBlockType
       let block := ⟨curLabel, curType, (condT :: stms).reverse, exit⟩
-      let () ← Env.Func.addBlock block after curType
+      let () ← Env.Func.addBlock block l_after curType
       return []
     else return past
 
   | .error e =>
     if ¬(←Env.Func.unsafe) || (←Env.Func.checkAssertsWhenUnsafe) then
-      let after ← Env.Func.freshLabel
+      let l_after ← Env.Func.freshLabel
 
       let (stms, e') ← texpr past e.val
       let exit := .error e'
       let curLabel ← Env.Func.curBlockLabel
       let curType  ← Env.Func.curBlockType
       let block := ⟨curLabel, curType, stms.reverse, exit⟩
-      let () ← Env.Func.addBlock block after curType
+      let () ← Env.Func.addBlock block l_after curType
       return []
     else return past
 
