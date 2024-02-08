@@ -36,13 +36,13 @@ def startId := 6
 
 def toWasmIdent (l : Label) : Wasm.Text.Ident :=
   { name := toString l
-  , name_nonempty := by sorry
+  , name_nonempty    := by sorry
   , name_valid_chars := by sorry
   }
 
 def toWasmLoopBreak (l : Label) : Wasm.Text.Ident :=
   { name := toString l ++ "_break"
-  , name_nonempty := by sorry
+  , name_nonempty    := by sorry
   , name_valid_chars := by sorry
   }
 

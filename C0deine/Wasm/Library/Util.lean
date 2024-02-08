@@ -114,12 +114,12 @@ def string_fromint : List Instr := [wat_instr_list|
     end
   ]
 where
-  num  : Ident := ⟨"num" , sorry, sorry⟩
-  n    : Ident := ⟨"n"   , sorry, sorry⟩
-  str  : Ident := ⟨"str" , sorry, sorry⟩
-  strw : Ident := ⟨"strw", sorry, sorry⟩
-  len  : Ident := ⟨"len" , sorry, sorry⟩
-  sign : Ident := ⟨"sign", sorry, sorry⟩
+  num  : Ident := ⟨"num" , by decide, by decide⟩
+  n    : Ident := ⟨"n"   , by decide, by decide⟩
+  str  : Ident := ⟨"str" , by decide, by decide⟩
+  strw : Ident := ⟨"strw", by decide, by decide⟩
+  len  : Ident := ⟨"len" , by decide, by decide⟩
+  sign : Ident := ⟨"sign", by decide, by decide⟩
   params : List Typ.Param := [⟨num, .num .i32⟩]
   locals : List Module.Local :=
     [ ⟨n, .num .i32⟩, ⟨str, .num .i32⟩, ⟨strw, .num .i32⟩, ⟨len, .num .i32⟩

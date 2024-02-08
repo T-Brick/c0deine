@@ -10,16 +10,16 @@ namespace C0deine.Target.Wasm.Library.Parse
 open Numbers C0deine.Target.Wasm Wasm.Text Wasm.Text.Instr
   Wasm.Syntax.Instr.Numeric Wasm.Syntax.Instr.Memory
 
-def is_space_id      : Ident := ⟨"is_space"     , sorry, sorry⟩
-def consume_space_id : Ident := ⟨"consume_space", sorry, sorry⟩
-def take_int_id      : Ident := ⟨"take_int"     , sorry, sorry⟩
+def is_space_id      : Ident := ⟨"is_space"     , by decide, by decide⟩
+def consume_space_id : Ident := ⟨"consume_space", by decide, by decide⟩
+def take_int_id      : Ident := ⟨"take_int"     , by decide, by decide⟩
 
-def parse_bool_id    : Ident := ⟨"parse_bool"   , sorry, sorry⟩
-def parse_int_id     : Ident := ⟨"parse_int"    , sorry, sorry⟩
-def num_tokens_id    : Ident := ⟨"num_tokens"   , sorry, sorry⟩
-def int_tokens_id    : Ident := ⟨"int_tokens"   , sorry, sorry⟩
-def parse_tokens_id  : Ident := ⟨"parse_tokens" , sorry, sorry⟩
-def parse_ints_id    : Ident := ⟨"parse_ints"   , sorry, sorry⟩
+def parse_bool_id    : Ident := ⟨"parse_bool"   , by decide, by decide⟩
+def parse_int_id     : Ident := ⟨"parse_int"    , by decide, by decide⟩
+def num_tokens_id    : Ident := ⟨"num_tokens"   , by decide, by decide⟩
+def int_tokens_id    : Ident := ⟨"int_tokens"   , by decide, by decide⟩
+def parse_tokens_id  : Ident := ⟨"parse_tokens" , by decide, by decide⟩
+def parse_ints_id    : Ident := ⟨"parse_ints"   , by decide, by decide⟩
 
 -- todo consider way to embed lists of instrs like in `is_space`
 /- is_space : char → bool
@@ -84,7 +84,7 @@ def consume_space : Module.Field := .funcs
     ]
   }
 where
-  str : Ident := ⟨"str", sorry, sorry⟩
+  str : Ident := ⟨"str", by decide, by decide⟩
 
 /- take_int: string × (base : int) → bool × int × string
    Tries to parse an integer from the string and returns the remainder when a
@@ -228,13 +228,13 @@ def take_int : Module.Field := .funcs
     ]
   }
 where
-  str  : Ident := ⟨"str"  , sorry, sorry⟩
-  base : Ident := ⟨"base" , sorry, sorry⟩
-  c    : Ident := ⟨"c"    , sorry, sorry⟩
-  res  : Ident := ⟨"res"  , sorry, sorry⟩
-  sign : Ident := ⟨"sign" , sorry, sorry⟩
-  next : Ident := ⟨"next" , sorry, sorry⟩
-  fail : Ident := ⟨"fail" , sorry, sorry⟩
+  str  : Ident := ⟨"str"  , by decide, by decide⟩
+  base : Ident := ⟨"base" , by decide, by decide⟩
+  c    : Ident := ⟨"c"    , by decide, by decide⟩
+  res  : Ident := ⟨"res"  , by decide, by decide⟩
+  sign : Ident := ⟨"sign" , by decide, by decide⟩
+  next : Ident := ⟨"next" , by decide, by decide⟩
+  fail : Ident := ⟨"fail" , by decide, by decide⟩
 
 /- parse_bool : string → bool*
    returns pointer to bool if could parse, otherwise NULL
@@ -361,9 +361,9 @@ def parse_int : Module.Field := .funcs
     ]
   }
 where
-  str  : Ident := ⟨"str"  , sorry, sorry⟩
-  base : Ident := ⟨"base" , sorry, sorry⟩
-  succ : Ident := ⟨"succ" , sorry, sorry⟩
+  str  : Ident := ⟨"str"  , by decide, by decide⟩
+  base : Ident := ⟨"base" , by decide, by decide⟩
+  succ : Ident := ⟨"succ" , by decide, by decide⟩
 
 /- num_tokens : string → int -/
 def num_tokens : Module.Field := .funcs
@@ -407,10 +407,10 @@ def num_tokens : Module.Field := .funcs
     ]
   }
 where
-  str  : Ident := ⟨"str" , sorry, sorry⟩
-  res  : Ident := ⟨"res" , sorry, sorry⟩
-  done : Ident := ⟨"done", sorry, sorry⟩
-  cont : Ident := ⟨"cont", sorry, sorry⟩
+  str  : Ident := ⟨"str" , by decide, by decide⟩
+  res  : Ident := ⟨"res" , by decide, by decide⟩
+  done : Ident := ⟨"done", by decide, by decide⟩
+  cont : Ident := ⟨"cont", by decide, by decide⟩
 
 /- int_tokens : string × (base : int) → bool
    Returns true if the string is whitespace separated ints
@@ -450,10 +450,10 @@ def int_tokens : Module.Field := .funcs
     ]
   }
 where
-  str  : Ident := ⟨"str" , sorry, sorry⟩
-  base : Ident := ⟨"base", sorry, sorry⟩
-  succ : Ident := ⟨"succ", sorry, sorry⟩
-  fail : Ident := ⟨"fail", sorry, sorry⟩
+  str  : Ident := ⟨"str" , by decide, by decide⟩
+  base : Ident := ⟨"base", by decide, by decide⟩
+  succ : Ident := ⟨"succ", by decide, by decide⟩
+  fail : Ident := ⟨"fail", by decide, by decide⟩
 
 /- parse_tokens : string → string[] -/
 def parse_tokens : Module.Field := .funcs
@@ -530,13 +530,13 @@ def parse_tokens : Module.Field := .funcs
     ]
   }
 where
-  str   : Ident := ⟨"str" , sorry, sorry⟩
-  toks  : Ident := ⟨"toks", sorry, sorry⟩
-  tok   : Ident := ⟨"tok", sorry, sorry⟩
-  start : Ident := ⟨"start", sorry, sorry⟩
-  temp  : Ident := ⟨"temp", sorry, sorry⟩
-  toksw : Ident := ⟨"toksw", sorry, sorry⟩
-  done  : Ident := ⟨"done", sorry, sorry⟩
+  str   : Ident := ⟨"str"  , by decide, by decide⟩
+  toks  : Ident := ⟨"toks" , by decide, by decide⟩
+  tok   : Ident := ⟨"tok"  , by decide, by decide⟩
+  start : Ident := ⟨"start", by decide, by decide⟩
+  temp  : Ident := ⟨"temp" , by decide, by decide⟩
+  toksw : Ident := ⟨"toksw", by decide, by decide⟩
+  done  : Ident := ⟨"done" , by decide, by decide⟩
 
 /- parse_ints : string → int[] -/
 def parse_ints : Module.Field := .funcs
@@ -598,13 +598,13 @@ def parse_ints : Module.Field := .funcs
     ]
   }
 where
-  str   : Ident := ⟨"str"  , sorry, sorry⟩
-  base  : Ident := ⟨"base" , sorry, sorry⟩
-  temp  : Ident := ⟨"temp" , sorry, sorry⟩
-  temp2 : Ident := ⟨"temp2", sorry, sorry⟩
-  arr   : Ident := ⟨"arr"  , sorry, sorry⟩
-  succ  : Ident := ⟨"succ" , sorry, sorry⟩
-  fail  : Ident := ⟨"fail" , sorry, sorry⟩
+  str   : Ident := ⟨"str"  , by decide, by decide⟩
+  base  : Ident := ⟨"base" , by decide, by decide⟩
+  temp  : Ident := ⟨"temp" , by decide, by decide⟩
+  temp2 : Ident := ⟨"temp2", by decide, by decide⟩
+  arr   : Ident := ⟨"arr"  , by decide, by decide⟩
+  succ  : Ident := ⟨"succ" , by decide, by decide⟩
+  fail  : Ident := ⟨"fail" , by decide, by decide⟩
 
 def imports : List Module.Field := []
 def «extern» : List Module.Field :=

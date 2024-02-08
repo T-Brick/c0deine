@@ -11,22 +11,22 @@ namespace C0deine.Target.Wasm.Library.String
 open Numbers C0deine.Target.Wasm Wasm.Text Wasm.Text.Instr
   Wasm.Syntax.Instr.Numeric Wasm.Syntax.Instr.Memory
 
-def string_length_id         : Ident := ⟨"string_length"        , sorry, sorry⟩
-def string_charat_id         : Ident := ⟨"string_charat"        , sorry, sorry⟩
-def string_join_id           : Ident := ⟨"string_join"          , sorry, sorry⟩
-def string_sub_id            : Ident := ⟨"string_sub"           , sorry, sorry⟩
-def string_equal_id          : Ident := ⟨"string_equal"         , sorry, sorry⟩
-def string_compare_id        : Ident := ⟨"string_compare"       , sorry, sorry⟩
-def string_fromint_id        : Ident := ⟨"string_fromint"       , sorry, sorry⟩
-def string_frombool_id       : Ident := ⟨"string_frombool"      , sorry, sorry⟩
-def string_fromchar_id       : Ident := ⟨"string_fromchar"      , sorry, sorry⟩
-def string_tolower_id        : Ident := ⟨"string_tolower"       , sorry, sorry⟩
-def string_terminated_id     : Ident := ⟨"string_terminated"    , sorry, sorry⟩
-def string_to_chararray_id   : Ident := ⟨"string_to_chararray"  , sorry, sorry⟩
-def string_from_chararray_id : Ident := ⟨"string_from_chararray", sorry, sorry⟩
-def char_ord_id              : Ident := ⟨"char_ord"             , sorry, sorry⟩
-def char_chr_id              : Ident := ⟨"char_chr"             , sorry, sorry⟩
-def format_id                : Ident := ⟨"format"               , sorry, sorry⟩
+def string_length_id         : Ident := ⟨"string_length"        , by decide, by decide⟩
+def string_charat_id         : Ident := ⟨"string_charat"        , by decide, by decide⟩
+def string_join_id           : Ident := ⟨"string_join"          , by decide, by decide⟩
+def string_sub_id            : Ident := ⟨"string_sub"           , by decide, by decide⟩
+def string_equal_id          : Ident := ⟨"string_equal"         , by decide, by decide⟩
+def string_compare_id        : Ident := ⟨"string_compare"       , by decide, by decide⟩
+def string_fromint_id        : Ident := ⟨"string_fromint"       , by decide, by decide⟩
+def string_frombool_id       : Ident := ⟨"string_frombool"      , by decide, by decide⟩
+def string_fromchar_id       : Ident := ⟨"string_fromchar"      , by decide, by decide⟩
+def string_tolower_id        : Ident := ⟨"string_tolower"       , by decide, by decide⟩
+def string_terminated_id     : Ident := ⟨"string_terminated"    , by decide, by decide⟩
+def string_to_chararray_id   : Ident := ⟨"string_to_chararray"  , by decide, by decide⟩
+def string_from_chararray_id : Ident := ⟨"string_from_chararray", by decide, by decide⟩
+def char_ord_id              : Ident := ⟨"char_ord"             , by decide, by decide⟩
+def char_chr_id              : Ident := ⟨"char_chr"             , by decide, by decide⟩
+def format_id                : Ident := ⟨"format"               , by decide, by decide⟩
 
 open Wasm.Text.Notation
 
@@ -90,8 +90,8 @@ def string_charat : Module.Field := .funcs
     ]
   }
 where
-  str : Ident := ⟨"str", sorry, sorry⟩
-  idx : Ident := ⟨"idx", sorry, sorry⟩
+  str : Ident := ⟨"str", by decide, by decide⟩
+  idx : Ident := ⟨"idx", by decide, by decide⟩
 
 /- string_join : string × string → string -/
 def string_join : Module.Field := .funcs
@@ -124,11 +124,11 @@ def string_join : Module.Field := .funcs
     ]
   }
 where
-  str1 : Ident := ⟨"str1", sorry, sorry⟩
-  str2 : Ident := ⟨"str2", sorry, sorry⟩
-  str3 : Ident := ⟨"str3", sorry, sorry⟩
-  len1 : Ident := ⟨"len1", sorry, sorry⟩
-  len2 : Ident := ⟨"len2", sorry, sorry⟩
+  str1 : Ident := ⟨"str1", by decide, by decide⟩
+  str2 : Ident := ⟨"str2", by decide, by decide⟩
+  str3 : Ident := ⟨"str3", by decide, by decide⟩
+  len1 : Ident := ⟨"len1", by decide, by decide⟩
+  len2 : Ident := ⟨"len2", by decide, by decide⟩
 
 /- string_sub : string × int × int → string -/
 def string_sub : Module.Field := .funcs
@@ -177,10 +177,10 @@ def string_sub : Module.Field := .funcs
     ]
   }
 where
-  str    : Ident := ⟨"str", sorry, sorry⟩
-  start  : Ident := ⟨"start", sorry, sorry⟩
-  finish : Ident := ⟨"finish", sorry, sorry⟩
-  temp   : Ident := ⟨"temp", sorry, sorry⟩
+  str    : Ident := ⟨"str"   , by decide, by decide⟩
+  start  : Ident := ⟨"start" , by decide, by decide⟩
+  finish : Ident := ⟨"finish", by decide, by decide⟩
+  temp   : Ident := ⟨"temp"  , by decide, by decide⟩
 
 /- string_equal : string × string → bool -/
 def string_equal : Module.Field := .funcs
@@ -219,8 +219,8 @@ def string_equal : Module.Field := .funcs
     ]
   }
 where
-  str1 : Ident := ⟨"str1", sorry, sorry⟩
-  str2 : Ident := ⟨"str2", sorry, sorry⟩
+  str1 : Ident := ⟨"str1", by decide, by decide⟩
+  str2 : Ident := ⟨"str2", by decide, by decide⟩
 
 /- string_compare : string × string → int -/
 def string_compare : Module.Field := .funcs
@@ -269,8 +269,8 @@ def string_compare : Module.Field := .funcs
     ]
   }
 where
-  str1 : Ident := ⟨"str1", sorry, sorry⟩
-  str2 : Ident := ⟨"str2", sorry, sorry⟩
+  str1 : Ident := ⟨"str1", by decide, by decide⟩
+  str2 : Ident := ⟨"str2", by decide, by decide⟩
 
 /- string_fromint : int → string -/
 def string_fromint : Module.Field := .funcs
@@ -357,9 +357,9 @@ def string_tolower : Module.Field := .funcs
     ]
   }
 where
-  temp : Ident := ⟨"temp", sorry, sorry⟩
-  str  : Ident := ⟨"str", sorry, sorry⟩
-  str2 : Ident := ⟨"str2", sorry, sorry⟩
+  temp : Ident := ⟨"temp", by decide, by decide⟩
+  str  : Ident := ⟨"str" , by decide, by decide⟩
+  str2 : Ident := ⟨"str2", by decide, by decide⟩
 
 /- string_terminated : char[] × int → bool
    Checks that the char array is \0 terminated
@@ -421,11 +421,11 @@ def string_terminated : Module.Field := .funcs
     ]
   }
 where
-  arr  : Ident := ⟨"arr", sorry, sorry⟩
-  n    : Ident := ⟨"n", sorry, sorry⟩
-  i    : Ident := ⟨"i", sorry, sorry⟩
-  fail : Ident := ⟨"fail", sorry, sorry⟩
-  succ : Ident := ⟨"succ", sorry, sorry⟩
+  arr  : Ident := ⟨"arr" , by decide, by decide⟩
+  n    : Ident := ⟨"n"   , by decide, by decide⟩
+  i    : Ident := ⟨"i"   , by decide, by decide⟩
+  fail : Ident := ⟨"fail", by decide, by decide⟩
+  succ : Ident := ⟨"succ", by decide, by decide⟩
 
 /- string_to_chararray : string → char[] -/
 def string_to_chararray : Module.Field := .funcs
@@ -475,10 +475,10 @@ def string_to_chararray : Module.Field := .funcs
     ]
   }
 where
-  str  : Ident := ⟨"str", sorry, sorry⟩
-  arr  : Ident := ⟨"arr", sorry, sorry⟩
-  temp : Ident := ⟨"temp", sorry, sorry⟩
-  arrw : Ident := ⟨"arrw", sorry, sorry⟩
+  str  : Ident := ⟨"str" , by decide, by decide⟩
+  arr  : Ident := ⟨"arr" , by decide, by decide⟩
+  temp : Ident := ⟨"temp", by decide, by decide⟩
+  arrw : Ident := ⟨"arrw", by decide, by decide⟩
 
 /- string_from_chararray : char[] → string -/
 def string_from_chararray : Module.Field := .funcs
@@ -534,10 +534,10 @@ def string_from_chararray : Module.Field := .funcs
     ]
   }
 where
-  str  : Ident := ⟨"str", sorry, sorry⟩
-  arr  : Ident := ⟨"arr", sorry, sorry⟩
-  temp : Ident := ⟨"temp", sorry, sorry⟩
-  strw : Ident := ⟨"strw", sorry, sorry⟩
+  str  : Ident := ⟨"str" , by decide, by decide⟩
+  arr  : Ident := ⟨"arr" , by decide, by decide⟩
+  temp : Ident := ⟨"temp", by decide, by decide⟩
+  strw : Ident := ⟨"strw", by decide, by decide⟩
 
 /- char_ord : char → int -/
 def char_ord : Module.Field := .funcs

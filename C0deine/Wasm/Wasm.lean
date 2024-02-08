@@ -80,7 +80,7 @@ open Wasm.Text.Notation
 def c0deine : Name :=
   ⟨"c0deine", by simp [String.length, Wasm.Vec.max_length]; linarith⟩
 
-def result_id : Ident := ⟨"result", sorry, sorry⟩
+def result_id : Ident := ⟨"result", by decide, by decide⟩
 def result_import : Module.Field := .imports
   ⟨ c0deine
   , ⟨"result" , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
@@ -192,12 +192,12 @@ def main_import : Module.Field := .imports
   ⟩
 
 def main (config : Wasm.Config) : List Module.Field :=
-  let main_body := [Plain.call (.name ⟨"_c0_main", sorry, sorry⟩)]
+  let main_body := [Plain.call (.name ⟨"_c0_main", by decide, by decide⟩)]
   match config.main with
   | .import =>
     [ .exports
         ⟨ ⟨"_c0_main", by simp [String.length, Wasm.Vec.max_length]; linarith⟩
-        , .func (.name ⟨"_c0_main", sorry, sorry⟩)
+        , .func (.name ⟨"_c0_main", by decide, by decide⟩)
         ⟩
     ]
   | .start  => [start, .funcs
