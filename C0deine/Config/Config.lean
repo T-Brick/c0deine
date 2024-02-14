@@ -68,7 +68,7 @@ structure Config where
   cDeclScope : Bool
   /- WIP: Currently, statements of the form `return e; s` are allowed. Which
      creates some oddities in the semantics, and some very weird behaviour with
-     variable initialisations. Specifically in the following code is accepted:
+     variable initialisations. Specifically the following code is accepted:
      ```c
       int y;
       return 5;

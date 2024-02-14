@@ -68,7 +68,7 @@ defined above as well as some behaviour clarifications:
 
 - The `error` statement is specified to "immediately terminate the program".
   Likewise, the reference semantics state that "Along each control-flow path in
-  the body of each block in each func- tion, each locally declared variable is
+  the body of each block in each function, each locally declared variable is
   initialized before its use." (C0.24). Thus, it follows that we should accept
   the following program (since `error` ends the control flow path):
   ```c
@@ -133,6 +133,7 @@ are the only ones that are currently supported:
   - Strings
     - [`parse`](libs/parse.h)
     - [`string`](libs/string.h) (except for the `format` function)
+
 The C0-implemented libraries should also work, but are currently not distributed
 here.
 
