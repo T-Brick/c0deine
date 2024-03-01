@@ -94,7 +94,17 @@ def Stmt.List.ofList : _root_.List (Stmt Δ Γ ρ) → Stmt.List Δ Γ ρ
   | .nil => .nil
   | stmt :: stmts => cons stmt (ofList stmts)
 
+def Stmt.List.append (s₁ s₂ : Stmt.List Δ Γ ρ) : Stmt.List Δ Γ ρ :=
+  Stmt.List.ofList (s₁.toList ++ s₂.toList)
+
 instance : Coe (Stmt.List Δ Γ ρ) (List (Stmt Δ Γ ρ)) := ⟨Stmt.List.toList⟩
+
+instance : HAppend (Stmt.List Δ Γ ρ) (Stmt.List Δ Γ ρ) (Stmt.List Δ Γ ρ) :=
+  ⟨Stmt.List.append⟩
+instance : HAppend (Stmt.List Δ Γ ρ) (List (Stmt Δ Γ ρ)) (Stmt.List Δ Γ ρ) :=
+  ⟨fun s l => Stmt.List.append s (Stmt.List.ofList l)⟩
+instance : HAppend (List (Stmt Δ Γ ρ)) (Stmt.List Δ Γ ρ) (Stmt.List Δ Γ ρ) :=
+  ⟨fun l s => Stmt.List.append (Stmt.List.ofList l) s⟩
 
 /- When "folding" over statements we want to be able to first update the
       accumulator based on the statement then fold over body. This means we
