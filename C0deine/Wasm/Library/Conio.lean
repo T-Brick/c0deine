@@ -21,14 +21,13 @@ def readline_id  : Ident := ⟨"readline" , by decide, by decide⟩
 def printf_id    : Ident := ⟨"printf"   , by decide, by decide⟩
 
 def conio : Name :=
-  ⟨"conio", by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  ⟨"conio", by simp [String.length, Wasm.Vec.max_length]⟩
 
 /- print : string → unit -/
 def print : Module.Field := .imports
   ⟨ conio
   , ⟨ print_id.name, by
       simp [print_id, Ident.name, String.length, Wasm.Vec.max_length]
-      linarith
     ⟩
   , .func (.some print_id) (.elab_param_res [(.none, .num .i32)] [])
   ⟩
@@ -38,7 +37,6 @@ def println : Module.Field := .imports
   ⟨ conio
   , ⟨ println_id.name, by
       simp [println_id, Ident.name, String.length, Wasm.Vec.max_length]
-      linarith
     ⟩
   , .func (.some println_id) (.elab_param_res [(.none, .num .i32)] [])
   ⟩
@@ -83,7 +81,6 @@ def flush : Module.Field := .imports
   ⟨ conio
   , ⟨ flush_id.name, by
       simp [flush_id, Ident.name, String.length, Wasm.Vec.max_length]
-      linarith
     ⟩
   , .func (.some flush_id) (.elab_param_res [] [])
   ⟩
@@ -93,7 +90,7 @@ def eof : Module.Field := .imports
   ⟨ conio
   , ⟨ eof_id.name, by
       simp [eof_id, Ident.name, String.length, Wasm.Vec.max_length]
-      linarith
+  
     ⟩
   , .func (.some eof_id) (.elab_param_res [] [.num .i32])
   ⟩
@@ -103,7 +100,7 @@ def readline : Module.Field := .imports
   ⟨ conio
   , ⟨ readline_id.name, by
       simp [readline_id, Ident.name, String.length, Wasm.Vec.max_length]
-      linarith
+  
     ⟩
   , .func (.some readline_id) (.elab_param_res [] [.num .i32])
   ⟩
@@ -115,7 +112,7 @@ def printf : Module.Field := .imports
   ⟨ conio
   , ⟨ printf_id.name, by
       simp [printf_id, Ident.name, String.length, Wasm.Vec.max_length]
-      linarith
+  
     ⟩
   , .func (.some printf_id) (.elab_param_res [] [.num .i32])
   ⟩

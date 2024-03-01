@@ -78,12 +78,12 @@ def Error.arith  : Instr := i32_const 8     -- SIGFPE
 open Wasm.Text.Notation
 
 def c0deine : Name :=
-  ⟨"c0deine", by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  ⟨"c0deine", by simp [String.length, Wasm.Vec.max_length]⟩
 
 def result_id : Ident := ⟨"result", by decide, by decide⟩
 def result_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"result" , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  , ⟨"result" , by simp [String.length, Wasm.Vec.max_length]⟩
   , .func (.some result_id) (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
@@ -125,7 +125,7 @@ def calloc_func : Module.Field := .funcs
   }
 def calloc_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"calloc" , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  , ⟨"calloc" , by simp [String.length, Wasm.Vec.max_length]⟩
   , .func (.some Label.calloc.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
@@ -141,7 +141,7 @@ def free_func : Module.Field := .funcs
   }
 def free_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"free" , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  , ⟨"free" , by simp [String.length, Wasm.Vec.max_length]⟩
   , .func (.some Label.free.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
@@ -158,36 +158,36 @@ def abort_func : Module.Field := .funcs
   }
 def abort_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"abort"  , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  , ⟨"abort"  , by simp [String.length, Wasm.Vec.max_length]⟩
   , .func (.some Label.abort.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
 def error_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"error"  , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  , ⟨"error"  , by simp [String.length, Wasm.Vec.max_length]⟩
   , .func (.some Label.error.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
 def debug_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"debug"  , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  , ⟨"debug"  , by simp [String.length, Wasm.Vec.max_length]⟩
   , .func (.some Label.debug.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [.num .i32])
   ⟩
 
 def memory_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"memory" , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  , ⟨"memory" , by simp [String.length, Wasm.Vec.max_length]⟩
   , .mem .none ⟨1, .none⟩
   ⟩
 
 def start  : Module.Field := .start ⟨.name Label.main.toWasmIdent⟩
 
 def main_import : Module.Field := .imports
-  ⟨ ⟨"c0deine", by simp [String.length, Wasm.Vec.max_length]; linarith⟩
-  , ⟨"main"   , by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+  ⟨ ⟨"c0deine", by simp [String.length, Wasm.Vec.max_length]⟩
+  , ⟨"main"   , by simp [String.length, Wasm.Vec.max_length]⟩
   , .func (.some Label.main.toWasmIdent) (.elab_param_res [] [])
   ⟩
 
@@ -196,7 +196,7 @@ def main (config : Wasm.Config) : List Module.Field :=
   match config.main with
   | .import =>
     [ .exports
-        ⟨ ⟨"_c0_main", by simp [String.length, Wasm.Vec.max_length]; linarith⟩
+        ⟨ ⟨"_c0_main", by simp [String.length, Wasm.Vec.max_length]⟩
         , .func (.name ⟨"_c0_main", by decide, by decide⟩)
         ⟩
     ]

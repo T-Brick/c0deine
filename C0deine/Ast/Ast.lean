@@ -276,6 +276,7 @@ def Stmt.toString (s : Stmt) : String :=
   | .error e => s!"error({e})"
   | .exp e => s!"{e}"
   | .anno a => Anno.toString a
+termination_by sizeOf s
 
 def Stmt.listToString (stmts : List Stmt) : String :=
   match stmts with
@@ -283,10 +284,8 @@ def Stmt.listToString (stmts : List Stmt) : String :=
   | [stmt] => s!"{Stmt.toString stmt};"
   | stmt :: stmts =>
     s!"{Stmt.toString stmt};\n{Stmt.listToString stmts}"
+termination_by sizeOf stmts
 end
-termination_by
-  Stmt.toString s     => sizeOf s
-  Stmt.listToString s => sizeOf s
 
 instance : ToString Stmt        where toString := Stmt.toString
 instance : ToString (List Stmt) where toString := Stmt.listToString

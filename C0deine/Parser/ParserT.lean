@@ -23,10 +23,10 @@ instance : DecidableEq (AsciiPos s) :=
   fun a b => by cases a; cases b; simp; exact inferInstance
 instance : LE (AsciiPos s) := ⟨(·.pos ≤ ·.pos)⟩
 instance : DecidableRel (LE.le (α := AsciiPos s)) :=
-  fun a b => by simp [LE.le]; exact inferInstance
+  fun _ _ => inferInstance
 instance : LT (AsciiPos s) := ⟨(·.pos < ·.pos)⟩
 instance : DecidableRel (LT.lt (α := AsciiPos s)) :=
-  fun a b => by simp [LT.lt]; exact inferInstance
+  fun _ _ => inferInstance
 
 def atEnd (p : AsciiPos s) : Bool := p.pos = s.size
 def get (p : AsciiPos s) (h : ¬p.atEnd := by assumption) : UInt8 :=
@@ -91,7 +91,7 @@ where aux lines tgt (lo hi : Fin lines.size) (h : lo ≤ hi)
     | .gt =>
       have : mid.val - lo.val < hi.val - lo.val := sorry
       aux lines tgt lo mid sorry sorry sorry
-termination_by aux lo hi _ _ _ => hi.val - lo.val
+termination_by hi.val - lo.val
 
 def getPosLineCol (state : State s) :=
   let line := getPosLine state
@@ -305,7 +305,7 @@ where @[inline] aux pos a := do
     else
       panic! "backtracked in foldl")
   <|> (return a)
-termination_by aux p _ => s.size - p.pos
+termination_by s.size - pos.pos
 
 @[inline] def dropMany (p : ParserT m s Unit) : ParserT m s Unit :=
   foldl (return ()) (fun () => p)

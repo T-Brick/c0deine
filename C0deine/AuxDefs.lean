@@ -113,11 +113,6 @@ structure ThunkCache (a : Unit → α) where
 def ThunkCache.new : ThunkCache a := ⟨Thunk.mk a, by simp [Thunk.get]⟩
 instance : Inhabited (ThunkCache a) := ⟨.new⟩
 
--- def List.pmap (L : List α) (f : (a : α) → a ∈ L → β) : List β :=
-  -- match L with
-  -- | [] => []
-  -- | x::xs => (f x (List.Mem.head _)) :: xs.pmap (fun a h => f a (List.Mem.tail _ h))
-
 @[simp] theorem String.length_pushn (s : String) (c n)
   : (s.pushn c n).length = s.length + n := by
   induction n
@@ -127,8 +122,8 @@ instance : Inhabited (ThunkCache a) := ⟨.new⟩
     congr
 
 @[simp] theorem String.length_append (s1 s2 : String)
-  : (s1 ++ s2).length = s1.length + s2.length := by
-  simp [HAppend.hAppend, Append.append, append, length]
+  : (s1 ++ s2).length = s1.length + s2.length
+  := by simp [append, length]
 
 @[simp] theorem String.take_mk (L : List Char) (n)
   : (String.mk L).take n = String.mk (L.take n)

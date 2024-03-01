@@ -217,6 +217,7 @@ def Trans.expr (lang : Language) (e : Cst.Expr) : Except String Ast.Expr := do
     else
       let e' ← Trans.expr lang e
       return .length e'
+termination_by sizeOf e
 
 def Trans.exprs (lang : Language)
                 (exps : List Cst.Expr)
@@ -227,10 +228,10 @@ def Trans.exprs (lang : Language)
     let e' ← Trans.expr lang e
     let es' ← Trans.exprs lang es
     return e'::es'
+termination_by sizeOf exps
+
 end
-termination_by
-  Trans.expr lang e => sizeOf e
-  Trans.exprs lang e => sizeOf e
+
 
 def Trans.lvalue (lang : Language)
                  (lv : Cst.LValue)
