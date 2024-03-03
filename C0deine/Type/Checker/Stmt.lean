@@ -31,11 +31,45 @@ where
   rets'     : Bool
   returns   : Tst.Returns.Stmt.List stmts rets rets'
 
-@[inline] private def wrapError
+@[inline] private def Helper.wrapError
     (stmt : Ast.Stmt)
     (res : Except Error α)
     : Except Error α :=
   res.tryCatch (fun err => throw {err with statement := some stmt})
+
+@[inline] private def Helper.handle
+    {init_set : Tst.Initialised.Acc}
+    (stm : Ast.Stmt)
+    : Except Error (Synth.Expr.Result (Δ := Δ) (Γ := Γ) Tst.Expr.no_contract init_set)
+    → Except Error (Synth.Expr.Result (Δ := Δ) (Γ := Γ) Tst.Expr.no_contract init_set)
+  := wrapError stm
+
+@[inline] private def Helper.handleLV
+    {init_set : Tst.Initialised.Acc}
+    (stm : Ast.Stmt)
+    : Except Error (Synth.LValue.Result Δ Γ init_set)
+    → Except Error (Synth.LValue.Result Δ Γ init_set)
+  := wrapError stm
+
+@[inline] private def Helper.handleAnno
+    {init_set : Tst.Initialised.Acc}
+    (stm : Ast.Stmt)
+    : Except Error (FuncCtx × Synth.Anno.Result Δ Γ Tst.Anno.free init_set)
+    → Except Error (FuncCtx × Synth.Anno.Result Δ Γ Tst.Anno.free init_set)
+  := wrapError stm
+
+@[inline] private def Helper.handleAnnos
+    {init_set : Tst.Initialised.Acc}
+    (stm : Ast.Stmt)
+    : Except Error (Synth.Anno.Result.List Δ Γ Tst.Anno.loop init_set)
+    → Except Error (Synth.Anno.Result.List Δ Γ Tst.Anno.loop init_set)
+  := wrapError stm
+
+@[inline] private def Helper.throwS
+    {init_set : Tst.Initialised.Acc}
+    (stm : Ast.Stmt)
+    : String → Except Error (Result Δ Γ ρ init_set rets)
+  := throw ∘ Error.stmt stm
 
 set_option maxHeartbeats 2000000 in -- can probs reduce this a bunch
 mutual
@@ -44,12 +78,6 @@ def stmt
     {init_set : Tst.Initialised.Acc}
     (ctx : FuncCtx) (rets : Bool) (stm : Ast.Stmt)
     : Except Error (Result Δ Γ ρ init_set rets) := do
-  let handle      := wrapError stm
-  let handleLV    := wrapError stm
-  let handleAnno  := wrapError stm
-  let handleAnnos := wrapError stm
-  let throwS      := throw ∘ Error.stmt stm
-
   match stm with
   | .decl type name init body =>
     -- todo: this is kinda a mess, probably could be refactored a little
@@ -76,7 +104,7 @@ def stmt
             | none => res.ctx.symbols.erase name
           let oldCtx := { res.ctx with symbols := symbols' }
 
-          let stmt' := .decl name' (by simp) res.stmts
+          let stmt' := .decl name' (by rw [Typ.Typed.data, Typ.Typed.type]) res.stmts
           let init_set' :=
             Tst.Initialised.join init_set_body res.init_set' stmt'
           have stmt'_init := .decl (by simp) res.init (by simp)
@@ -388,7 +416,12 @@ def stmt
       .anno (a₂ := rets) (a₃ := rets) (by simp) (by simp) (by simp)
 
     return ⟨ctx', stmt', init_set', stmt'_init, rets, stmt'_rets⟩
-
+where
+  handle      := Helper.handle      (Δ := Δ) (Γ := Γ) (init_set := init_set) stm
+  handleLV    := Helper.handleLV    (Δ := Δ) (Γ := Γ) (init_set := init_set) stm
+  handleAnno  := Helper.handleAnno  (Δ := Δ) (Γ := Γ) (init_set := init_set) stm
+  handleAnnos := Helper.handleAnnos (Δ := Δ) (Γ := Γ) (init_set := init_set) stm
+  throwS      := Helper.throwS      (Δ := Δ) (Γ := Γ) (init_set := init_set) stm
 
 def stmts (ctx : FuncCtx)
           (rets : Bool)
