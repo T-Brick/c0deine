@@ -1,0 +1,13 @@
+//test return 1
+
+struct weird_null {};
+
+int main() {
+  struct weird_null *null = alloc(struct weird_null);
+
+  if(null == NULL) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
