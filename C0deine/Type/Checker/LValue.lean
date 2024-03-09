@@ -28,7 +28,13 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue)
     | some (.var tau) =>
       if is_init : init_set var then
         let lv' := .var var h
-        have lv'_init := .var (by simp [Tst.Initialised.lval]; exact is_init)
+        have lv'_init :=
+          .var (by simp only [ Tst.Stmt.Predicate.toLValuePred
+                             , Tst.Initialised.Predicate
+                             , Tst.Initialised.lval
+                             , is_init
+                             , ↓reduceIte
+                             ])
         return ⟨ctx.calls, tau, lv', lv'_init⟩
       else throw <| Error.lval lval s!"Variable not initialised"
     | _ => throw <| Error.lval lval s!"Variable not declared"
@@ -45,7 +51,12 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue)
             let lv' :=
               .dot (res.lval.structType name tyeq) field
                 (by rw [←defined]; exact hsig) f_ty
-            have lv'_init := .dot res.init (by simp)
+            have lv'_init :=
+              .dot res.init
+                (by simp only [ Tst.Stmt.Predicate.toLValuePred
+                              , Tst.Initialised.Predicate
+                              , Tst.Initialised.lval
+                              ])
             return ⟨res.calls, tau, lv', lv'_init⟩
           | none => throw <| Error.lval lval <|
             s!"Invalid field '{field}' for struct type '{res.type}'"
@@ -66,10 +77,19 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue)
             let dref' : Tst.LValue Δ Γ _ :=
               .deref (res.lval.ptrType (.mem (.struct name)) tyeq)
             have dref'_init : Tst.Initialised.LValue dref' init_set :=
-              .deref res.init (by simp)
+              .deref res.init
+                (by simp only [ Tst.Stmt.Predicate.toLValuePred
+                              , Tst.Initialised.Predicate
+                              , Tst.Initialised.lval
+                              ])
             let lv' := .dot (dref'.structType name (by rfl)) field
               (by rw [←defined]; exact hsig) f_ty
-            have lv'_init := .dot dref'_init (by simp)
+            have lv'_init :=
+              .dot dref'_init
+                (by simp only [ Tst.Stmt.Predicate.toLValuePred
+                              , Tst.Initialised.Predicate
+                              , Tst.Initialised.lval
+                              ])
             return ⟨res.calls, tau, lv', lv'_init⟩
           | none => throw <| Error.lval lval <|
             s!"Invalid field '{field}' for struct type '{res.type}'"
@@ -77,11 +97,17 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue)
       | none => throw <| Error.lval lval s!"Struct '{name}' is not defined"
     | _ => throw <| Error.lval lval <|
       s!"Arrow operator expects a struct pointer not type '{res.type}'"
+
   | .deref lv =>
     let res ← lvalue ctx lv
     match tyeq : res.type with
     | .mem (.pointer tau)  =>
-      have lv'_init := .deref res.init (by simp)
+      have lv'_init :=
+        .deref res.init
+          (by simp only [ Tst.Stmt.Predicate.toLValuePred
+                        , Tst.Initialised.Predicate
+                        , Tst.Initialised.lval
+                        ])
       return ⟨res.calls, tau, .deref (res.lval.ptrType tau tyeq), lv'_init⟩
     | _ => throw <| Error.lval lval <|
       s!"Cannot dereference a non-pointer type '{res.type}'"
@@ -95,7 +121,16 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue)
     | .mem (.array tau), .prim .int =>
       let indx' := ⟨resi.texpr.intType tyi_eq, resi.valid⟩
       let lv' := .index (resa.lval.arrType tau tya_eq) indx'
-      have lv'_init := .index resa.init (by simp; exact resi.init) (by simp)
+      have lv'_init :=
+        .index resa.init
+          (by simp only [ Tst.Stmt.Predicate.toLValuePred
+                        , Tst.Initialised.Predicate
+                        ]
+              exact resi.init)
+          (by simp only [ Tst.Stmt.Predicate.toLValuePred
+                        , Tst.Initialised.Predicate
+                        , Tst.Initialised.lval
+                        ])
       return ⟨calls, tau, lv', lv'_init⟩
     | .mem (.array _tau), _ => throw <| Error.lval lval <|
       s!"Array indices must be type '{Typ.prim .int}' not type '{resi.type}'"

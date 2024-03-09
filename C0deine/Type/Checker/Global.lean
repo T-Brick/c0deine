@@ -123,19 +123,43 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
           else res.init_set'
       , body_init := by
           if ret_none : ret.isNone then
-            simp [body'', ret_none]
+            simp only [ Tst.Initialised.Stmt.List
+                      , Tst.Initialised.Predicate
+                      , ret_none
+                      , ↓reduceDite
+                      ]
             exact Tst.Stmt.List.Fold.consEnd (a₂ := res.init_set')
-                    res.stmts res.init (.return_void (by simp))
-          else simp [body'', ret_none]; exact res.init
+                    res.stmts
+                    res.init
+                    (.return_void (by rfl))
+          else
+            simp only [ Tst.Initialised.Stmt.List
+                      , Tst.Initialised.Predicate
+                      , ret_none
+                      , ↓reduceDite
+                      ]
+            exact res.init
       , body_rets := by
           if ret_none : ret.isNone then
-            simp [body'', ret_none]
+            simp only [ Tst.Returns.Stmt.List
+                      , Tst.Returns.Predicate
+                      , ret_none
+                      , ↓reduceDite
+                      ]
             exact Tst.Stmt.List.Fold.consEnd (a₂ := res.rets') (a₃ := true)
-                    res.stmts res.returns (.return_void (by simp))
+                    res.stmts res.returns (.return_void (by rfl))
           else
             have := res.returns
-            simp [ret_none] at rets_valid
-            simp [body'', ret_none]
+            simp only [ ret_none
+                      , Bool.false_or
+                      , Bool.not_eq_true
+                      , Bool.not_eq_false
+                      ] at rets_valid
+            simp only [ Tst.Returns.Stmt.List
+                      , Tst.Returns.Predicate
+                      , ret_none
+                      , ↓reduceDite
+                      ]
             rw [rets_valid] at this
             exact this
       }

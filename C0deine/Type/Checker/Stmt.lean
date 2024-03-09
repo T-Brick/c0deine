@@ -71,7 +71,6 @@ where
     : String → Except Error (Result Δ Γ ρ init_set rets)
   := throw ∘ Error.stmt stm
 
-set_option maxHeartbeats 2000000 in -- can probs reduce this a bunch
 mutual
 def stmt
     {Δ : Tst.GCtx} {Γ : Tst.FCtx} {ρ : Option Typ}
@@ -107,8 +106,14 @@ def stmt
           let stmt' := .decl name' (by rw [Typ.Typed.data, Typ.Typed.type]) res.stmts
           let init_set' :=
             Tst.Initialised.join init_set_body res.init_set' stmt'
-          have stmt'_init := .decl (by simp) res.init (by simp)
-          have stmt'_rets := .decl (by simp) res.returns (by simp)
+          have stmt'_init :=
+            .decl (by rw [Tst.Initialised.Predicate])
+                  res.init
+                  (by rw [Tst.Initialised.Predicate])
+          have stmt'_rets :=
+            .decl (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
+                  res.returns
+                  (by dsimp only [Tst.Returns.Predicate, Tst.Returns.join])
 
           return ⟨oldCtx, stmt', init_set', stmt'_init, res.rets', stmt'_rets⟩
 
@@ -145,15 +150,24 @@ def stmt
             let oldCtx := { res.ctx with symbols := symbols' }
 
             let stmt' :=
-              .decl_init name' e_init' ty_equiv (by simp) res.stmts
+              .decl_init name'
+                         e_init'
+                         ty_equiv
+                         (by rw [Typ.Typed.data, Typ.Typed.type])
+                         res.stmts
             let init_set' :=
               Tst.Initialised.join init_set_body res.init_set' stmt'
             have stmt'_init :=
               .decl_init (a₂ := init_set)
-                res_init.init (by simp) res.init (by simp)
+                res_init.init (by rw [Tst.Initialised.Predicate])
+                              res.init
+                              (by rw [Tst.Initialised.Predicate])
             have stmt'_rets :=
               .decl_init (a₂ := rets) (a₃ := rets) (a₄ := res.rets')
-                (by simp) (by simp) res.returns (by simp)
+                (by simp only [Tst.Returns.Predicate, Tst.Returns.expr_fold])
+                (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
+                res.returns
+                (by dsimp only [Tst.Returns.Predicate, Tst.Returns.join])
 
             return ⟨oldCtx, stmt', init_set', stmt'_init, res.rets', stmt'_rets⟩
           else throw <| Error.stmt stm <|
@@ -179,15 +193,20 @@ def stmt
 
           let lv' := Tst.LValue.var (τ := tau) var (h)
           let e' : Tst.Expr.NoContract Δ Γ _ := ⟨res.texpr, res.valid⟩
-          have is_var := by simp [lv']; rfl
-          let stmt' := .assign_var lv' is_var e' (ty_equiv)
+          let stmt' := .assign_var lv' (by rfl) e' (ty_equiv)
           let init_set' :=
-            Tst.Initialised.init init_set (.assign_var lv' is_var e')
+            Tst.Initialised.init init_set (.assign_var lv' (by rfl) e')
           have stmt'_init :=
             .assign_var (a₂ := init_set) (a₃ := init_set')
-              res.init (by simp) (by simp)
+              res.init
+              (by rw [Tst.Initialised.Predicate])
+              (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.stmt]
+              )
           have stmt'_rets :=
-            .assign_var (a₂ := rets) (a₃ := rets) (by simp) (by simp) (by simp)
+            .assign_var (a₂ := rets) (a₃ := rets)
+              (by simp only [Tst.Returns.Predicate, Tst.Returns.expr_fold])
+              (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
+              (by dsimp only [Tst.Returns.Predicate, Tst.Returns.stmt])
 
           return ⟨ctx', stmt', init_set', stmt'_init, rets, stmt'_rets⟩
         else throwS s!"Assignment of '{var}' expects type '{tau}' but got '{res.type}'"
@@ -209,11 +228,19 @@ def stmt
           let stmt' := .assign resl.lval this e' ty_equiv
           let init_set' :=
             Tst.Initialised.init init_set (.assign resl.lval this e')
-          have stmt'_init := .assign resl.init (by simp) resr.init (by simp)
+          have stmt'_init := .assign resl.init
+            (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
+            resr.init
+            (by dsimp only [ Tst.Initialised.Predicate
+                           , Tst.Initialised.init
+                           , Tst.Initialised.stmt
+                           ])
           have stmt'_rets :=
             .assign (a₂ := rets) (a₃ := rets) (a₄ := rets)
               (Tst.Returns.lval_fold rets resl.lval)
-              (by simp) (by simp) (by simp)
+              (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
+              (by simp only [Tst.Returns.Predicate, Tst.Returns.expr_fold])
+              (by dsimp only [Tst.Returns.Predicate, Tst.Returns.stmt])
 
           return ⟨ctx, stmt', init_set', stmt'_init, rets, stmt'_rets⟩
         else throwS s!"Left side of assignment has type '{resl.type}' doesn't match the right side '{resr.type}'"
@@ -227,15 +254,24 @@ def stmt
             let stmt' := .asnop lv' op' e'
             let init_set' :=
               Tst.Initialised.init init_set (.asnop resl.lval op' e')
-            have stmt'_init := .asnop (by simp) resl.init resr.init (by simp)
+            have stmt'_init :=
+              .asnop
+                (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
+                resl.init resr.init
+                (by dsimp only [ Tst.Initialised.Predicate
+                                , Tst.Initialised.init
+                                , Tst.Initialised.stmt
+                                ])
             have stmt'_rets :=
               .asnop (a₂ := rets) (a₃ := rets) (a₄ := rets)
-                (by simp) (Tst.Returns.lval_fold rets lv') (by simp) (by simp)
+                (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
+                (Tst.Returns.lval_fold rets lv')
+                (by simp only [Tst.Returns.Predicate, Tst.Returns.expr_fold])
+                (by dsimp only [Tst.Returns.Predicate, Tst.Returns.stmt])
 
             return ⟨ctx, stmt', init_set', stmt'_init, rets, stmt'_rets⟩
           else throwS s!"Assignment with operations must have type '{Typ.prim .int}' but right side is '{resr.type}'"
         else throwS s!"Assignment with operations must have type '{Typ.prim .int}'  but left side is '{resl.type}'"
-
   | .ite cond tt ff =>
     let resc ← handle <| Synth.Expr.small_nonvoid <|
       Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract cond
@@ -251,11 +287,19 @@ def stmt
       let init_set'' := Tst.Initialised.join rest.init_set' resf.init_set' stmt'
       have stmt'_init :=
         .ite (a₂ := init_set) (a₃ := init_set')
-          resc.init (by simp) rest.init resf.init (by simp)
+          resc.init
+          (by rw [Tst.Initialised.Predicate])
+          rest.init
+          resf.init
+          (by rw [Tst.Initialised.Predicate])
       let rets' := rest.rets' && resf.rets'
       have stmt'_rets :=
         .ite (a₂ := rets) (a₃ := rets) (a₄ := rets')
-          (by simp) (by simp) rest.returns resf.returns (by simp)
+          (by simp only [Tst.Returns.Predicate, Tst.Returns.expr_fold])
+          (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
+          rest.returns
+          resf.returns
+          (by dsimp only [Tst.Returns.Predicate, Tst.Returns.join])
 
       return ⟨rest.ctx.join resf.ctx, stmt', init_set'', stmt'_init, rets', stmt'_rets⟩
     | _ => throwS s!"If condition must be of type '{Typ.prim .bool}' not '{resc.type}'"
@@ -280,11 +324,18 @@ def stmt
       have stmt'_init :=
         Tst.Stmt.Fold.while (P := Tst.Initialised.Predicate) (cond := cond')
           (a₂ := init_set) (a₃ := init_set) (a₄ := init_set')
-          resc.init resa.init (by simp) resb.init (by simp)
+          resc.init resa.init
+          (by dsimp only [Tst.Initialised.Predicate])
+          resb.init
+          (by dsimp only [Tst.Initialised.Predicate])
       have stmt'_rets :=
         Tst.Stmt.Fold.while (P := Tst.Returns.Predicate) (cond := cond')
           (a₂ := rets) (a₃ := rets) (a₄ := rets) (a₆ := rets)
-          (by simp) (by simp) (by simp) resb.returns (by simp)
+          (by simp only [Tst.Returns.Predicate, Tst.Returns.expr_fold])
+          (by simp only [Tst.Returns.Predicate, Tst.Returns.anno_list_fold])
+          (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
+          resb.returns
+          (by dsimp only [Tst.Returns.Predicate, Tst.Returns.join])
 
       return ⟨ctx'', stmt', init_set'', stmt'_init, rets, stmt'_rets⟩
     | _ => throwS s!"Loop condition must be of type '{Typ.prim .bool}' not '{resc.type}'"
@@ -295,10 +346,13 @@ def stmt
         s!"Expected return type is '{ctx.ret_type}'" -- todo change this msg?
     | none =>
       let ctx' := {ctx with returns := true}
-      let stmt' := .return_void (by simp)
+      let stmt' := .return_void (by rfl)
       let init_set' := Tst.Initialised.stmt init_set stmt'
-      have stmt'_init := .return_void (by simp)
-      have stmt'_rets := .return_void (by simp)
+      have stmt'_init :=
+        .return_void
+          (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.join])
+      have stmt'_rets :=
+        .return_void (by dsimp only [Tst.Returns.Predicate, Tst.Returns.stmt])
       return ⟨ctx', stmt', init_set', stmt'_init, true, stmt'_rets⟩
 
   | .return (.some e) =>
@@ -328,9 +382,15 @@ def stmt
         let stmt' := .return_tau e'
         let init_set' := Tst.Initialised.stmt init_set stmt'
         have stmt'_init :=
-          .return_tau (a₂ := init_set) (by simp) res.init (by simp)
+          .return_tau (a₂ := init_set)
+            (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
+            res.init
+            (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
         have stmt'_rets :=
-          .return_tau (a₂ := rets) (a₃ := rets) (by simp) (by simp) (by simp)
+          .return_tau (a₂ := rets) (a₃ := rets)
+            (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
+            (by simp only [Tst.Returns.Predicate, Tst.Returns.expr_fold])
+            (by dsimp only [Tst.Returns.Predicate, Tst.Returns.stmt])
 
         return ⟨ctx', stmt', init_set', stmt'_init, true, stmt'_rets⟩
       else throw <| Error.stmt stm <|
@@ -347,10 +407,15 @@ def stmt
       let stmt' := .assert e'
       let init_set' := Tst.Initialised.stmt init_set stmt'
       have stmt'_init :=
-        .assert (a₂ := init_set) (by simp) (by exact res.init) (by simp)
+        .assert (a₂ := init_set)
+          (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
+          (by exact res.init)
+          (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
       have stmt'_rets :=
         .assert (a₂ := rets) (a₃ := rets) (a₄ := rets)
-          (by simp) (by simp) (by simp)
+          (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
+          (by simp only [Tst.Returns.Predicate, Tst.Returns.expr_fold])
+          (by dsimp only [Tst.Returns.Predicate, Tst.Returns.stmt])
 
       return ⟨ctx', stmt', init_set', stmt'_init, rets, stmt'_rets⟩
     | _ => throwS s!"Assert condition must be of type '{Typ.prim .bool}' not '{res.type}'"
@@ -382,9 +447,15 @@ def stmt
       let stmt' := .error e'
       let init_set' := Tst.Initialised.stmt init_set stmt'
       have stmt'_init :=
-        .error (a₂ := init_set) (by simp) (by exact res.init) (by simp)
+        .error (a₂ := init_set)
+          (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
+          (by exact res.init)
+          (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
       have stmt'_rets :=
-        .error (a₂ := rets) (a₃ := rets) (by simp) (by simp) (by simp)
+        .error (a₂ := rets) (a₃ := rets)
+          (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
+          (by simp only [Tst.Returns.Predicate, Tst.Returns.expr_fold])
+          (by dsimp only [Tst.Returns.Predicate, Tst.Returns.stmt])
 
       return ⟨ctx', stmt', init_set', stmt'_init, true, stmt'_rets⟩
     | _ => throwS s!"Error condition must be of type '{Typ.prim .string}' not '{res.type}'"
@@ -398,9 +469,15 @@ def stmt
     let stmt' := .expr e'
     let init_set' := Tst.Initialised.stmt init_set stmt'
     have stmt'_init :=
-      .expr (a₂ := init_set) (by simp) (by exact res.init) (by simp)
+      .expr (a₂ := init_set)
+        (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
+        (by exact res.init)
+        (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
     have stmt'_rets :=
-      .expr (a₂ := rets) (a₃ := rets) (by simp) (by simp) (by simp)
+      .expr (a₂ := rets) (a₃ := rets)
+        (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
+        (by simp only [Tst.Returns.Predicate, Tst.Returns.expr_fold])
+        (by dsimp only [Tst.Returns.Predicate, Tst.Returns.stmt])
 
     return ⟨ctx', stmt', init_set', stmt'_init, rets, stmt'_rets⟩
 
@@ -411,9 +488,14 @@ def stmt
     let init_set' := Tst.Initialised.stmt init_set stmt'
     have stmt'_init :=
       Tst.Stmt.Fold.anno (a₂ := init_set)
-        (by simp) (by exact res.init) (by simp)
+        (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
+        (by exact res.init)
+        (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
     have stmt'_rets :=
-      .anno (a₂ := rets) (a₃ := rets) (by simp) (by simp) (by simp)
+      .anno (a₂ := rets) (a₃ := rets)
+        (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
+        (by simp only [Tst.Returns.Predicate, Tst.Returns.anno_fold])
+        (by dsimp only [Tst.Returns.Predicate, Tst.Returns.stmt])
 
     return ⟨ctx', stmt', init_set', stmt'_init, rets, stmt'_rets⟩
 where
@@ -428,7 +510,8 @@ def stmts (ctx : FuncCtx)
           (body : List Ast.Stmt)
           : Except Error (Result.List Δ Γ ρ init_set rets) := do
   match body with
-  | [] => return ⟨ctx, .nil, init_set, .nil, false, sorry⟩
+  | [] =>
+    return ⟨ctx, .nil, init_set, .nil, rets, Tst.Stmt.List.Fold.nil⟩
   | b::bs =>
     let resb ← stmt ctx rets b
     /- We need to typecheck after returns but we disregard the result.
