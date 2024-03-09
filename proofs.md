@@ -63,11 +63,10 @@ Having lists of things are nice, so here is the top priority items:
 - [ ] Implement tactics/theorems for evaluating C0 code in a proof-mode
 - [ ] Document everything
 
-Lower priority items are as follows
+Lower priority items that are technically not required are as follows:
 - [ ] Add marking/metadata in the AST and TST
 - [ ] Implement delaborator
 - [ ] Implement purity checker
-- [ ] Embed C0 as a DSL directly into Lean via metaprogramming
 
 
 ## Future Work
@@ -76,6 +75,7 @@ Once this project is complete and assuming it works well enough there are serval
 avenues that could be explored:
 - Integrating into existing curricula (e.g. 122)
 - Developing something similar to the Natural Numbers Game but for C0
-- Add and support language extensions (e.g. C1, new contracts, etc.)
+- Adding and supporting language extensions (e.g. C1, new contracts, etc.)
 - Explore requiring/having proofs of termination (rather than just assuming it)
 - Verifying correctness of more complex C0 programs
+- Embedding C0 as a DSL directly into Lean via metaprogramming
