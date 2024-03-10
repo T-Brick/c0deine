@@ -140,7 +140,9 @@ inductive Expr (Δ : GCtx) (Γ : FCtx) : (τ : Typ) → Type
   → Expr Δ Γ τ₁
   → Expr Δ Γ τ₂
   → Expr Δ Γ τ
-| result : Expr Δ Γ τ
+| result
+  : Γ.ret = some τ
+  → Expr Δ Γ τ
 | length
   : {τ₁ : {τ' : Typ // τ' = (τ[])}}
   → Expr Δ Γ τ₁
@@ -286,8 +288,8 @@ inductive Fold {Δ : GCtx} {Γ : FCtx}
   → Fold P a₁ (.index e indx) a₄
 | result
   : {a₁ a₂ : α}
-  → P (τ := τ) a₁ .result = some a₂
-  → Fold P a₁ (.result : Expr Δ Γ τ) a₂
+  → P (τ := τ) a₁ (.result h) = some a₂
+  → Fold P a₁ (.result h : Expr Δ Γ τ) a₂
 | length
   : {a₁ a₂ a₃ : α}
   → Fold P a₁ e a₂
@@ -298,12 +300,12 @@ def All (P : {τ : Typ} → Expr Δ Γ τ → Bool) (e : Expr Δ Γ τ) : Prop :
   Expr.Fold (fun _ _ e => if P e then some () else none) () e ()
 
 @[inline] def only_contract : Expr Δ Γ τ → Bool
-  | .result   => .true
+  | .result _ => .true
   | .length _ => .true
   | _         => .false
 @[inline] def has_result : Expr Δ Γ τ → Bool
-  | .result => .true
-  | _       => .false
+  | .result _  => .true
+  | _          => .false
 
 @[inline] def no_contract : Expr Δ Γ τ → Bool :=
   .not ∘ only_contract
@@ -381,7 +383,7 @@ def Expr.toString : Expr Δ Γ τ → String
   | .dot e field _ _ => s!"({Expr.toString e}.{field} : {τ})"
   | .deref e   => s!"(*{Expr.toString e} : {τ})"
   | .index e i => s!"({Expr.toString e}[{Expr.toString i}] : {τ})"
-  | .result    => s!"(\\result : {τ})"
+  | .result _  => s!"(\\result : {τ})"
   | .length e  => s!"(\\length {Expr.toString e} : {τ})"
 
 instance : ToString (Expr Δ Γ τ) := ⟨Expr.toString⟩

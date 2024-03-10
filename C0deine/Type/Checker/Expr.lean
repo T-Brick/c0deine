@@ -445,13 +445,13 @@ def expr (ctx : FuncCtx)
       s!"Array indexing must be on array types not type '{resa.type}'"
 
   | .result           =>
-    match ctx.ret_type with
+    match h : Γ.ret with
     | .some tau =>
-      if p : P (τ := tau) .result then
+      if p : P (τ := tau) (.result h) then
         have p' := .result (by simp only [p, ↓reduceIte])
         have e'_init := .result (by dsimp only [Tst.Initialised.expr])
-        return ⟨ctx.calls, ctx.strings, tau, .result, p', e'_init⟩
-      else throw <| fail .result p
+        return ⟨ctx.calls, ctx.strings, tau, .result h, p', e'_init⟩
+      else throw <| fail (.result h) p
     | .none     => throw <| Error.expr exp <|
       s!"Cannot use result when function's return type is void"
 

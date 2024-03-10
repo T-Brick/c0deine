@@ -277,7 +277,7 @@ partial def transSizeExpr (e : Tst.Expr Δ Γ τ) : Nat :=
   | .dot e _ _ _      => 2 + transSizeExpr e
   | .deref e          => 2 + transSizeExpr e
   | .index arr indx   => 2 + (transSizeExpr arr) + (transSizeExpr indx)
-  | .result           => 0
+  | .result _         => 0
   | .length e         => 1 + transSizeExpr e
 
 partial def transSizeArgs
@@ -460,7 +460,7 @@ partial def expr (tau : Typ)
     let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
     return (.load sdest address :: checks ++ stmts, .temp sdest)
 
-  | .result   => sorry
+  | .result h => sorry
 
   | .length e => sorry
 
