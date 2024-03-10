@@ -36,9 +36,44 @@ using `rfl`.
 
 Similarly, for writing proofs about loop-invariants we introduce goals for
 entry, an arbitrary iteration (along with a hypothesis that the loop-invariant
-initially holds), and exit. An open question right now is how to deal with
-variable shadowing (I suspect the Lean approach of being able to rename shadowed
+initially holds). An open question right now is how to deal with variable
+shadowing (I suspect the Lean approach of being able to rename shadowed
 variables may be the best, but not 100% confident).
+
+### Architecture
+
+We first want to parse and typecheck some C0 code. The TST should be stored as a
+variable representing the program in Lean. Then, using that variable, we
+indicate we'd like to prove that program correct. Here is some pseudo-code to
+illustrate what we are doing:
+
+```lean
+def prog : Tst.Prog := C0.parse_typecheck "
+  int example() {
+    int i = 0;
+
+    while(i < 10)
+    //@loop-invariant i <= 10;
+    {
+      i = i + 1;
+    }
+    //@assert i == 10;
+    return 150;
+  }
+"
+
+
+example : C0.verify prog := by
+  /- There should be 3 goals (assuming we don't try to close easy goals) -/
+  sorry   -- loop init | hypo: i = 0                          wts: i <= 10
+  sorry   -- loop pres | hypo: i <= 10; i < 10; i' = i + 1    wts: i' <= 10
+  sorry   -- assert    | hypo: ¬(i < 10); i <= 10             wts: i == 10
+```
+
+Importantly, the description of the proof states, specifically the hypotheses,
+are somewhat deceiving. Expressions like `i + 1` are not "Lean" expressions but
+rather Tst expressions. The dynamic semantics enable use to evaluate these C0
+expressions into components that can then be discharged into Lean expressions.
 
 
 ## What Needs to be Done
@@ -60,7 +95,7 @@ Having lists of things are nice, so here is the top priority items:
 - [ ] Further investigate and identify what C0 proofs are expected to look like
 - [ ] Create list of sample programs that we'd like to be able to prove
 - [ ] Identify and create list of possible tactics that would be useful
-- [ ] Implement tactics/theorems for evaluating C0 code in a proof-mode
+- [ ] Implement tactics/theorems for evaluating C0 code in proof-mode
 - [ ] Document everything
 
 Lower priority items that are technically not required are as follows:
