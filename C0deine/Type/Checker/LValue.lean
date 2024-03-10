@@ -24,7 +24,7 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue)
     : Except Error (Result Δ Γ init_set) := do
   match lval with
   | .var var =>
-    match h : Γ var with
+    match h : Γ.syms var with
     | some (.var tau) =>
       if is_init : init_set var then
         let lv' := .var var h

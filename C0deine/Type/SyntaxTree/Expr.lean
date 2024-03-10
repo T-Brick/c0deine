@@ -55,7 +55,7 @@ inductive Expr (Δ : GCtx) (Γ : FCtx) : (τ : Typ) → Type
 | var
   : {τ : Typ}
   → (x : Symbol)
-  → Γ x = .some (.var τ)
+  → Γ.syms x = .some (.var τ)
   → Expr Δ Γ τ
 | «true»  : Expr Δ Γ (bool)
 | «false» : Expr Δ Γ (bool)
@@ -112,7 +112,7 @@ inductive Expr (Δ : GCtx) (Γ : FCtx) : (τ : Typ) → Type
   → Expr Δ Γ (τ₂.intersect τ₃)
 | app
   : (f : Symbol)
-  → Γ f = .some (.func status)
+  → Γ.syms f = .some (.func status)
   → (τs : Fin status.type.arity → Typ)
   → (eq : ∀ i, (status.type.argTys i).equiv (τs i))
   → (args : (i : Fin status.type.arity) → Expr Δ Γ (τs i))
@@ -192,7 +192,7 @@ inductive Fold {Δ : GCtx} {Γ : FCtx}
   → Fold P a₁ ((.str s) : Expr Δ Γ _) a₂
 | var
   : {a₁ a₂ : α}
-  → {h : Γ x = .some (.var τ)}
+  → {h : Γ.syms x = .some (.var τ)}
   → P _ a₁ (.var x h) = some a₂
   → Fold P a₁ ((.var x h) : Expr Δ Γ _) a₂
 | «true»
@@ -251,7 +251,7 @@ inductive Fold {Δ : GCtx} {Γ : FCtx}
   → Fold P a₁ (.ternop cc tt ff h₂) a₅
 | app
   : {a₁ a₂ a₃ : α}
-  → {hsig : Γ f = .some (.func status)}
+  → {hsig : Γ.syms f = .some (.func status)}
   → {τs : Fin (status.type.arity) → Typ}
   → {eq : ∀ i, (status.type.argTys i).equiv (τs i)}
   → {args : (i : Fin status.type.arity) → Expr Δ Γ (τs i)}

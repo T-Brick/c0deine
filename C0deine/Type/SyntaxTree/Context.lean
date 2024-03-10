@@ -31,27 +31,32 @@ inductive Status.Symbol
 | alias (t : Typ)
 
 -- use Status.Symbol to prevent collisions with funcs/tydefs
-abbrev FCtx := Symbol → Option Status.Symbol
+structure FCtx where
+  syms : Symbol → Option Status.Symbol
+  ret  : Option Typ
 
 @[inline] def FCtx.update (Γ : FCtx) (x : Symbol) (s : Status.Symbol) : FCtx :=
-  Function.update Γ x (some s)
+  { Γ with syms := Function.update Γ.syms x (some s) }
 @[inline] def FCtx.updateVar (Γ : FCtx) (x : Symbol) (τ : Typ) : FCtx :=
   Γ.update x (.var τ)
 @[inline] def FCtx.updateFunc
     (Γ : FCtx) (x : Symbol) (s : Status.Func) : FCtx :=
   Γ.update x (.func s)
-@[inline] def FCtx.ofParams (params : List (Typed Symbol)) : FCtx :=
-  (params.map (fun p => (p.data, .var p.type))).toMap
+@[inline] def FCtx.ofParams
+    (ret : Option Typ) (params : List (Typed Symbol)) : FCtx :=
+  ⟨(params.map (fun p => (p.data, .var p.type))).toMap, ret⟩
 @[inline] def FCtx.addFunc
     (Γ : FCtx) (f : Symbol) (retTy : Typ) (params : List (Typed Symbol))
     : FCtx :=
-  let params_Γ := FCtx.ofParams params
+  let params_Γ := FCtx.ofParams retTy params
   let args := fun i => params.get i |>.type
   let status := ⟨⟨params.length, args, retTy⟩, true⟩
-  fun x => -- re-add params bc they shadow the function definition
-    match params_Γ x with
-    | some status => some status
-    | none => if x = f then some (.func status) else Γ x
+  ⟨ fun x => -- re-add params bc they shadow the function definition
+      match params_Γ.syms x with
+      | some status => some status
+      | none => if x = f then some (.func status) else Γ.syms x
+  , retTy
+  ⟩
 
 structure GCtx where
   symbols : Symbol → Option Status.Symbol := fun _ => none
@@ -59,9 +64,11 @@ structure GCtx where
 deriving Inhabited
 
 @[inline] def FCtx.init
-    (Δ : GCtx) (params : List (Typed Symbol)) : FCtx :=
-  let params_Γ := FCtx.ofParams params
-  fun x =>
-    match params_Γ x with
-    | some status => some status
-    | none => Δ.symbols x
+    (Δ : GCtx) (ret : Option Typ) (params : List (Typed Symbol)) : FCtx :=
+  let params_Γ := FCtx.ofParams ret params
+  ⟨ fun x =>
+      match params_Γ.syms x with
+      | some status => some status
+      | none => Δ.symbols x
+  , ret
+  ⟩

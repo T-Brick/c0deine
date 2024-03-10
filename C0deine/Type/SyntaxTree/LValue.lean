@@ -12,7 +12,7 @@ open Typ
 open Typ.Notation in
 inductive LValue (Δ : GCtx) (Γ : FCtx) : Typ → Type
 | var   : (x : Symbol)
-        → (Γ x = .some (.var τ))
+        → (Γ.syms x = .some (.var τ))
         → LValue Δ Γ τ
 | dot   : {τ₁ : {τ : Typ // τ = (struct s)}}
         → LValue Δ Γ τ₁
@@ -68,8 +68,7 @@ inductive Fold : {Δ : GCtx} → {Γ : FCtx}
 | var
   : {a₁ a₂ : α}
   → {P : LValue.Predicate Δ Γ α}
-  -- → {τ₁ : {τ' : Typ // τ' = τ}}
-  → {h : Γ x = .some (.var τ)}
+  → {h : Γ.syms x = .some (.var τ)}
   → P.lval _ a₁ (.var x h) = some a₂
   → Fold P a₁ ((.var x h) : LValue Δ Γ _) a₂
 | dot

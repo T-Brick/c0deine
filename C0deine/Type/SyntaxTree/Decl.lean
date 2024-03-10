@@ -42,7 +42,7 @@ def GCtx.updateFunc (Δ : GCtx) (f : FDecl Δ) (defined : Bool) : GCtx :=
     else defined
 
   let sig : Status.Func := ⟨⟨arity, argTys, retTy⟩, defined'⟩
-  { Δ with symbols := FCtx.updateFunc Δ.symbols f.name sig}
+  { Δ with symbols := (FCtx.updateFunc ⟨Δ.symbols, retTy⟩ f.name sig).syms }
 
 inductive GDecl (Δ : GCtx) : GCtx → Type
 | fdecl : (f : FDecl Δ) → GDecl Δ (Δ.updateFunc f false)

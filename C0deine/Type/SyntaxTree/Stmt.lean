@@ -318,7 +318,7 @@ def Initialised.Acc.ofList : List Symbol → Acc :=
 @[simp] def Initialised.stmt (acc : Acc) : Stmt Δ Γ ρ → Acc
   | .return_tau _
   | .return_void _     -- end of controlflow initialises all decl'd variables
-  | .error _        => fun x => if let some _ := Γ x then true else false
+  | .error _        => fun x => if let some _ := Γ.syms x then true else false
   | _ => acc
 
 @[simp] def Initialised.lval (τ : Typ) (acc : Acc) : LValue Δ Γ τ → Option Acc

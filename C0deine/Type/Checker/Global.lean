@@ -54,7 +54,7 @@ def fdecl (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDecl)
   else
     let (ctx', fctx, ret) ← func ctx extern false f.name f.type f.params
     let params ← Trans.params fctx f.params
-    let init_Γ := Tst.FCtx.init Δ params
+    let init_Γ := Tst.FCtx.init Δ ret params
     let init_set := Tst.Initialised.Acc.ofList (params.map (·.data))
     let res ← Synth.Anno.func (Γ := init_Γ) (init_set := init_set) fctx f.annos
     let fdecl := Tst.GDecl.fdecl
@@ -81,7 +81,7 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
           s!"Function input must have non-void, declared type"
       ) []
     let retTy := Typ.flattenOpt ret
-    let init_Γ := Tst.FCtx.init Δ params
+    let init_Γ := Tst.FCtx.init Δ ret params
     let init_set := Tst.Initialised.Acc.ofList (params.map (·.data))
     let resa ← Synth.Anno.func (Γ := init_Γ) (init_set := init_set) fctx f.annos
     let fdecl : Tst.FDecl Δ :=

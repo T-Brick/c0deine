@@ -254,7 +254,7 @@ def expr (ctx : FuncCtx)
     else throw <| Error.expr exp s!"Ternary condition {resc.texpr} must be a bool"
 
   | .app f args        =>
-    match is_func : Γ f with
+    match is_func : Γ.syms f with
     | some (.func status) =>
       let resargs ← exprs ctx init_set P fail args
       -- false => not in contract (corrected later if we actually are)
@@ -334,7 +334,7 @@ def expr (ctx : FuncCtx)
           s!"Array length expected an '{Typ.prim .int}' but got '{res.type}'"
 
   | .var name          =>
-    match h : Γ name with
+    match h : Γ.syms name with
     | some (.var tau) =>
       match is_init : init_set name with
       | true =>

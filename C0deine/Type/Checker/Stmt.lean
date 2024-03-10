@@ -176,7 +176,7 @@ def stmt
   | .assn lv op e =>
     match h : lv, op with
     | .var var, .eq =>
-      match h : Γ var with
+      match h : Γ.syms var with
       | none => throwS s!"Variable '{var}' must be declared before assignment"
       | some (.var tau) =>
         let res ← handle <| Synth.Expr.small_nonvoid <|
