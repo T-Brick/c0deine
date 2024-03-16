@@ -28,8 +28,9 @@ def func (ctx : FuncCtx) (as : List Ast.Anno)
   match as with
   | []                  => return ⟨ctx, [], .nil⟩
   | .requires e :: rest =>
+    let anno_ctx := {ctx with calls := Symbol.Map.empty}
     let res ← Synth.Expr.small_nonvoid <|
-      Synth.Expr.expr (init_set := init_set) ctx Tst.Expr.no_result Error.no_result e
+      Synth.Expr.expr anno_ctx Tst.Expr.no_result Error.no_result e
     if tyeq : res.type = .prim .bool then
       let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
       let ⟨ctx', rest', rest'_init⟩ ←
@@ -43,8 +44,9 @@ def func (ctx : FuncCtx) (as : List Ast.Anno)
         s!"Requires must have type {Typ.prim .bool} not type '{res.type}'"
 
   | .ensures  e :: rest =>
+    let anno_ctx := {ctx with calls := Symbol.Map.empty}
     let res ← Synth.Expr.small_nonvoid <|
-      Synth.Expr.expr ctx (fun _ => true) (fun _ np => by simp at np) e
+      Synth.Expr.expr anno_ctx (fun _ => true) (fun _ np => by simp at np) e
     if tyeq : res.type = .prim .bool then
       let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
       let ⟨ctx', rest', rest'_init⟩ ← func {ctx with calls := calls'} rest
@@ -67,8 +69,9 @@ def loop (ctx : FuncCtx) (as : List Ast.Anno)
   | .requires _   :: _    => throw <| Error.msg "Requires can only annotate functions"
   | .ensures  _   :: _    => throw <| Error.msg "Ensures can only annotate functions"
   | .loop_invar e :: rest =>
+    let anno_ctx := {ctx with calls := Symbol.Map.empty}
     let res ← Synth.Expr.small_nonvoid <|
-      Synth.Expr.expr ctx Tst.Expr.no_result Error.no_result e
+      Synth.Expr.expr anno_ctx Tst.Expr.no_result Error.no_result e
     if tyeq : res.type = .prim .bool then
       let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
       let ⟨ctx', rest', rest'_init⟩ ← loop {ctx with calls := calls'} rest
@@ -90,8 +93,9 @@ def free (ctx : FuncCtx) (a : Ast.Anno)
   | .loop_invar _ =>
     throw <| Error.msg "Loop invariants can only precede loop bodies"
   | .assert e =>
+    let anno_ctx := {ctx with calls := Symbol.Map.empty}
     let res ← Synth.Expr.small_nonvoid <|
-      Synth.Expr.expr ctx Tst.Expr.no_result Error.no_result e
+      Synth.Expr.expr anno_ctx Tst.Expr.no_result Error.no_result e
     if tyeq : res.type = .prim .bool then
       let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
       let ctx' := {ctx with calls := calls'}
