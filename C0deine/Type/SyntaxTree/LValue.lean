@@ -85,6 +85,12 @@ inductive Fold : {Δ : GCtx} → {Γ : FCtx}
   → P.lval _ a₃ (.index l e) = some a₄
   → Fold P a₁ (.index l e) a₄
 
+def toExpr {τ : Typ} : LValue Δ Γ τ → Expr Δ Γ τ
+  | .var x h        => .var x h
+  | .dot lv f h₁ h₂ => .dot lv.toExpr f h₁ h₂
+  | .deref lv       => .deref lv.toExpr
+  | .index lv ind   => .index lv.toExpr ind.val
+
 end LValue
 
 def LValue.toString : LValue Δ Γ τ → String

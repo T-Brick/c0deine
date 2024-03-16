@@ -14,7 +14,7 @@ many of these things generally correspond to various tactics in Lean (because
 tactics are, in essence, imperative):
 - A contract introduces one or more new goals
 - An assignment introduces a new hypothesis about what a variable equals
-- An if-statement is splits our proof into cases
+- An if-statement splits our proof into cases
 - etc.
 
 For example, consider the following C0 and Lean code which should functionally
@@ -89,12 +89,13 @@ the written C0 code, so marking/metadata needs to be added to both the AST and
 the TST so that we can delaborate the TST back to something closed to what was
 parsed.
 
-Having lists of things are nice, so here is the top priority items:
-- [ ] Fix lingering issues in TST and clean-up typechecker more
+Having lists of things are nice, so here is the top priority items (not
+necessarily ordered):
+- [x] Fix lingering issues in TST
 - [ ] Finish the dynamic semantics for TSTs
 - [ ] Further investigate and identify what C0 proofs are expected to look like
 - [ ] Create list of sample programs that we'd like to be able to prove
-- [ ] Identify and create list of possible tactics that would be useful
+- [ ] Identify and create list of possible tactics/theorems that would be useful
 - [ ] Implement tactics/theorems for evaluating C0 code in proof-mode
 - [ ] Document everything
 
@@ -102,6 +103,7 @@ Lower priority items that are technically not required are as follows:
 - [ ] Add marking/metadata in the AST and TST
 - [ ] Implement delaborator
 - [ ] Implement purity checker
+- [ ] Clean-up typechecker more
 
 
 ## Future Work

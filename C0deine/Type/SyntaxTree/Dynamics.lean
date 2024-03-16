@@ -13,7 +13,7 @@ import C0deine.Type.Tst
 
 namespace C0deine.Tst.Dynamics
 
-open Tst
+open Numbers Tst
 
 /- TODO: should be abstracted for the various dynamics -/
 inductive Exception
@@ -26,6 +26,12 @@ inductive Address
 | ref : Nat → Address
 | null : Address
 deriving Inhabited, Repr
+
+def Address.toNat : Address → Nat
+  | .ref n => n
+  | .null  => 0
+
+def Address.toInt32 : Address → Int32 := Signed.ofNat ∘ Address.toNat
 
 -- should this take in a type/be enforced?
 inductive Value
@@ -134,10 +140,11 @@ inductive Cont : Cont.Res → Type
   : {τ : {τ' : Typ // τ' = (int)}}
   → Expr Δ Γ τ → Cont .addr → Cont .val
 | index₂     : Address → Cont .addr → Cont .val                -- &(a[_])
-| stmt       : Stmt Δ Γ ρ → Cont .val → Cont .val                   -- s
-| assn₁      : Expr Δ Γ (int) → AsnOp → Cont .val → Cont .addr -- assn(_, op, e)
-| assn₂      : Address → AsnOp → Cont .val → Cont .val         -- assn(a, op, _)
-| assn_var   : Symbol → Cont .val → Cont .val                   -- assn(x, _)
+| stmt       : Stmt Δ Γ ρ → Cont .val → Cont .val              -- s
+| assn₁                                                        -- assn(_, e)
+  : Expr Δ Γ τ → Cont .val → Cont .addr
+| assn₂      : Address → Cont .val → Cont .val                 -- assn(a, _)
+| assn_var   : Symbol → Cont .val → Cont .val                  -- assn(x, _)
 | ite                                                          -- if(_, s₁, s₂)
   : List (Stmt Δ Γ ρ) → List (Stmt Δ Γ ρ) → Cont .val → Cont .val
 | «while»                                                      -- while(_){...}
@@ -248,7 +255,6 @@ inductive Step.BinOp.Cmp : Value → Comparator → Value → Value → Prop
 
 
 structure State (p : Prog) where
-  -- Δ : ProgTc p
   H : Heap
   S : List StackFrame
   η : Environment
@@ -329,7 +335,6 @@ inductive Step : State p → State p → Prop
   : Step.BinOp.Cmp c₁ op c₂ v
   → Step (H; S; η |= (.val c₂ (.binop_rel_char₂ c₁ op K)))
          (H; S; η |= (.val v K))
-
 | and₁
   : Step (H; S; η |= (.eval (.binop_bool .and e₁ e₂) K))
          (H; S; η |= (.eval e₁ (.and e₂ K)))
@@ -360,8 +365,8 @@ inductive Step : State p → State p → Prop
 -- todo generalise this a bit : )
 /-
 | app_args
-  : Step (H; S; η |= (.eval (.app f (e::args)) K))
-         (H; S; η |= (.eval e (.app f [] args K)))
+  : Step (H; S; η |= (.eval (.app f h₁ τs eq args) K))
+         (H; S; η |= (.eval e (.app f [] [] K)))
 | app_args_cont
   : Step (H; S; η |= (.val v (.app f vargs (e::args) K)))
          (H; S; η |= (.eval e (.app f (vargs ++ [v]) args K)))
@@ -446,13 +451,12 @@ inductive Step : State p → State p → Prop
 | index₂
   : Step (H; S; η |= (.val (.addr a) (.index₁ e₂ K)))
          (H; S; η |= (.eval e₂ (.index₂ a K)))
-         /-
 | index_val
   : H.find a = .inl (.arr arr)
-  → (bounds : 0 ≤ i ∧ i.toNat < arr.length)
+  → 0 ≤ i
+  → i.toNat < arr.length
   → Step (H; S; η |= (.val (.num i) (.index₂ a K)))
-         (H; S; η |= (.val (arr.get ⟨i.toNat, bounds.right⟩) K))
-         -/
+         (H; S; η |= (.val (arr.get! i.toNat) K))
 | index_lt_zero
   : H.find a = .inl (.arr arr)
   → i < 0
@@ -482,32 +486,30 @@ inductive Step : State p → State p → Prop
 | assn_var_eq₂
   : Step (H; S; η |= (.val v (.assn_var x K)))
          (H; S; (η.update x v) |= (.nop K))
-/-
-| assn_var_op
-  : Step (H; S; η |= (.exec (.asnop (.var x h) op e) K))
-         (H; S; η |= (.exec (.assign_var (.var x h) (by simp [LValue.is_var])
-                        ⟨.binop_int op (.var x h) e.val, sorry⟩) K))
-| assn_addr₁
-  : Step (H; S; η |= (.exec (.assn lv op e) K))
-         (H; S; η |= (.eval lv.toExpr (.assn₁ e op K)))
-| assn_addr₂
-  : Step (H; S; η |= (.val (.addr a) (.assn₁ e op K)))
-         (H; S; η |= (.eval e (.assn₂ a op K)))
+| assn_addr_eq₁
+  : Step (H; S; η |= (.exec (.assign lv h₁ e h₂) K))
+         (H; S; (η.update x v) |= (.eval lv.toExpr (.assn₁ e.val K)))
+| assn_addr_eq₂
+  : Step (H; S; η |= (.val (.addr a) (.assn₁ e K)))
+         (H; S; η |= (.eval e (.assn₂ a K)))
 | assn_addr_eq_val
-  : Step (H; S; η |= (.val v (.assn₂ (.ref a) .eq K)))
+  : Step (H; S; η |= (.val v (.assn₂ (.ref a) K)))
          ((H.update a v); S; η |= (.nop K))
 | assn_addr_null
-  : Step (H; S; η |= (.val v (.assn₂ .null op K)))
+  : Step (H; S; η |= (.val v (.assn₂ .null K)))
          (H; S; η |= (.exn .memory))
+| assn_var_op
+  : Step (H; S; η |= (.exec (.asnop (.var x h) op e) K))
+         (H; S; η |= (.eval (.var x h) (.binop_int₁ op e.val (.assn_var x K))))
 | assn_addr_op_val                    -- todo: double check this probs
   : H.find a = .inl (.num da)
-  → Step (H; S; η |= (.val (.num c) (.assn₂ a (.aseq op) K)))
-         (H; S; η |= (.eval (.binop (.int op) (.num da) (.num c)) K))
-| assn_addr_op_exn                    -- todo: likewise
+  → Step (H; S; η |= (.val (.num c) (.assn₂ a K)))
+         (H; S; η |= (.eval (.binop_int op (Expr.intType (.num da) (by rfl))
+                                           (Expr.intType (.num c) (by rfl))) K))
+| assn_addr_op_exn                    -- todo: likewise, double check
   : H.find a = .inr exn
-  → Step (H; S; η |= (.val (.num c) (.assn₂ a (.aseq op) K)))
+  → Step (H; S; η |= (.val (.num c) (.assn₂ a K)))
          (H; S; η |= (.exn exn))
--/
 | exp₁
   : Step (H; S; η |= (.exec (.expr e) K))
          (H; S; η |= (.eval e.val (.discard K)))
