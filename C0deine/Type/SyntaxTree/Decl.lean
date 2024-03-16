@@ -102,7 +102,7 @@ instance : ToString Prog where
       |> String.intercalate "\n  "
     let string_str := prog.strings.map (·.sanitise)
       |> String.intercalate "\n  - "
-    let prog_str := prog.header.toStrings ++ prog.body.toStrings
+    let prog_str := prog.header.toStrings.reverse ++ prog.body.toStrings.reverse
       |> "\n\n".intercalate
     s!"-----  Calls  -----\n  {calls_str}\n
 ----- Strings -----\n  - {string_str}\n
