@@ -62,11 +62,13 @@ inductive TypeValue : Value → Typ → Prop
 
 open Typ.Notation in
 inductive Default : Typ → Value → Prop
-| int    : Default (int) (.num 0)
-| bool   : Default (bool) .false
-| ptr    : Default (t *) (.addr .null)
-| struct : Default (struct t) (.addr .null)
-| arr    : Default (t[]) (.addr .null)
+| int    : Default (int)        (.num 0)
+| bool   : Default (bool)       (.false)
+| char   : Default (char)       (.char (.ofNat 0))
+| str    : Default (string)     (.addr .null)
+| ptr    : Default (t *)        (.addr .null)
+| struct : Default (struct t)   (.addr .null)     -- todo: is this right?
+| arr    : Default (t[])        (.addr .null)
 
 
 /- Continuation frames can result in a value or an address
