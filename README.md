@@ -32,7 +32,8 @@ lake exe wasm_builder
 ```
 
 This can take some time. Once finished, the compiler can then be invoked
-via `lake run js <args>` or `node ./.lake/build/wasm/main.js <args>`.
+via `lake run js <args>` or `node ./.lake/build/wasm/main.js <args>`. To compile
+to WASM that can be used without node, run `lake exe wasm_builder web`.
 
 ## Usage
 

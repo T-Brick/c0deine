@@ -2,8 +2,7 @@
   Copied from https://github.com/T-Brick/lean2wasm until more complete version
   is made : )
 -/
-
-import Mathlib.Util.Imports
+import ImportGraph.Imports
 import Std.Lean.Util.Path
 import Lake
 
@@ -12,12 +11,16 @@ open Lean System
 -- This is what we want to compile and should contain `main`
 def root : Name := `Main
 
-def main (args : List String) : IO UInt32 := do
+unsafe def main (args : List String) : IO UInt32 := do
 
-  let is_web :=
+  let is_web ←
     match args with
-    | "web"::_ => true
-    | _ => false
+    | "web"::_ =>
+      IO.println "Building for the web"
+      pure true
+    | _ =>
+      IO.println "Building for local"
+      pure false
 
   let outdir : FilePath := ".lake" / "build" / "wasm"
   if ¬ (←FilePath.pathExists outdir) then
@@ -44,7 +47,7 @@ def main (args : List String) : IO UInt32 := do
   -- based on mathlib's import graph
   searchPathRef.set compile_time_search_path%
   let c_array ←
-    unsafe withImportModules #[{module := root}] {} (trustLevel := 1024)
+    withImportModules #[{module := root}] {} (trustLevel := 1024)
       fun env => do
         let graph := env.importGraph.filter (fun n _ =>
             -- already included in the toolchain
