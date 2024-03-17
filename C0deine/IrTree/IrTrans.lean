@@ -229,7 +229,7 @@ def Typ.tempSize (tau : Typ) : Env.Prog ValueSize := do
   | _      => return .double
 
 def Elab.lvalue : Tst.LValue Δ Γ τ → Tst.Expr Δ Γ τ
-  | .var name h         => .var name sorry
+  | .var name h         => .var name h
   | .dot lv field h₁ h₂ => .dot (Elab.lvalue lv) field h₁ h₂
   | .deref lv           => .deref (Elab.lvalue lv)
   | .index lv indx      => .index (Elab.lvalue lv) indx.val
@@ -267,8 +267,8 @@ partial def transSizeExpr (e : Tst.Expr Δ Γ τ) : Nat :=
   | .binop_rel₂ _ _ l r => 1 + max (transSizeExpr l) (transSizeExpr r)
   | .ternop cc tt ff _  =>
     1 + (transSizeExpr cc) + 1 + (transSizeExpr tt) + 1 + (transSizeExpr ff)
-  | .app f _ τs _ as =>
-    let as' : (i : Fin _) → Tst.Expr Δ Γ (τs i) :=
+  | .app _f _ τs _ as =>
+    let _as' : (i : Fin _) → Tst.Expr Δ Γ (τs i) :=
       fun i => as i
     1
     -- 1 + transSizeArgs τs as'
@@ -313,7 +313,10 @@ partial def expr (tau : Typ)
          : Env.Func ((List IrTree.Stmt) × IrTree.Expr) := do
   match exp with
   | .num v     => return (acc, .const v)
-  | .char c    => return (acc, .byte (c.toUInt8 sorry))
+  | .char c    =>
+    if h : c.val.val < 256
+    then return (acc, .byte (c.toUInt8 h))
+    else panic! s!"IR Trans: Char {c} is too large!"
   | .str s     =>
     let src ← Env.Func.string_offset s
     let len := s.length + 1
@@ -460,9 +463,9 @@ partial def expr (tau : Typ)
     let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
     return (.load sdest address :: checks ++ stmts, .temp sdest)
 
-  | .result h => sorry
-
-  | .length e => sorry
+  | .result h
+  | .length e =>
+    panic! "IR Trans: Dynamically checking contracts are not implemented"
 
 
 partial def ternary
@@ -620,13 +623,13 @@ mutual
 partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
     : Env.Func (List IrTree.Stmt) := do
   match stm with
-  | .decl name _ body    => stmts past body.toList
+  | .decl _name _ body    => stmts past body.toList
   | .decl_init name init _ _ body =>
     let t ←
       Env.Func.new_var (← Env.Prog.toFunc (Typ.tempSize name.type)) name
     let (istmts, res) ← texpr past init.val
     stmts (.move t res :: istmts) body.toList
-  | .assign_var (τ₁ := τ₁) lhs is_var rhs _ =>
+  | .assign_var lhs is_var rhs _ =>
     let dest ← Env.Func.var (lhs.get_name is_var)
     let (stms, src) ← texpr past rhs.val
     return .move dest src :: stms
@@ -635,12 +638,12 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
     let lhs' := Elab.lvalue tlv
     let (stms1, dest, checks) ← Addr.taddr past lhs' 0 false
     let (stms2, src) ← texpr stms1 rhs.val
-    let size ← Env.Prog.toFunc (Typ.tempSize τ₁)
+    let _size ← Env.Prog.toFunc (Typ.tempSize τ₁)
     return .store dest src :: checks ++ stms2
 
   | .asnop (τ₁ := τ₁) (τ₂ := τ₂) tlv iop rhs =>
     match tlv with
-    | .var name h =>
+    | .var name _h =>
       let dest ← Env.Func.var name
       let lhs := ⟨τ₁, .temp dest⟩
       let (stms, rhs) ← texpr past rhs.val
@@ -794,7 +797,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
 
   | .anno a =>
     if ← Env.Func.dynCheckContracts
-    then sorry
+    then panic! "IR Trans: Dynamically checking contracts are not implemented"
     else return past
 
 partial def stmts (past : List IrTree.Stmt)
@@ -837,7 +840,10 @@ def gdecl (header : Bool) (glbl : Tst.GDecl Δ Δ') : Env.Prog (Option Func) := 
       Env.Prog.startFunc entry .funcEntry (stmts [] fdef.body.toList)
     let () ← Env.Prog.addFunc fdef.name label
     let res ← fdef.ret.mapM Typ.tempSize
-    return some ⟨label, entry, args, blocks, res, sorry⟩
+
+    if h : Std.HashMap.contains blocks entry
+    then return some ⟨label, entry, args, blocks, res, h⟩
+    else panic! s!"IR Trans: Couldn't find entry block in Std.HashMap"
 
   | .sdef sd =>
     let alignList ← sd.fields |>.mapM (fun ts =>
