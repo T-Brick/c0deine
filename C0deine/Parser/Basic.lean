@@ -41,7 +41,7 @@ where
     let nat := Nat.ofDigits? 10 digs |>.get!
     if nat = 2^31 then
       return Signed.MIN_VALUE
-    else if h : nat < 2^31 then
+    else if nat < 2^31 then
       return .ofNat nat
     else
       throwExpected (fun () => [s!"dec literal ≤ {2^31}"])
@@ -55,7 +55,7 @@ where
         let c ← hexDig
         return s.push c)
     let nat := Nat.ofDigits? 16 digs |>.get!
-    if h : nat < UInt32.size then
+    if nat < UInt32.size then
       return .ofNat nat
     else
       throwExpected (fun () => [s!"hex literal ≤ {2^32-1 |>.toDigits (base := 16) |> String.mk}"])
