@@ -68,26 +68,6 @@ inductive Default : Typ → Value → Prop
 | struct : Default (struct t) (.addr .null)
 | arr    : Default (t[]) (.addr .null)
 
--- inductive IsExtern
---   : (Δ : ProgTc (p : Prog))
---   → (type : Option Typ)
---   → (f : Ident)
---   → (params : List Param)
---   → Prop
--- where
--- | extern : (GDecl.fdecl ⟨type, f, params, annos⟩) ∈ Prog.program p
---          → IsExtern Δ type f params
-
--- inductive FindFDef
---   : (Δ : ProgTc (p : Prog))
---   → (type : Option Typ)
---   → (f : Ident)
---   → (params : List Param)
---   → (body : List Stmt)
---   → Prop
--- where
--- | body : (GDecl.fdef ⟨⟨type, f, params, annos⟩, body⟩) ∈ Prog.program p
---        → FindFDef Δ type f params body
 
 /- Continuation frames can result in a value or an address
     importantly, addresses are just the intermediate results, they aren't
@@ -101,9 +81,9 @@ inductive Cont.Res | val | addr
 variable (Δ : GCtx) (Γ : FCtx) in
 open Typ.Notation in
 inductive Cont : Cont.Res → Type
-| nil : Cont .val                                              -- ·
-| unop : UnOp → Cont .val → Cont .val                          -- op _
-| binop_int₁                                                   -- _ ⊕ e
+| nil : Cont .val                                          -- ·
+| unop : UnOp → Cont .val → Cont .val                      -- op _
+| binop_int₁                                               -- _ ⊕ e
   : {τ : {τ : Typ // τ = (int)}}
   → BinOp.Int → Expr Δ Γ τ → Cont .val → Cont .val
 | binop_eq₁
@@ -114,7 +94,7 @@ inductive Cont : Cont.Res → Type
 | binop_rel_char₁
   : {τ : {τ : Typ // τ = (char)}}
   → Comparator → Expr Δ Γ τ → Cont .val → Cont .val
-| binop_int₂                                                   -- c ⊕ _
+| binop_int₂                                               -- c ⊕ _
   : Value → BinOp.Int → Cont .val → Cont .val
 | binop_eq₂
   : Value → Comparator → Cont .val → Cont .val
@@ -122,37 +102,45 @@ inductive Cont : Cont.Res → Type
   : Value → Comparator → Cont .val → Cont .val
 | binop_rel_char₂
   : Value → Comparator → Cont .val → Cont .val
-| and                                                          -- _ && e
+| and                                                      -- _ && e
   : {τ : {τ : Typ // τ = (bool)}}
   → Expr Δ Γ τ → Cont .val → Cont .val
-| or                                                           -- _ || e
+| or                                                       -- _ || e
   : {τ : {τ : Typ // τ = (bool)}}
   → Expr Δ Γ τ → Cont .val → Cont .val
-| ternop                                                       -- _ ? e₁ : e₂
+| ternop                                                   -- _ ? e₁ : e₂
   : {τ : {τ : Typ // τ = (bool)}}
   → Expr Δ Γ τ → Expr Δ Γ τ' → Cont .val → Cont .val
--- | app                                                       -- f(vs,_,es)
-  -- : Ident → List Value → List Expr → Cont .val → Cont .val
-| alloc_arr  : Typ → Cont .val → Cont .val                     -- alloc_array(τ,_)
-| dot        : Symbol → Cont .addr → Cont .addr                -- &(_.f)
-| deref      : Cont .val → Cont .addr                          -- *_
-| index₁                                                       -- &(_[e])
+| app                                                      -- f(vs,_,es)
+  : (f : Symbol)
+  → (arity : Nat)
+  → (vs : List Value)
+  → (τs : Fin arity → Typ)
+  → (args : (i : Fin arity) → Expr Δ Γ (τs i))
+  → (next_arg : Nat)
+  → next_arg ≤ arity
+  → Cont .val
+  → Cont .val
+| alloc_arr  : Typ → Cont .val → Cont .val                 -- alloc_array(τ,_)
+| dot        : Symbol → Cont .addr → Cont .addr            -- &(_.f)
+| deref      : Cont .val → Cont .addr                      -- *_
+| index₁                                                   -- &(_[e])
   : {τ : {τ' : Typ // τ' = (int)}}
   → Expr Δ Γ τ → Cont .addr → Cont .val
-| index₂     : Address → Cont .addr → Cont .val                -- &(a[_])
-| stmt       : Stmt Δ Γ ρ → Cont .val → Cont .val              -- s
-| assn₁                                                        -- assn(_, e)
+| index₂     : Address → Cont .addr → Cont .val            -- &(a[_])
+| stmt       : Stmt Δ Γ ρ → Cont .val → Cont .val          -- s
+| assn₁                                                    -- assn(_, e)
   : Expr Δ Γ τ → Cont .val → Cont .addr
-| assn₂      : Address → Cont .val → Cont .val                 -- assn(a, _)
-| assn_var   : Symbol → Cont .val → Cont .val                  -- assn(x, _)
-| ite                                                          -- if(_, s₁, s₂)
+| assn₂      : Address → Cont .val → Cont .val             -- assn(a, _)
+| assn_var   : Symbol → Cont .val → Cont .val              -- assn(x, _)
+| ite                                                      -- if(_, s₁, s₂)
   : List (Stmt Δ Γ ρ) → List (Stmt Δ Γ ρ) → Cont .val → Cont .val
-| «while»                                                      -- while(_){...}
+| «while»                                                  -- while(_){...}
   : List (Stmt Δ Γ ρ) → Cont .val → Cont .val
-| «return»   : Cont .val                                       -- return _
-| assert     : Cont .val → Cont .val                           -- assert(_)
-| error      : Cont .val → Cont .val                           -- error(_)
-| discard    : Cont .val → Cont .val                           -- discard
+| «return»   : Cont .val                                   -- return _
+| assert     : Cont .val → Cont .val                       -- assert(_)
+| error      : Cont .val → Cont .val                       -- error(_)
+| discard    : Cont .val → Cont .val                       -- discard
 
 def Cont.consStmtList (K : Cont Δ Γ .val) : List (Stmt Δ Γ ρ) → Cont Δ Γ .val
   | [] => K
@@ -187,9 +175,13 @@ def ofLists (params : List (Typ.Typed Symbol))
   List.zip params vargs
   |>.foldl (fun η (p, v) => η.update p.data v) Environment.empty
 
+instance : EmptyCollection Environment := ⟨empty⟩
+
 end Environment
 
 structure StackFrame where
+  Δ : GCtx
+  Γ : FCtx
   environment : Environment
   continuation : Cont Δ Γ .val
 
@@ -264,7 +256,9 @@ structure State (p : Prog) where
 local notation:50 H:51 " ; " S:51 " ; " η:51 " |= " r:51 =>
   State.mk H S η r
 
-inductive Step : State p → State p → Prop
+set_option pp.rawOnError true
+
+inductive Step {p : Prog} : State p → State p → Prop
 | num
   : Step (H; S; η |= .eval (.num  c) K)
          (H; S; η |= .val  (.num  c) K)
@@ -362,46 +356,75 @@ inductive Step : State p → State p → Prop
   : Step (H; S; η |= .val .false (.ternop tt ff K))
          (H; S; η |= .eval ff K)
 -- todo generalise this a bit : )
-/-
 | app_args
-  : Step (H; S; η |= .eval (.app f h₁ τs eq args) K)
-         (H; S; η |= .eval e (.app f [] [] K))
+  : {h : Γ.syms f = .some (.func stat)}
+  → {τs : Fin stat.type.arity → Typ}
+  → {eq : ∀ i, (stat.type.argTys i).equiv (τs i)}
+  → {args : (i : Fin stat.type.arity) → Expr Δ Γ (τs i)}
+  → (arg_length : stat.type.arity > 0)
+  → Step (H; S; η |= .eval (.app f h τs eq args) K)
+         (H; S; η |=
+            .eval (args ⟨0, arg_length⟩)
+                  (.app f stat.type.arity [] τs args 1 (by linarith) K)
+         )
 | app_args_cont
-  : Step (H; S; η |= .val v (.app f vargs (e::args) K))
-         (H; S; η |= .eval e (.app f (vargs ++ [v]) args K))
+  : (n_lt : n < arity)
+  → Step (H; S; η |= .val v (.app f arity vargs τs args n h K))
+         (H; S; η |=
+            .eval (args ⟨n, n_lt⟩)
+                  (.app f arity (vargs ++ [v]) τs args (n + 1) (by linarith) K)
+         )
 | app_args_call
-  : FindFDef Δ τ_opt f ps body
-  → Step (H; S; η |= .val v (.app f vargs [] K))
-         (H; (⟨η, K⟩::S); (Environment.ofLists ps vargs) |= .exec_seq body .nil)
+  : {K : Cont Δ Γ .val}
+  → n = arity
+  → p.findFuncDef f = some fd
+  → Step (H; S; η |= .val v (.app f arity vargs τs args n h K))
+         (H; (⟨Δ, Γ, η, K⟩::S); (Environment.ofLists fd.2.params vargs) |=
+            .exec_seq body .nil
+         )
 | app_args_extern_nonvoid
-  : IsExtern Δ (.some ty) f params
-  → TypResolves Δ.prog_ctx ty τ
+  : p.findExternDecl f = some fd
   → (H' : Heap)
+  → fd.2.ret = some τ
   → TypeValue res τ
-  → Step (H ; S; η |= .val v (.app f vargs [] K))
+  → Step (H ; S; η |= .val v (.app f arity vargs τs args n h K))
          (H'; S; η |= .val res K)
 | app_args_extern_void
-  : IsExtern Δ .none f params
+  : p.findExternDecl f = some fd
   → (H' : Heap)
-  → Step (H ; S; η |= .val v (.app f vargs [] K))
+  → fd.2.ret = none
+  → Step (H ; S; η |= .val v (.app f arity vargs τs args n h K))
          (H'; S; η |= .nop K)
 | app_unit_extern_nonvoid
-  : IsExtern Δ (.some ty) f params
-  → TypResolves Δ.prog_ctx ty τ
+  : {h : Γ.syms f = .some (.func status)}
+  → {τs : Fin status.type.arity → Typ}
+  → {eq : ∀ i, (status.type.argTys i).equiv (τs i)}
+  → {args : (i : Fin status.type.arity) → Expr Δ Γ (τs i)}
+  → p.findExternDecl f = some fd
   → (H' : Heap)
-  → TypeValue res τ
-  → Step (H ; S; η |= .eval (.app f []) K))
+  → TypeValue res status.type.retTy
+  → Step (H ; S; η |= .eval (.app f h τs eq args) K)
          (H'; S; η |= .val res K)
 | app_unit_extern_void
-  : IsExtern Δ .none f params
+  : {h : Γ.syms f = .some (.func status)}
+  → {τs : Fin status.type.arity → Typ}
+  → {eq : ∀ i, (status.type.argTys i).equiv (τs i)}
+  → {args : (i : Fin status.type.arity) → Expr Δ Γ (τs i)}
+  → status.type.arity = 0
+  → p.findExternDecl f = some fd
   → (H' : Heap)
-  → Step (H ; S; η |= .eval (.app f []) K))
+  → fd.2.ret = none
+  → Step (H ; S; η |= .eval (.app f h τs eq args) K)
          (H'; S; η |= .nop K)
 | app_unit_call
-  : FindFDef Δ τ_opt f params body
-  → Step (H; S; η |= .eval (.app f []) K))
-         (H; (⟨η, K⟩ :: S); (Environment.empty) |= .exec_seq body .nil))
--/
+  : {h : Γ.syms f = .some (.func status)}
+  → {τs : Fin status.type.arity → Typ}
+  → {eq : ∀ i, (status.type.argTys i).equiv (τs i)}
+  → {args : (i : Fin status.type.arity) → Expr Δ Γ (τs i)}
+  → status.type.arity = 0
+  → p.findFuncDef f = some fd
+  → Step (H; S; η |= .eval (.app f h τs eq args) K)
+         (H; (⟨Δ, Γ, η, K⟩ :: S); {} |= .exec_seq (fd.2.body).toList .nil)
 -- todo app
 | alloc
   : Default τ v
@@ -452,10 +475,10 @@ inductive Step : State p → State p → Prop
          (H; S; η |= .eval e₂ (.index₂ a K))
 | index_val
   : H.find a = .inl (.arr arr)
-  → 0 ≤ i
-  → i.toNat < arr.length
+  → (bound_l : 0 ≤ i)
+  → (bound_u : i.toNat < arr.length)
   → Step (H; S; η |= .val (.num i) (.index₂ a K))
-         (H; S; η |= .val (arr.get! i.toNat) K)
+         (H; S; η |= .val (arr.get ⟨i.toNat, bound_u⟩) K)
 | index_lt_zero
   : H.find a = .inl (.arr arr)
   → i < 0
@@ -478,7 +501,9 @@ inductive Step : State p → State p → Prop
          (H; S; (η.update x .nothing) |= .exec_seq body.toList K)
 | decl_assn
   : Step (H; S; η |= .exec (.decl_init ⟨τ, x⟩ e h₁ h₂ body) K)
-         (H; S; (η.update x .nothing) |= .eval e.val (K.consStmtList body.toList))
+         (H; S; (η.update x .nothing) |=
+            .eval e.val (K.consStmtList body.toList)
+         )
 | assn_var_eq₁
   : Step (H; S; η |= .exec (.assign_var (.var x hl) h₁ e h₂) K)
          (H; S; η |= .eval e.val (.assn_var x K))
@@ -504,7 +529,7 @@ inductive Step : State p → State p → Prop
   : H.find a = .inl (.num da)
   → Step (H; S; η |= .val (.num c) (.assn₂ a K))
          (H; S; η |= .eval (.binop_int op (Expr.intType (.num da) (by rfl))
-                                           (Expr.intType (.num c) (by rfl))) K)
+                                          (Expr.intType (.num c) (by rfl))) K)
 | assn_addr_op_exn                    -- todo: likewise, double check
   : H.find a = .inr exn
   → Step (H; S; η |= .val (.num c) (.assn₂ a K))
@@ -526,7 +551,9 @@ inductive Step : State p → State p → Prop
          (H; S; η |= .exec_seq ff K)
 | while
   : Step (H; S; η |= .exec (.while e annos body) K)
-         (H; S; η |= .exec (.ite e (body ++ Stmt.List.cons (.while e annos body) .nil) .nil) K)
+         (H; S; η |=
+          .exec (.ite e (body ++ Stmt.List.cons (.while e annos body) .nil) .nil) K
+         )
 | return_val₁
   : Step (H; S; η |= .exec (.return_tau e) K)
          (H; S; η |= .eval e.val .return)

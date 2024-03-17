@@ -54,6 +54,25 @@ inductive GDecl.List : GCtx → GCtx → Type
 | cons   : GDecl.List Δ₁ Δ₂ → (g : GDecl Δ₂ Δ₃) → GDecl.List Δ₁ Δ₃
 | update : GDecl.List Δ₁ Δ₂ → GDecl.List Δ₁ Δ₃
 
+def GDecl.List.findFDef (lst : GDecl.List Δ₁ Δ₂) (f : Symbol)
+    : Option ((Δ : GCtx) ×' (FDef Δ)) :=
+  match lst with
+  | .nil => none
+  | .cons gs (.fdef fd) =>
+    if f = fd.name then some ⟨_, fd⟩ else findFDef gs f
+  | .cons gs _ => findFDef gs f
+  | .update gs => findFDef gs f
+
+def GDecl.List.findFDecl (lst : GDecl.List Δ₁ Δ₂) (f : Symbol)
+    : Option ((Δ : GCtx) ×' (FDecl Δ)) :=
+  match lst with
+  | .nil => none
+  | .cons gs (.fdecl fd) =>
+    if f = fd.name then some ⟨_, fd⟩ else findFDecl gs f
+  | .cons gs _ => findFDecl gs f
+  | .update gs => findFDecl gs f
+
+
 /- Functions calls that a program makes
     True means the call is used in a contract, so the function must be pure.
 -/
@@ -70,6 +89,14 @@ structure Prog where
   body       : GDecl.List header_ctx body_ctx
   calls      : Calls
   strings    : List String
+
+@[inline] def Prog.findFuncDef (p : Prog) (f : Symbol)
+    : Option ((Δ : GCtx) ×' (FDef Δ)) :=
+  GDecl.List.findFDef p.body f
+
+@[inline] def Prog.findExternDecl (p : Prog) (f : Symbol)
+    : Option ((Δ : GCtx) ×' (FDecl Δ)) :=
+  GDecl.List.findFDecl p.header f
 
 
 instance : ToString SDef where
