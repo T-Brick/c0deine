@@ -85,6 +85,81 @@ def outputBinary (config : Config) (data : ByteArray) : IO Unit := do
     | .none   => panic! "Cannot write binary to stdout"
     | .some f => IO.FS.writeBinFile f data
 
+def mkLibSearchDirs
+    (init_dirs : List System.FilePath)
+    (inputs : List System.FilePath)
+    : IO (List System.FilePath) := do
+  let curDir ← IO.currentDir
+  let libSearchDirs := curDir :: init_dirs
+  let libSearchDirs :=
+    if (← (curDir / "libs").pathExists) && (← (curDir / "libs").isDir) then
+      curDir / "libs" :: libSearchDirs
+    else libSearchDirs
+
+  let _ ← libSearchDirs.mapM (fun libd => do
+      if !(← libd.pathExists) then
+        panic! s!"Library search directory does not exist: {libd}"
+      if !(← libd.isDir) then
+        panic! s!"Library search directory is not a directory: {libd}"
+    )
+
+  return libSearchDirs ++ (inputs.filterMap (·.parent)) |>.eraseDups
+
+def runFrontend
+    (config : Config)
+    (vprintln : {α : Type} → [ToString α] → α → IO Unit)
+    -- (vcprintln : {α : Type} → [ToString α] → Bool → α → IO Unit)
+    (inputs libs : List System.FilePath)
+    (str_src : Option String)
+    : IO (Option (Tst.Prog × Config × Context.State)) := do
+  let inputsCat := inputs.map (Config.Library.src)
+  let libsCat :=
+    (← libs.mapM (Use.find_lib config ·.toString)).join |>.eraseDups
+  let cats := (inputsCat.reverse ++ libsCat).reverse
+  let files := inputs ++ libs
+
+  let sources ←
+    match str_src with
+    | some src => Use.find_files_from_source config [] cats files src
+    | none     => Use.find_files_from_file config [] cats files
+
+  let init_parsed : Use.ParsedC0 :=
+    ⟨config, [], [], .empty, .new (¬config.lang.under .c0)⟩
+
+  let parsed ← sources.foldlM (fun acc f =>
+      match f with
+      | .std l h =>
+        let config := { acc.config with stdLibs := l :: acc.config.stdLibs }
+        Use.parseHeaderFile {acc with config} h
+      | .src s   => Use.parseFile acc s
+      | .head h  => Use.parseHeaderFile acc h
+    ) init_parsed
+
+  -- if program was passed on the command line load it here
+  let parsed ← do
+    match str_src with
+    | .some src => Use.parseSource parsed src
+    | .none     => pure parsed
+
+  let config      := parsed.config
+  let ctx         := parsed.ctx
+  vprintln "abstracting"
+
+  let ast ← IO.ofExcept <|
+    Abstractor.abstract config.lang (parsed.header) (parsed.source)
+
+  vprintln ast
+  vprintln "typechecking"
+
+  match Typechecker.typecheck ast with
+  | .error e =>
+    IO.println s!"\n{e}\n"
+    return none
+  | .ok tst =>
+    vprintln "typechecked!"
+    return some (tst, config, ctx)
+
+
 def runTopCmd (p : Parsed) : IO UInt32 := do
   if p.hasFlag "help" then
     p.printHelp
@@ -95,28 +170,14 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
 
   let libs : List System.FilePath :=
     p.flag? "library" |>.map (·.as! (Array String) |>.toList) |>.getD []
-  let libSearchDirs : List System.FilePath :=
+  let init_libSearchDirs : List System.FilePath :=
     p.flag? "L" |>.map (·.as! (Array String) |>.toList) |>.getD []
-
-  let curDir ← IO.currentDir
-  let libSearchDirs := curDir :: libSearchDirs
-  let libSearchDirs :=
-    if (← (curDir / "libs").pathExists) && (← (curDir / "libs").isDir) then
-      curDir / "libs" :: libSearchDirs
-    else libSearchDirs
 
   let _ ← libs.mapM (fun lib => do
       if !(← lib.pathExists) then
         panic! s!"Library file does not exist: {lib}"
       if ← lib.isDir then
         panic! s!"Library file is a directory: {lib}"
-    )
-
-  let _ ← libSearchDirs.mapM (fun libd => do
-      if !(← libd.pathExists) then
-        panic! s!"Library search directory does not exist: {libd}"
-      if !(← libd.isDir) then
-        panic! s!"Library search directory is not a directory: {libd}"
     )
 
   let cl_program := p.hasFlag "cl-program"
@@ -143,65 +204,28 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
       panic! s!"Input path is a directory: {input}"
   )
 
-  let libSearchDirs := libSearchDirs ++ (inputs.filterMap (·.parent))
-    |>.eraseDups
-
+  let libSearchDirs ← mkLibSearchDirs init_libSearchDirs inputs
   let config : Config :=
     mkConfig p libSearchDirs (inputs.get? 0 |>.getD "default.c0")
-  let inputsCat := inputs.map (Config.Library.src)
-  let libsCat :=
-    (← libs.mapM (Use.find_lib config ·.toString)).join |>.eraseDups
-  let cats := (inputsCat.reverse ++ libsCat).reverse
-  let files := inputs ++ libs
-
-  let sources ←
-    match cl_src? with
-    | some src => Use.find_files_from_source config [] cats files src
-    | none     => Use.find_files_from_file config [] cats files
-
-  let init_parsed : Use.ParsedC0 :=
-    ⟨config, [], [], .empty, .new (¬config.lang.under .c0)⟩
-
-  let parsed ← sources.foldlM (fun acc f =>
-      match f with
-      | .std l h =>
-        let config := { acc.config with stdLibs := l :: acc.config.stdLibs }
-        Use.parseHeaderFile {acc with config} h
-      | .src s   => Use.parseFile acc s
-      | .head h  => Use.parseHeaderFile acc h
-    ) init_parsed
-
-  -- if program was passed on the command line load it here
-  let parsed ← do
-    match cl_src? with
-    | .some src => Use.parseSource parsed src
-    | .none     => pure parsed
-
+  let wasm_config := mkWasmConfig p
 
   let vprintln : {α : Type} → [ToString α] → α → IO Unit :=
-    fun s => do if config.verbose then IO.println s
+    if config.verbose
+    then fun s => IO.println s
+    else fun _ => pure ()
   let vcprintln : {α : Type} → [ToString α] → Bool → α → IO Unit :=
-    fun b s => do if b || config.verbose then IO.println s
+    if config.verbose
+    then fun _ s => IO.println s
+    else fun b s => if b then IO.println s else pure ()
 
-  let config := parsed.config
-  let wasm_config := mkWasmConfig p
-  let ctx := parsed.ctx
-  -- vprintln cst
-  vprintln "abstracting"
+  vprintln libSearchDirs
 
-  let ast ← IO.ofExcept <|
-    Abstractor.abstract config.lang (parsed.header) (parsed.source)
-
-  vprintln ast
-  vprintln "typechecking"
-
-  match Typechecker.typecheck ast with
-  | .error e =>
-    IO.println s!"\n{e}\n"
+  match ← runFrontend config vprintln inputs libs cl_src? with
+  | none =>
+    IO.println "Could not typecheck program!"
     return 1
-  | .ok tst =>
+  | some (tst, config, ctx) =>
 
-  vprintln "typechecked!"
   vcprintln (p.hasFlag "dump-tst") tst
 
   if config.typecheckOnly then return 0

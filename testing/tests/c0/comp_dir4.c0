@@ -1,5 +1,5 @@
 //test return 150
-// try using a compiler directive to use a non-existant library
+// try using duplicate stdlibs in a mixed order
 #use <conio>
 #use <parse>
 #use <string>
