@@ -15,13 +15,15 @@ deriving DecidableEq, Inhabited, Hashable
 
 namespace Temp
 
-def toRawString (t : Temp) : String :=
+@[inline] def toRawString (t : Temp) : String :=
   match t.name with
   | none => s!"t{t.id}"
   | some n => s!"t{t.id}_{n}"
 
-instance : ToString Temp where
-  toString | t => "%" ++ t.toRawString
+@[inline] def toString (t : Temp) : String := "%" ++ t.toRawString
+
+instance : ToString Temp := ⟨toString⟩
+instance : Repr Temp := ⟨fun t _ => toString t⟩
 
 -- reserved temps (useful for WASM)
 def general : Temp := ⟨0, none⟩ -- general purpose
@@ -46,10 +48,11 @@ end Temp
 @[reducible] def SizedTemp := Sized Temp
 deriving DecidableEq
 
-def SizedTemp.temp (stemp : SizedTemp) : Temp := stemp.data
-def SizedTemp.toString (stemp : SizedTemp) : String :=
+@[inline] def SizedTemp.temp (stemp : SizedTemp) : Temp := stemp.data
+@[inline] def SizedTemp.toString (stemp : SizedTemp) : String :=
   s!"{stemp.temp}^{stemp.size}"
 instance : ToString SizedTemp := ⟨SizedTemp.toString⟩
+instance : Repr SizedTemp := ⟨fun st _ => SizedTemp.toString st⟩
 
 def SizedTemp.toWasmIdent (stemp : SizedTemp) : Wasm.Text.Ident :=
   { name := s!"{stemp.temp.toRawString}^{stemp.size}"

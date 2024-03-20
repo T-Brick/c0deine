@@ -14,11 +14,13 @@ deriving DecidableEq, Inhabited
 
 namespace Label
 
-instance : ToString Label where
-  toString l :=
-    match l.name with
-    | none => s!"L{l.id}"
-    | some name => name
+@[inline] def toString (l : Label) : String :=
+  match l.name with
+  | none => s!"L{l.id}"
+  | some name => name
+
+instance : ToString Label := ⟨toString⟩
+instance : Repr Label := ⟨fun l _ => toString l⟩
 instance : Ord Label where compare l1 l2 := Ord.compare l1.id l2.id
 instance : Hashable Label where hash l := hash l.id
 
@@ -32,7 +34,7 @@ def debug  : Label := ⟨5, "debug"⟩
 
 def startId := 6
 
-@[reducible] def Map (α : Type) := Std.HashMap Label α
+@[inline, reducible] def Map (α : Type) := Std.HashMap Label α
 
 def toWasmIdent (l : Label) : Wasm.Text.Ident :=
   { name := toString l

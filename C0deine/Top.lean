@@ -218,7 +218,6 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
     then fun _ s => IO.println s
     else fun b s => if b then IO.println s else pure ()
 
-  vprintln libSearchDirs
 
   match ← runFrontend config vprintln inputs libs cl_src? with
   | none =>

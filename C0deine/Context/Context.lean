@@ -11,12 +11,16 @@ import C0deine.Context.Symbol
 
 namespace C0deine
 
+-- this is kinda hacky but allows us to derive Repr for the context
+instance : Repr (Std.HashMap String Symbol) := ⟨fun m => reprPrec m.toArray⟩
+
 structure Context.State where
   nextTemp     : Temp
   nextLabel    : Label
   nextSymbolId : UInt64
   inLineAnno   : Option Bool -- none if annotations aren't allow
   symbolCache  : Std.HashMap String Symbol
+deriving Repr
 
 def Context.State.new (annotations : Bool) : Context.State where
   nextTemp     := ⟨Temp.startId, none⟩

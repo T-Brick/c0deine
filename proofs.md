@@ -63,7 +63,7 @@ def prog : Tst.Prog := C0.parse_typecheck "
 "
 
 
-example : C0.verify prog := by
+example : C0.verify prog "example" := by
   /- There should be 3 goals (assuming we don't try to close easy goals) -/
   sorry   -- loop init | hypo: i = 0                          wts: i <= 10
   sorry   -- loop pres | hypo: i <= 10; i < 10; i' = i + 1    wts: i' <= 10
@@ -92,7 +92,7 @@ parsed.
 Having lists of things are nice, so here is the top priority items (not
 necessarily ordered):
 - [x] Fix lingering issues in TST
-- [ ] Finish the dynamic semantics for TSTs
+- [x] Finish the dynamic semantics for TSTs
 - [ ] Further investigate and identify what C0 proofs are expected to look like
 - [ ] Create list of sample programs that we'd like to be able to prove
 - [ ] Identify and create list of possible tactics/theorems that would be useful
