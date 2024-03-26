@@ -69,64 +69,78 @@ def expr (ctx : FuncCtx)
     : ExprOutput P init_set := do
   match exp with
   | .num n             =>
-    if p : P (.num n) then
+    let e' := .num (by rfl) n
+    if p : P e' then
       have p' := .num (by simp only [p, ↓reduceIte])
       have e'_init := .num (by dsimp only [Tst.Initialised.expr])
-      return ⟨ctx.calls, ctx.strings, .prim .int, .num n, p', e'_init⟩
-    else throw <| fail (.num n) p
+      return ⟨ctx.calls, ctx.strings, .prim .int, e', p', e'_init⟩
+    else throw <| fail e' p
 
   | .char c            =>
-    if p : P (.char c) then
+    let e' := .char (by rfl) c
+    if p : P e' then
       have p' := .char (by simp only [p, ↓reduceIte])
       have e'_init := .char (by dsimp only [Tst.Initialised.expr])
-      return ⟨ctx.calls, ctx.strings, .prim .char, .char c, p', e'_init⟩
-    else throw <| fail (.char c) p
+      return ⟨ctx.calls, ctx.strings, .prim .char, e', p', e'_init⟩
+    else throw <| fail e' p
 
   | .str s             =>
     let strings' := if s ∉ ctx.strings then s::ctx.strings else ctx.strings
-    if p : P (.str s) then
+    let e' := .str (by rfl) s
+    if p : P e' then
       have p' := .str (by simp only [p, ↓reduceIte])
       have e'_init := .str (by dsimp only [Tst.Initialised.expr])
-      return ⟨ctx.calls, strings', .prim .string, .str s, p', e'_init⟩
-    else throw <| fail (.str s) p
+      return ⟨ctx.calls, strings', .prim .string, e', p', e'_init⟩
+    else throw <| fail e' p
 
   | .true              =>
-    if p : P .true then
+    let e' := .true (by rfl)
+    if p : P e' then
       have p' := .true (by simp only [p, ↓reduceIte])
       have e'_init := .true (by dsimp only [Tst.Initialised.expr])
-      return ⟨ctx.calls, ctx.strings, .prim .bool, .true, p', e'_init⟩
-    else throw <| fail .true p
+      return ⟨ctx.calls, ctx.strings, .prim .bool, e', p', e'_init⟩
+    else throw <| fail e' p
 
   | .false             =>
-    if p : P .false then
+    let e' := .false (by rfl)
+    if p : P e' then
       have p' := .false (by simp only [p, ↓reduceIte])
       have e'_init := .false (by dsimp only [Tst.Initialised.expr])
-      return ⟨ctx.calls, ctx.strings, .prim .bool, .false, p', e'_init⟩
-    else throw <| fail .false p
+      return ⟨ctx.calls, ctx.strings, .prim .bool, e', p', e'_init⟩
+    else throw <| fail e' p
 
   | .null              =>
-    if p : P .null then
+    let e' := .null (by rfl)
+    if p : P e' then
       have p' := .null (by simp only [p, ↓reduceIte])
       have e'_init := .null (by dsimp only [Tst.Initialised.expr])
-      return ⟨ctx.calls, ctx.strings, .mem (.pointer .any), .null, p', e'_init⟩
-    else throw <| fail .null p
+      return ⟨ctx.calls, ctx.strings, .mem (.pointer .any), e', p', e'_init⟩
+    else throw <| fail e' p
 
   | .unop op e         =>
     let res ← small_nonvoid <| expr ctx P fail e
-    let op' :=
-      match op with
-      | .int .neg  => .int .neg
-      | .int .not  => .int .not
-      | .bool .neg => .bool .neg
-    if eq : res.type.equiv op'.type then
-      let e' := Tst.Expr.unop op' eq res.texpr
-      if p : P e' then
-        have p' := .unop res.valid (by simp only [p, ↓reduceIte])
-        have e'_init := .unop res.init (by dsimp only [Tst.Initialised.expr])
-        return ⟨res.calls, res.strings, op'.type, e', p', e'_init⟩
-      else throw <| fail e' p
-    else throw <| Error.expr exp <|
-      s!"Unary operator '{op'}' expects type '{op'.type}' but got '{res.type}'"
+    match op with
+    | .int op =>
+      let op' := match op with | .neg => Tst.UnOp.Int.neg | .not => .not
+      if eq : res.type.equiv (.prim .int) then
+        let e' := Tst.Expr.unop_int eq (by rfl) op' res.texpr
+        if p : P e' then
+          have p' := .unop_int res.valid (by simp only [p, ↓reduceIte])
+          have e'_init := .unop_int res.init (by dsimp only [Tst.Initialised.expr])
+          return ⟨res.calls, res.strings, .prim .int, e', p', e'_init⟩
+        else throw <| fail e' p
+      else throw <| Error.expr exp <|
+        s!"Unary operator '{Tst.UnOp.int op'}' expects type '{Typ.prim .int}' but got '{res.type}'"
+    | .bool .neg =>
+      if eq : res.type.equiv (.prim .bool) then
+        let e' := Tst.Expr.unop_bool eq (by rfl) (.neg) res.texpr
+        if p : P e' then
+          have p' := .unop_bool res.valid (by simp only [p, ↓reduceIte])
+          have e'_init := .unop_bool res.init (by dsimp only [Tst.Initialised.expr])
+          return ⟨res.calls, res.strings, .prim .bool, e', p', e'_init⟩
+        else throw <| fail e' p
+      else throw <| Error.expr exp <|
+        s!"Unary operator '{Tst.UnOp.bool .neg}' expects type '{Typ.prim .bool}' but got '{res.type}'"
 
   | .binop op l r      =>
     let resl ← small_nonvoid <| expr ctx P fail l
@@ -140,12 +154,10 @@ def expr (ctx : FuncCtx)
       if seq : resl.type = resr.type then
         if leq : resl.type = .prim .int then
           have req := by rw [seq] at leq; exact leq
-          let le' := resl.texpr.typeWith (p := fun t => t = .prim .int) leq
-          let re' := resr.texpr.typeWith (p := fun t => t = .prim .int) req
-          let e' := Tst.Expr.binop_int op' le' re'
+          let e' := .binop_int leq req (by rfl) op' resl.texpr resr.texpr
           if p : P e' then
-            let lvalid : Tst.Expr.All _ le' := resl.valid
-            let rvalid : Tst.Expr.All _ re' := resr.valid
+            let lvalid : Tst.Expr.All _ resl.texpr := resl.valid
+            let rvalid : Tst.Expr.All _ resr.texpr := resr.valid
             let p' := .binop_int lvalid rvalid (by simp only [p, ↓reduceIte])
             have e'_init :=
               .binop_int resl.init resr.init
@@ -161,12 +173,11 @@ def expr (ctx : FuncCtx)
       if is_equality : cop.isEquality then
         if eq : resl.type.equiv resr.type then
           if eqtype : resl.type.is_eqtype ∨ resr.type.is_eqtype then
-            let le' := resl.texpr
-            let re' := resr.texpr
-            let e' := Tst.Expr.binop_eq cop is_equality le' re' eq eqtype
+            let e' :=
+              .binop_eq (by rfl) cop is_equality resl.texpr resr.texpr eq eqtype
             if p : P e' then
-              let lvalid : Tst.Expr.All _ le' := resl.valid
-              let rvalid : Tst.Expr.All _ re' := resr.valid
+              let lvalid : Tst.Expr.All _ resl.texpr := resl.valid
+              let rvalid : Tst.Expr.All _ resr.texpr := resr.valid
               let p' := .binop_eq lvalid rvalid (by simp only [p, ↓reduceIte])
               have e'_init :=
                 .binop_eq resl.init resr.init
@@ -181,28 +192,28 @@ def expr (ctx : FuncCtx)
         if eq : resl.type = resr.type then
           if leq : resl.type = .prim .int then
             have req := by rw [eq] at leq; exact leq
-            let le' := resl.texpr.intType leq
-            let re' := resr.texpr.intType req
-            let e' := Tst.Expr.binop_rel₁ cop is_equality le' re'
+            let e' := .binop_rel_int leq req (by rfl) cop is_equality
+                        resl.texpr resr.texpr
             if p : P e' then
               let p' :=
-                .binop_rel₁ resl.valid resr.valid (by simp only [p, ↓reduceIte])
+                .binop_rel_int resl.valid resr.valid
+                  (by simp only [p, ↓reduceIte])
               have e'_init :=
-                .binop_rel₁ resl.init resr.init
+                .binop_rel_int resl.init resr.init
                   (by dsimp only [Tst.Initialised.expr])
               return ⟨calls, strings, .prim .bool, e', p', e'_init⟩
             else throw <| fail e' p
           else
             if leq : resl.type = .prim .char then
               have req := by rw [eq] at leq; exact leq
-              let le' := resl.texpr.charType leq
-              let re' := resr.texpr.charType req
-              let e' := Tst.Expr.binop_rel₂ cop is_equality le' re'
+              let e' := .binop_rel_char leq req (by rfl) cop is_equality
+                          resl.texpr resr.texpr
               if p : P e' then
                 let p' :=
-                  .binop_rel₂ resl.valid resr.valid (by simp only [p, ↓reduceIte])
+                  .binop_rel_char resl.valid resr.valid
+                    (by simp only [p, ↓reduceIte])
                 have e'_init :=
-                  .binop_rel₂ resl.init resr.init
+                  .binop_rel_char resl.init resr.init
                     (by dsimp only [Tst.Initialised.expr])
                 return ⟨calls, strings, .prim .bool, e', p', e'_init⟩
               else throw <| fail e' p
@@ -215,9 +226,7 @@ def expr (ctx : FuncCtx)
       let op' := Trans.bool_binop bop
       if leq : resl.type = .prim .bool then
         if req : resr.type = .prim .bool then
-          let le' := resl.texpr.boolType leq
-          let re' := resr.texpr.boolType req
-          let e' := Tst.Expr.binop_bool op' le' re'
+          let e' := .binop_bool leq req (by rfl) op' resl.texpr resr.texpr
           if p : P e' then
             let p' :=
               .binop_bool resl.valid resr.valid (by simp only [p, ↓reduceIte])
@@ -237,9 +246,8 @@ def expr (ctx : FuncCtx)
     let strings := resc.strings ∪ rest.strings ∪ resf.strings
     if cbool : resc.type = .prim .bool then
       if eq : rest.type.equiv resf.type then
-        let tau' := rest.type.intersect resf.type
-        let cc' := resc.texpr.typeWith (p := fun t => t = .prim .bool) cbool
-        let e' := .ternop cc' rest.texpr resf.texpr eq
+        let τ' := rest.type.intersect resf.type
+        let e' := .ternop cbool (by rfl) resc.texpr rest.texpr resf.texpr eq
         if p : P e' then
           have p' :=
             .ternop resc.valid rest.valid resf.valid
@@ -247,7 +255,7 @@ def expr (ctx : FuncCtx)
           have e'_init :=
             .ternop resc.init rest.init resf.init
               (by dsimp only [Tst.Initialised.expr])
-          return ⟨calls, strings, tau', e', p', e'_init⟩
+          return ⟨calls, strings, τ', e', p', e'_init⟩
         else throw <| fail e' p
       else throw <| Error.expr exp <|
         s!"Ternary true branch has type '{rest.type}' but the false branch has type '{resf.type}'"
@@ -322,8 +330,7 @@ def expr (ctx : FuncCtx)
     | none      => throw <| Error.expr exp s!"Invalid array type"
     | some tau' =>
       if eq : res.type = .prim .int then
-        let len' := res.texpr.intType eq
-        let e' := Tst.Expr.alloc_array tau' len'
+        let e' := .alloc_array eq tau' res.texpr
         if p : P e' then
           let p' := .alloc_array res.valid (by simp only [p, ↓reduceIte])
           have e'_init :=
@@ -358,8 +365,7 @@ def expr (ctx : FuncCtx)
           match f_ty : status.fields field with
           | some tau =>
             let e' :=
-              .dot (res.texpr.structType name eq) field
-                (by rw [←defined]; exact hsig) f_ty
+              .dot eq res.texpr field (by rw [←defined]; exact hsig) f_ty
             if p : P e' then
               have p' := .dot res.valid (by simp only [p, ↓reduceIte])
               have e'_init :=
@@ -380,9 +386,8 @@ def expr (ctx : FuncCtx)
       match hsig : Δ.struct name with
       | some status =>
         if defined : status.defined then
-          let obj := res.texpr.ptrType (.mem (.struct name)) eq
-          if pe : P (.deref obj) then
-            let te' := Tst.Expr.deref obj         -- todo better names
+          let te' := Tst.Expr.deref eq res.texpr         -- todo better names
+          if pe : P te' then
             have pe' : Tst.Expr.All P te' := by
               simp only [te']
               exact .deref res.valid (by simp only [pe, ↓reduceIte])
@@ -393,8 +398,7 @@ def expr (ctx : FuncCtx)
             match f_ty : status.fields field with
             | some tau =>
               let e' :=
-                .dot (te'.structType name (by rfl)) field
-                  (by rw [←defined]; exact hsig) f_ty
+                .dot (by rfl) te' field (by rw [←defined]; exact hsig) f_ty
               if p : P e' then
                 have p' := .dot pe' (by simp only [p, ↓reduceIte])
                 have e'_init :=
@@ -403,7 +407,7 @@ def expr (ctx : FuncCtx)
               else throw <| fail e' p
             | none => throw <| Error.expr exp <|
               s!"Invalid field '{field}' for struct type '{Typ.mem (.struct name)}'"
-          else throw <| fail (.deref obj) pe
+          else throw <| fail te' pe
         else throw <| Error.texpr res.texpr s!"Struct '{name}' is not defined"
       | none => throw <| Error.texpr res.texpr s!"Struct '{name}' is not defined"
     | _ => throw <| Error.expr exp <|
@@ -415,7 +419,7 @@ def expr (ctx : FuncCtx)
     | .mem (.pointer .any) => throw <| Error.expr e <|
       s!"Cannot dereference a null pointer"
     | .mem (.pointer tau)  =>
-      let e' := .deref (res.texpr.ptrType tau eq)
+      let e' := .deref eq res.texpr
       if p : P e' then
         have p' := .deref res.valid (by simp only [p, ↓reduceIte])
         have e'_init := .deref res.init (by dsimp only [Tst.Initialised.expr])
@@ -432,7 +436,7 @@ def expr (ctx : FuncCtx)
     match aeq : resa.type with
     | .mem (.array tau) =>
       if ieq : resi.type = .prim .int then
-        let e' := .index (resa.texpr.arrType tau aeq) (resi.texpr.intType ieq)
+        let e' := .index aeq ieq resa.texpr resi.texpr
         if p : P e' then
           have p' := .index resa.valid resi.valid (by simp only [p, ↓reduceIte])
           have e'_init :=
@@ -459,7 +463,7 @@ def expr (ctx : FuncCtx)
     let res ← small_nonvoid <| expr ctx P fail e
     match eq : res.type with
     | .mem (.array tau) =>
-      let e' := .length (res.texpr.arrType tau eq)
+      let e' := .length eq res.texpr
       if p : P e' then
         have p' := .length res.valid (by simp only [p, ↓reduceIte])
         have e'_init := .length res.init (by dsimp only [Tst.Initialised.expr])

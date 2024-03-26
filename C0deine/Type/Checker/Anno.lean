@@ -35,8 +35,8 @@ def func (ctx : FuncCtx) (as : List Ast.Anno)
       let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
       let ⟨ctx', rest', rest'_init⟩ ←
         func {ctx with calls := calls'} (init_set := init_set) rest
-      let e' := ⟨res.texpr.boolType tyeq, res.valid⟩
-      let anno' := ⟨.requires e', by simp⟩
+      let e' := ⟨res.texpr, res.valid⟩
+      let anno' := ⟨.requires tyeq e', by simp⟩
       have anno'_init := .requires (by simp; exact res.init)
       return ⟨ctx', anno' :: rest', .cons anno'_init rest'_init⟩
     else
@@ -50,7 +50,7 @@ def func (ctx : FuncCtx) (as : List Ast.Anno)
     if tyeq : res.type = .prim .bool then
       let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
       let ⟨ctx', rest', rest'_init⟩ ← func {ctx with calls := calls'} rest
-      let anno' := ⟨.ensures (res.texpr.boolType tyeq), by simp⟩
+      let anno' := ⟨.ensures tyeq res.texpr, by simp⟩
       have anno'_init := .ensures res.init
       return ⟨ctx', anno' :: rest', .cons anno'_init rest'_init⟩
     else
@@ -75,8 +75,8 @@ def loop (ctx : FuncCtx) (as : List Ast.Anno)
     if tyeq : res.type = .prim .bool then
       let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
       let ⟨ctx', rest', rest'_init⟩ ← loop {ctx with calls := calls'} rest
-      let e' := ⟨res.texpr.boolType tyeq, res.valid⟩
-      let anno' := ⟨.loop_invar e', by simp⟩
+      let e' := ⟨res.texpr, res.valid⟩
+      let anno' := ⟨.loop_invar tyeq e', by simp⟩
       have anno'_init := .loop_invar (by simp; exact res.init)
       return ⟨ctx', anno' :: rest', .cons anno'_init rest'_init⟩
     else
@@ -99,7 +99,7 @@ def free (ctx : FuncCtx) (a : Ast.Anno)
     if tyeq : res.type = .prim .bool then
       let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
       let ctx' := {ctx with calls := calls'}
-      let anno' := ⟨.assert ⟨res.texpr.boolType tyeq, res.valid⟩, by simp⟩
+      let anno' := ⟨.assert tyeq ⟨res.texpr, res.valid⟩, by simp⟩
       have anno'_init := .assert res.init
       return ⟨ctx', anno', anno'_init⟩
     else

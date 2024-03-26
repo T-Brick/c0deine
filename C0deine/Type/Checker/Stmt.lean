@@ -247,11 +247,10 @@ def stmt
       | .aseq binop =>
         if l_eq : resl.type = .prim .int then
           if r_eq : resr.type = .prim .int then
-            let lv' := resl.lval.intType l_eq
-            let e'  := ⟨resr.texpr.intType r_eq, resr.valid⟩
+            let e'  := ⟨resr.texpr, resr.valid⟩
             let op' := Trans.int_binop binop
 
-            let stmt' := .asnop lv' op' e'
+            let stmt' := .asnop l_eq r_eq resl.lval op' e'
             let init_set' :=
               Tst.Initialised.init init_set (.asnop resl.lval op' e')
             have stmt'_init :=
@@ -265,7 +264,7 @@ def stmt
             have stmt'_rets :=
               .asnop (a₂ := rets) (a₃ := rets) (a₄ := rets)
                 (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
-                (Tst.Returns.lval_fold rets lv')
+                (Tst.Returns.lval_fold rets resl.lval)
                 (by simp only [Tst.Returns.Predicate, Tst.Returns.expr_fold])
                 (by dsimp only [Tst.Returns.Predicate, Tst.Returns.stmt])
 
@@ -280,9 +279,9 @@ def stmt
     | .prim .bool =>
       let rest ← stmts ctx' rets tt
       let resf ← stmts ctx' rets ff
-      let cond' := ⟨resc.texpr.boolType c_eq, resc.valid⟩
+      let cond' := ⟨resc.texpr, resc.valid⟩
 
-      let stmt' := .ite cond' rest.stmts resf.stmts
+      let stmt' := .ite c_eq cond' rest.stmts resf.stmts
       let init_set' := Tst.Initialised.init init_set (.ite cond')
       let init_set'' := Tst.Initialised.join rest.init_set' resf.init_set' stmt'
       have stmt'_init :=
@@ -311,14 +310,13 @@ def stmt
     match c_eq : resc.type with
     | .prim .bool =>
       let resb ← stmts resa.ctx rets body
-      let cond' : Tst.Expr.NoContract _ _ _ :=
-        ⟨resc.texpr.boolType c_eq, resc.valid⟩
+      let cond' : Tst.Expr.NoContract _ _ _ := ⟨resc.texpr, resc.valid⟩
       let ctx'' :=
         { ctx with calls   := resb.ctx.calls.merge resc.calls
                  , strings := resb.ctx.strings ∪ resc.strings
         }
 
-      let stmt' := Tst.Stmt.while cond' resa.annos resb.stmts
+      let stmt' := Tst.Stmt.while c_eq cond' resa.annos resb.stmts
       let init_set' := Tst.Initialised.init init_set (.while cond')
       let init_set'' := Tst.Initialised.join init_set resb.init_set' stmt'
       have stmt'_init :=
@@ -362,9 +360,8 @@ def stmt
     | some τ =>
       let res ← handle <| Synth.Expr.small_nonvoid <|
         Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
-      if tyeq : res.type = τ then
-        let e' : Tst.Expr.NoContract Δ Γ _ :=
-          ⟨res.texpr.typeWithEq tyeq, res.valid⟩
+      if tyeq : some τ = some res.type then
+        let e' : Tst.Expr.NoContract Δ Γ _ := ⟨res.texpr, res.valid⟩
 
         let symbols' := ctx.symbols.mapVal (fun _ status =>
             match status with
@@ -379,7 +376,7 @@ def stmt
                              , strings
                     }
 
-        let stmt' := .return_tau e'
+        let stmt' := .return_tau tyeq e'
         let init_set' := Tst.Initialised.stmt init_set stmt'
         have stmt'_init :=
           .return_tau (a₂ := init_set)
@@ -401,10 +398,10 @@ def stmt
       Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
     match tyeq : res.type with
     | .prim .bool =>
-      let e'   := ⟨res.texpr.boolType tyeq, res.valid⟩
+      let e'   := ⟨res.texpr, res.valid⟩
       let ctx' := { ctx with calls := res.calls, strings := res.strings }
 
-      let stmt' := .assert e'
+      let stmt' := .assert tyeq e'
       let init_set' := Tst.Initialised.stmt init_set stmt'
       have stmt'_init :=
         .assert (a₂ := init_set)
@@ -425,7 +422,7 @@ def stmt
       Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
     match tyeq : res.type with
     | .prim .string =>
-      let e' := ⟨res.texpr.stringType tyeq, res.valid⟩
+      let e' := ⟨res.texpr, res.valid⟩
 
       /- Sets all variables to initialised. `cc0` does not have the behaviour
           but when outputing `c` code from `cc0`, `error` is elaborated to
@@ -444,7 +441,7 @@ def stmt
                            , returns := true
                   }
 
-      let stmt' := .error e'
+      let stmt' := .error tyeq e'
       let init_set' := Tst.Initialised.stmt init_set stmt'
       have stmt'_init :=
         .error (a₂ := init_set)

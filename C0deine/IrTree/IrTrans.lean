@@ -229,10 +229,10 @@ def Typ.tempSize (tau : Typ) : Env.Prog ValueSize := do
   | _      => return .double
 
 def Elab.lvalue : Tst.LValue Δ Γ τ → Tst.Expr Δ Γ τ
-  | .var name h         => .var name h
-  | .dot lv field h₁ h₂ => .dot (Elab.lvalue lv) field h₁ h₂
-  | .deref lv           => .deref (Elab.lvalue lv)
-  | .index lv indx      => .index (Elab.lvalue lv) indx.val
+  | .var name h            => .var name h
+  | .dot hτ lv field h₁ h₂ => .dot hτ (Elab.lvalue lv) field h₁ h₂
+  | .deref hτ lv           => .deref hτ (Elab.lvalue lv)
+  | .index hτ₁ hτ₂ lv indx => .index hτ₁ hτ₂ (Elab.lvalue lv) indx.val
 
 def binop_op_int (op : Tst.BinOp.Int)
                   : IrTree.PureBinop ⊕ IrTree.EffectBinop :=
@@ -252,33 +252,34 @@ def binop_op_int (op : Tst.BinOp.Int)
 mutual
 partial def transSizeExpr (e : Tst.Expr Δ Γ τ) : Nat :=
   match e with
-  | .num _        => 0
-  | .char _       => 0
-  | .str _        => 0
-  | .var _ _      => 0
-  | .true         => 0
-  | .false        => 0
-  | .null         => 0
-  | .unop _ _ e   => 1 + transSizeExpr e
-  | .binop_bool op l r => 1 + 1 + (transSizeExpr l) + 1 + (transSizeExpr r)
-  | .binop_int _ l r
-  | .binop_eq _ _ l r _ _
-  | .binop_rel₁ _ _ l r
-  | .binop_rel₂ _ _ l r => 1 + max (transSizeExpr l) (transSizeExpr r)
-  | .ternop cc tt ff _  =>
+  | .num _ _                 => 0
+  | .char _ _                => 0
+  | .str _ _                 => 0
+  | .var _ _                 => 0
+  | .true _                  => 0
+  | .false _                 => 0
+  | .null _                  => 0
+  | .unop_int _ _ _ e        => 1 + transSizeExpr e
+  | .unop_bool _ _ _ e       => 1 + transSizeExpr e
+  | .binop_bool _ _ _ op l r => 1 + 1 + (transSizeExpr l) + 1 + (transSizeExpr r)
+  | .binop_int _ _ _ _ l r
+  | .binop_eq _ _ _ l r _ _
+  | .binop_rel_int _ _ _ _ _ l r
+  | .binop_rel_char _ _ _ _ _ l r => 1 + max (transSizeExpr l) (transSizeExpr r)
+  | .ternop _ _ cc tt ff _  =>
     1 + (transSizeExpr cc) + 1 + (transSizeExpr tt) + 1 + (transSizeExpr ff)
   | .app _f _ τs _ as =>
     let _as' : (i : Fin _) → Tst.Expr Δ Γ (τs i) :=
       fun i => as i
     1
     -- 1 + transSizeArgs τs as'
-  | .alloc _          => 1
-  | .alloc_array _ e  => 1 + transSizeExpr e
-  | .dot e _ _ _      => 2 + transSizeExpr e
-  | .deref e          => 2 + transSizeExpr e
-  | .index arr indx   => 2 + (transSizeExpr arr) + (transSizeExpr indx)
-  | .result _         => 0
-  | .length e         => 1 + transSizeExpr e
+  | .alloc _            => 1
+  | .alloc_array _ _ e  => 1 + transSizeExpr e
+  | .dot _ e _ _ _      => 2 + transSizeExpr e
+  | .deref _ e          => 2 + transSizeExpr e
+  | .index _ _ arr indx => 2 + (transSizeExpr arr) + (transSizeExpr indx)
+  | .result _           => 0
+  | .length _ e         => 1 + transSizeExpr e
 
 partial def transSizeArgs
     (τs : List Typ)
@@ -312,12 +313,12 @@ partial def expr (tau : Typ)
          (exp : Tst.Expr Δ Γ tau)
          : Env.Func ((List IrTree.Stmt) × IrTree.Expr) := do
   match exp with
-  | .num v     => return (acc, .const v)
-  | .char c    =>
+  | .num _ v     => return (acc, .const v)
+  | .char _ c    =>
     if h : c.val.val < 256
     then return (acc, .byte (c.toUInt8 h))
     else panic! s!"IR Trans: Char {c} is too large!"
-  | .str s     =>
+  | .str _ s     =>
     let src ← Env.Func.string_offset s
     let len := s.length + 1
 
@@ -331,23 +332,25 @@ partial def expr (tau : Typ)
 
     return (copy :: alloc :: acc, .temp sres)
   | .var name _  => return (acc, .temp (← Env.Func.var name))
-  | .«true»      => return (acc, .byte 1)
-  | .«false»     => return (acc, .byte 0)
-  | .null        => return (acc, .memory 0)
-  | .unop op _ e =>
+  | .«true» _      => return (acc, .byte 1)
+  | .«false» _     => return (acc, .byte 0)
+  | .null _        => return (acc, .memory 0)
+  | .unop_int _ _ op e =>
     let (stmts, e') ← texpr acc e
     match op with
-    | .int .neg =>
+    | .neg =>
       let c := MkTyped.int (.const 0)
       return (stmts, .binop .sub c e')
-    | .int .not => -- ~x ---> x ^ -1
+    | .not => -- ~x ---> x ^ -1
       let c := MkTyped.int (.const (-1))
       return (stmts, .binop .xor e' c)
-    | .bool .neg => -- !x ---> x == 0
+
+  | .unop_bool _ _ .neg e => -- !x ---> x == 0
+      let (stmts, e') ← texpr acc e
       let c := MkTyped.int (.const 0)
       return (stmts, .binop (.comp .equal) e' c)
 
-  | .binop_int op l r =>
+  | .binop_int _ _ _ op l r =>
     let (stmts1, l') ← texpr acc l
     let (stmts2, r') ← texpr stmts1 r
     match binop_op_int op with
@@ -363,30 +366,30 @@ partial def expr (tau : Typ)
         | .div => []
       return (effect :: shift ++ stmts2, .temp dest)
 
-  | .binop_bool .and l r =>
+  | .binop_bool _ _ _ .and l r =>
     -- have : 1 + transSizeTExpr l + max (transSizeTExpr r) 1
         --  < 1 + 1 + transSizeTExpr l + 1 + transSizeTExpr r := by
       -- let r := transSizeTExpr r
       -- have : max r 1 < 1 + 1 + r := by simp [Nat.add_comm]; linarith
       -- linarith
-    ternary tau acc l r .false
+    ternary tau acc l r (.false (by rfl))
 
-  | .binop_bool .or l r  =>
+  | .binop_bool _ _ _ .or l r  =>
     -- have : 1 + transSizeTExpr l + max 1 (transSizeTExpr r)
         --  < 1 + 1 + transSizeTExpr l + 1 + transSizeTExpr r := by
       -- let r := transSizeTExpr r
       -- have : max 1 r < 1 + 1 + r := by simp [Nat.add_comm]; linarith
       -- linarith
-    ternary tau acc l .true r
+    ternary tau acc l (.true (by rfl)) r
 
-  | .binop_eq   op _ l r _ _
-  | .binop_rel₁ op _ l r
-  | .binop_rel₂ op _ l r =>
+  | .binop_eq _ op _ l r _ _
+  | .binop_rel_int _ _ _ op _ l r
+  | .binop_rel_char _ _ _ op _ l r =>
     let (stmts1, l') ← texpr acc l
     let (stmts2, r') ← texpr stmts1 r
     return (stmts2, .binop (.comp op) l' r')
 
-  | .ternop cond tt ff eq => ternary tau acc cond tt ff
+  | .ternop _ _ cond tt ff eq => ternary tau acc cond tt ff
 
   | .app (status := status) f _ τs _ as =>
     let (stmts, args') ← args acc status.type.arity τs as
@@ -406,7 +409,7 @@ partial def expr (tau : Typ)
              , .temp sdest)
     | none => panic! "IR Trans: Alloc type size not known"
 
-  | .alloc_array ty e =>
+  | .alloc_array _ ty e =>
     match ← Env.Prog.toFunc (Typ.size ty) with
     | some size =>
       let (stmts, e') ← texpr acc e
@@ -445,33 +448,31 @@ partial def expr (tau : Typ)
         return (storeLen :: alloc :: stmts, arr)
     | none => panic! "IR Trans: Alloc array type size not known"
 
-  | .dot e field _ _ =>
+  | .dot _ e field _ _ =>
     let (stmts, address, checks) ← Addr.dot acc e field 0
     let dest ← Env.Func.freshTemp
     let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
     return (.load sdest address :: checks ++ stmts, .temp sdest)
 
-  | .deref e =>
+  | .deref _ e =>
     let (stmts, address, checks) ← Addr.deref acc e 0 false
     let dest ← Env.Func.freshTemp
     let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
     return (.load sdest address :: checks ++ stmts, .temp sdest)
 
-  | .index arr indx =>
+  | .index _ _ arr indx =>
     let (stmts, address, checks) ← Addr.index acc arr indx 0
     let dest ← Env.Func.freshTemp
     let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
     return (.load sdest address :: checks ++ stmts, .temp sdest)
 
-  | .result h
-  | .length e =>
+  | .result _
+  | .length _ _ =>
     panic! "IR Trans: Dynamically checking contracts are not implemented"
 
 
 partial def ternary
-    {τ₁ : {τ : Typ // τ = .prim .bool}}
     (tau : Typ)
-    -- {τ₂ τ₃ : {τ : Typ // τ.equiv tau}}
     (acc : List IrTree.Stmt)
     (cond : Tst.Expr Δ Γ τ₁)
     (tt : Tst.Expr Δ Γ τ₂)
@@ -548,9 +549,9 @@ partial def Addr.addr (tau : Typ) (acc : List IrTree.Stmt)
          (check : Bool)
          : Env.Func (List IrTree.Stmt × IrTree.Address × List IrTree.Stmt) := do
   match e with
-  | .dot e field _ _ => Addr.dot acc e field offset
-  | .deref e         => Addr.deref acc e offset check
-  | .index e indx    => Addr.index acc e indx offset
+  | .dot _ e field _ _ => Addr.dot acc e field offset
+  | .deref _ e         => Addr.deref acc e offset check
+  | .index _ _ e indx  => Addr.index acc e indx offset
   | _ => panic! s!"IR Trans: Attempted to address a non-pointer {e} {offset}"
 
 partial def Addr.dot (acc : List IrTree.Stmt)
@@ -641,7 +642,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
     let _size ← Env.Prog.toFunc (Typ.tempSize τ₁)
     return .store dest src :: checks ++ stms2
 
-  | .asnop (τ₁ := τ₁) (τ₂ := τ₂) tlv iop rhs =>
+  | .asnop (τ₁ := τ₁) (τ₂ := τ₂) _ _ tlv iop rhs =>
     match tlv with
     | .var name _h =>
       let dest ← Env.Func.var name
@@ -667,7 +668,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
         let temp := ⟨size, ← Env.Func.freshTemp⟩
         let ttemp := ⟨τ₂, .temp temp⟩
         let load := .load temp dest
-        let src' := ⟨τ₁.val, .binop pure ttemp src⟩
+        let src' := ⟨τ₁, .binop pure ttemp src⟩
         let store := .store dest src'
         return store :: load :: checks ++ stms2
       | .inr impure =>
@@ -680,7 +681,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
         let store := .store dest tt2
         return store :: effect :: load :: checks ++ stms2
 
-  | .ite (τ := τ) cond tt ff =>
+  | .ite (τ := τ) _ cond tt ff =>
     let tLbl  ← Env.Func.freshLabel
     let fLbl  ← Env.Func.freshLabel
     let l_after ← Env.Func.freshLabel
@@ -711,7 +712,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
     let () ← Env.Func.addBlock block l_after .afterITE
     return []
 
-  | .while (τ := τ) cond _annos body =>
+  | .while (τ := τ) _ cond _annos body =>
     let loopGuard ← Env.Func.freshLabel
     let loopBody  ← Env.Func.freshLabel
     let l_afterLoop ← Env.Func.freshLabel
@@ -750,7 +751,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
     let () ← Env.Func.addBlock block nextLbl .afterRet
     return []
 
-  | .return_tau e =>
+  | .return_tau _ e =>
     let (stms, e') ← texpr past e.val
     let exit := .«return» (some e')
     let curLabel ← Env.Func.curBlockLabel
@@ -760,7 +761,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
     let () ← Env.Func.addBlock block nextLbl .afterRet
     return []
 
-  | .assert (τ := τ) e =>
+  | .assert (τ := τ) _ e =>
     if ¬(←Env.Func.unsafe) || (←Env.Func.checkAssertsWhenUnsafe) then
       let l_after ← Env.Func.freshLabel
       let assertLbl := Label.abort
@@ -778,7 +779,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
       return []
     else return past
 
-  | .error e =>
+  | .error _ e =>
     if ¬(←Env.Func.unsafe) || (←Env.Func.checkAssertsWhenUnsafe) then
       let l_after ← Env.Func.freshLabel
 
@@ -795,7 +796,7 @@ partial def stmt (past : List IrTree.Stmt) (stm : Tst.Stmt Δ Γ ρ)
     let (stms, _) ← texpr past e.val -- drop pure expression
     return stms
 
-  | .anno a =>
+  | .anno _a =>
     if ← Env.Func.dynCheckContracts
     then panic! "IR Trans: Dynamically checking contracts are not implemented"
     else return past

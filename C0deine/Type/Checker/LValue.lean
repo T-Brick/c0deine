@@ -49,8 +49,7 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue)
           match f_ty : status.fields field with
           | some tau =>
             let lv' :=
-              .dot (res.lval.structType name tyeq) field
-                (by rw [←defined]; exact hsig) f_ty
+              .dot tyeq res.lval field (by rw [←defined]; exact hsig) f_ty
             have lv'_init :=
               .dot res.init
                 (by simp only [ Tst.Stmt.Predicate.toLValuePred
@@ -74,16 +73,15 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue)
         if defined : status.defined then
           match f_ty : status.fields field with
           | some tau =>
-            let dref' : Tst.LValue Δ Γ _ :=
-              .deref (res.lval.ptrType (.mem (.struct name)) tyeq)
+            let dref' : Tst.LValue Δ Γ _ := .deref tyeq res.lval
             have dref'_init : Tst.Initialised.LValue dref' init_set :=
               .deref res.init
                 (by simp only [ Tst.Stmt.Predicate.toLValuePred
                               , Tst.Initialised.Predicate
                               , Tst.Initialised.lval
                               ])
-            let lv' := .dot (dref'.structType name (by rfl)) field
-              (by rw [←defined]; exact hsig) f_ty
+            let lv' :=
+              .dot (by rfl) dref' field (by rw [←defined]; exact hsig) f_ty
             have lv'_init :=
               .dot dref'_init
                 (by simp only [ Tst.Stmt.Predicate.toLValuePred
@@ -108,7 +106,7 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue)
                         , Tst.Initialised.Predicate
                         , Tst.Initialised.lval
                         ])
-      return ⟨res.calls, tau, .deref (res.lval.ptrType tau tyeq), lv'_init⟩
+      return ⟨res.calls, tau, .deref tyeq res.lval, lv'_init⟩
     | _ => throw <| Error.lval lval <|
       s!"Cannot dereference a non-pointer type '{res.type}'"
 
@@ -119,8 +117,8 @@ def lvalue (ctx : FuncCtx) (lval : Ast.LValue)
     let calls := resa.calls.merge resi.calls
     match tya_eq : resa.type, tyi_eq : resi.type with
     | .mem (.array tau), .prim .int =>
-      let indx' := ⟨resi.texpr.intType tyi_eq, resi.valid⟩
-      let lv' := .index (resa.lval.arrType tau tya_eq) indx'
+      let indx' := ⟨resi.texpr, resi.valid⟩
+      let lv' := .index tya_eq tyi_eq resa.lval indx'
       have lv'_init :=
         .index resa.init
           (by simp only [ Tst.Stmt.Predicate.toLValuePred

@@ -49,67 +49,80 @@ deriving Inhabited
  -/
 open Typ.Notation in
 inductive Expr (Δ : GCtx) (Γ : FCtx) : (τ : Typ) → Type
-| num  : Int32  → Expr Δ Γ (int)
-| char : Char   → Expr Δ Γ (char)
-| str  : String → Expr Δ Γ (string)
+| num  : (hτ : τ = (int))    → Int32  → Expr Δ Γ τ
+| char : (hτ : τ = (char))   → Char   → Expr Δ Γ τ
+| str  : (hτ : τ = (string)) → String → Expr Δ Γ τ
 | var
   : {τ : Typ}
   → (x : Symbol)
   → Γ.syms x = .some (.var τ)
   → Expr Δ Γ τ
-| «true»  : Expr Δ Γ (bool)
-| «false» : Expr Δ Γ (bool)
-| null    : Expr Δ Γ (any *)
-| unop
-  : (op : UnOp)
-  → τ.equiv op.type
-  → (e : Expr Δ Γ τ)
-  → Expr Δ Γ op.type
+| «true»  : (hτ : τ = (bool))  → Expr Δ Γ τ
+| «false» : (hτ : τ = (bool))  → Expr Δ Γ τ
+| null    : (hτ : τ = (any *)) → Expr Δ Γ τ
+| unop_int
+  : (hτ₁ : τ₁.equiv (int))
+  → (hτ₂ : τ = (int))
+  → (op : UnOp.Int)
+  → (e : Expr Δ Γ τ₁)
+  → Expr Δ Γ τ
+| unop_bool
+  : (hτ₁ : τ₁.equiv (bool))
+  → (hτ₂ : τ = (bool))
+  → (op : UnOp.Bool)
+  → (e : Expr Δ Γ τ₁)
+  → Expr Δ Γ τ
 | binop_int
-  : {τ₁ : {τ : Typ // τ = (int)}}
-  → {τ₂ : {τ : Typ // τ = (int)}}
+  : (hτ₁ : τ₁ = (int))
+  → (hτ₂ : τ₂ = (int))
+  → (hτ  : τ  = (int))
   → (op : BinOp.Int)
   → (l : Expr Δ Γ τ₁)
   → (r : Expr Δ Γ τ₂)
-  → Expr Δ Γ (int)
+  → Expr Δ Γ τ
 | binop_bool
-  : {τ₁ : {τ : Typ // τ = (bool)}}
-  → {τ₂ : {τ : Typ // τ = (bool)}}
+  : (hτ₁ : τ₁ = (bool))
+  → (hτ₂ : τ₂ = (bool))
+  → (hτ  : τ  = (bool))
   → (op : BinOp.Bool)
   → (l : Expr Δ Γ τ₁)
   → (r : Expr Δ Γ τ₂)
-  → Expr Δ Γ (bool)
+  → Expr Δ Γ τ
 | binop_eq
-  : (op : Comparator)
+  : (hτ : τ = (bool))
+  → (op : Comparator)
   → op.isEquality
   → (l : Expr Δ Γ τ₁)
   → (r : Expr Δ Γ τ₂)
   → τ₁.equiv τ₂
   → τ₁.is_eqtype ∨ τ₂.is_eqtype
-  → Expr Δ Γ (bool)
-| binop_rel₁
-  : {τ₁ : {τ : Typ // τ = (int)}}
-  → {τ₂ : {τ : Typ // τ = (int)}}
+  → Expr Δ Γ τ
+| binop_rel_int
+  : (hτ₁ : τ₁ = (int))
+  → (hτ₂ : τ₂ = (int))
+  → (hτ  : τ  = (bool))
   → (op : Comparator)
   → ¬op.isEquality
   → (l : Expr Δ Γ τ₁)
   → (r : Expr Δ Γ τ₂)
-  → Expr Δ Γ (bool)
-| binop_rel₂
-  : {τ₁ : {τ : Typ // τ = (char)}}
-  → {τ₂ : {τ : Typ // τ = (char)}}
+  → Expr Δ Γ τ
+| binop_rel_char
+  : (hτ₁ : τ₁ = (char))
+  → (hτ₂ : τ₂ = (char))
+  → (hτ  : τ = (bool))
   → (op : Comparator)
   → ¬op.isEquality
   → (l : Expr Δ Γ τ₁)
   → (r : Expr Δ Γ τ₂)
-  → Expr Δ Γ (bool)
+  → Expr Δ Γ τ
 | ternop
-  : {τ₁ : {τ : Typ // τ = (bool)}}
+  : (hτ₁ : τ₁ = (bool))
+  → (hτ : τ = τ₂.intersect τ₃)
   → (cond : Expr Δ Γ τ₁)
   → (tt : Expr Δ Γ τ₂)
   → (ff : Expr Δ Γ τ₃)
   → τ₂.equiv τ₃
-  → Expr Δ Γ (τ₂.intersect τ₃)
+  → Expr Δ Γ τ
 | app
   : (f : Symbol)
   → Γ.syms f = .some (.func status)
@@ -119,24 +132,24 @@ inductive Expr (Δ : GCtx) (Γ : FCtx) : (τ : Typ) → Type
   → Expr Δ Γ status.type.retTy
 | alloc : (τ : Typ) → Expr Δ Γ (τ*)
 | alloc_array
-  : {τ₁ : {τ : Typ // τ = (int)}}
+  : (hτ₁ : τ₁ = (int))
   → (τ : Typ)
   → Expr Δ Γ τ₁
   → Expr Δ Γ (τ[])
 | dot
-  : {τ₁ : {τ : Typ // τ = (struct s)}}
+  : (hτ₁ : τ₁ = (struct s))
   → Expr Δ Γ τ₁
   → (field : Symbol)
   → Δ.struct s = .some ⟨struct_fields, true⟩
   → struct_fields field = .some τ
   → Expr Δ Γ τ
 | deref
-  : {τ₁ : {τ' : Typ // τ' = (τ*)}}
+  : (hτ₁ : τ₁ = (τ*))
   → Expr Δ Γ τ₁
   → Expr Δ Γ τ
 | index
-  : {τ₁ : {τ' : Typ // τ' = (τ[])}}
-  → {τ₂ : {τ : Typ // τ = (int)}}
+  : (hτ₁ : τ₁ = (τ[]))
+  → (hτ₂ : τ₂ = (int))
   → Expr Δ Γ τ₁
   → Expr Δ Γ τ₂
   → Expr Δ Γ τ
@@ -144,37 +157,12 @@ inductive Expr (Δ : GCtx) (Γ : FCtx) : (τ : Typ) → Type
   : Γ.ret = some τ
   → Expr Δ Γ τ
 | length
-  : {τ₁ : {τ' : Typ // τ' = (τ[])}}
+  : (hτ₁ : τ₁ = (τ[]))
   → Expr Δ Γ τ₁
   → Expr Δ Γ (int)
 
 namespace Expr
 open Typ.Notation
-
-@[inline] def typeWith {p : Typ → Prop} (e : Expr Δ Γ τ) (h : p τ)
-    : Expr Δ Γ (⟨τ, h⟩ : {τ : Typ // p τ}) := e
-@[inline] def typeWithEq {τ₂ : Typ} (e : Expr Δ Γ τ) (eq : τ = τ₂)
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = τ₂}) :=
-  e.typeWith (p := fun t => t = τ₂) eq
-@[inline] def typeWithEquiv {τ₂ : Typ} (e : Expr Δ Γ τ) (eq : τ.equiv τ₂)
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ.equiv τ₂}) :=
-  e.typeWith (p := fun t => t.equiv τ₂) eq
-
-
-@[inline] def intType (e : Expr Δ Γ τ) (eq : τ = (int))
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (int)}) := e.typeWithEq eq
-@[inline] def boolType (e : Expr Δ Γ τ) (eq : τ = (bool))
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (bool)}) := e.typeWithEq eq
-@[inline] def charType (e : Expr Δ Γ τ) (eq : τ = .prim .char)
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = .prim .char}) := e.typeWithEq eq
-@[inline] def stringType (e : Expr Δ Γ τ) (eq : τ = .prim .string)
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = .prim .string}) := e.typeWithEq eq
-@[inline] def ptrType (e : Expr Δ Γ τ) (τ' : Typ) (eq : τ = (τ'*))
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (τ'*)}) := e.typeWithEq eq
-@[inline] def arrType (e : Expr Δ Γ τ) (τ' : Typ) (eq : τ = (τ'[]))
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (τ'[])}) := e.typeWithEq eq
-@[inline] def structType (e : Expr Δ Γ τ) (s : Symbol) (eq : τ = (struct s))
-    : Expr Δ Γ (⟨τ, eq⟩ : {τ : Typ // τ = (struct s)}) := e.typeWithEq eq
 
 /- Assert that P can be folded to some value through every sub-expression -/
 inductive Fold {Δ : GCtx} {Γ : FCtx}
@@ -182,75 +170,118 @@ inductive Fold {Δ : GCtx} {Γ : FCtx}
     → α → Expr Δ Γ τ → α → Prop
 | num
   : {a₁ a₂ : α}
-  → P _ a₁ (.num v) = some a₂
-  → Fold P a₁ ((.num v) : Expr Δ Γ _) a₂
+  → {hτ : τ = (int)}
+  → P τ a₁ ((.num hτ v)) = some a₂
+  → Fold P a₁ ((.num hτ v)) a₂
 | char
   : {a₁ a₂ : α}
-  → P _ a₁ (.char c) = some a₂
-  → Fold P a₁ ((.char c) : Expr Δ Γ _) a₂
+  → {hτ : τ = (char)}
+  → P τ a₁ (.char hτ c) = some a₂
+  → Fold P a₁ ((.char hτ c)) a₂
 | str
   : {a₁ a₂ : α}
-  → P _ a₁ (.str s) = some a₂
-  → Fold P a₁ ((.str s) : Expr Δ Γ _) a₂
+  → {hτ : τ = (string)}
+  → P _ a₁ (.str hτ s) = some a₂
+  → Fold P a₁ ((.str hτ s)) a₂
 | var
   : {a₁ a₂ : α}
   → {h : Γ.syms x = .some (.var τ)}
-  → P _ a₁ (.var x h) = some a₂
+  → P τ a₁ (.var x h) = some a₂
   → Fold P a₁ ((.var x h) : Expr Δ Γ _) a₂
 | «true»
   : {a₁ a₂ : α}
-  → P _ a₁ .true = some a₂
-  → Fold P a₁ (.true : Expr Δ Γ _) a₂
+  → {hτ : τ = (bool)}
+  → P τ a₁ (.true hτ) = some a₂
+  → Fold P a₁ (.true hτ) a₂
 | «false»
   : {a₁ a₂ : α}
-  → P _ a₁ .false = some a₂
-  → Fold P a₁ (.false : Expr Δ Γ _) a₂
+  → {hτ : τ = (bool)}
+  → P τ a₁ (.false hτ) = some a₂
+  → Fold P a₁ (.false hτ) a₂
 | null
   : {a₁ a₂ : α}
-  → P _ a₁ .null = some a₂
-  → Fold P a₁ (.null : Expr Δ Γ _) a₂
-| unop
+  → {hτ : τ = (any *)}
+  → P _ a₁ (.null hτ) = some a₂
+  → Fold P a₁ (.null hτ) a₂
+| unop_int
   : {a₁ a₂ a₃ : α}
+  → {e : Expr Δ Γ τ₁}
+  → {hτ₁ : τ₁.equiv (int)}
+  → {hτ₂ : τ = (int)}
   → Fold P a₁ e a₂
-  → P _ a₂ (.unop op eq e) = some a₃
-  → Fold P a₁ (.unop op eq e) a₃
+  → P _ a₂ (.unop_int hτ₁ hτ₂ op e) = some a₃
+  → Fold P a₁ (.unop_int hτ₁ hτ₂ op e) a₃
+| unop_bool
+  : {a₁ a₂ a₃ : α}
+  → {e : Expr Δ Γ τ₁}
+  → {hτ₁ : τ₁.equiv (bool)}
+  → {hτ₂ : τ = (bool)}
+  → Fold P a₁ e a₂
+  → P _ a₂ (.unop_bool hτ₁ hτ₂ op e) = some a₃
+  → Fold P a₁ (.unop_bool hτ₁ hτ₂ op e) a₃
 | binop_int
   : {a₁ a₂ a₃ a₄ : α}
+  → {l : Expr Δ Γ τ₁}
+  → {r : Expr Δ Γ τ₂}
+  → {hτ₁ : τ₁ = (int)}
+  → {hτ₂ : τ₂ = (int)}
+  → {hτ  : τ = (int)}
   → Fold P a₁ l a₂
   → Fold P a₂ r a₃
-  → P _ a₃ (.binop_int op l r) = some a₄
-  → Fold P a₁ (.binop_int op l r) a₄
+  → P _ a₃ (.binop_int hτ₁ hτ₂ hτ op l r) = some a₄
+  → Fold P a₁ (.binop_int hτ₁ hτ₂ hτ op l r) a₄
 | binop_bool
   : {a₁ a₂ a₃ a₄ : α}
+  → {l : Expr Δ Γ τ₁}
+  → {r : Expr Δ Γ τ₂}
+  → {hτ₁ : τ₁ = (bool)}
+  → {hτ₂ : τ₂ = (bool)}
+  → {hτ  : τ = (bool)}
   → Fold P a₁ l a₂
   → Fold P a₂ r a₃
-  → P _ a₃ (.binop_bool op l r) = some a₄
-  → Fold P a₁ (.binop_bool op l r) a₄
+  → P _ a₃ (.binop_bool hτ₁ hτ₂ hτ op l r) = some a₄
+  → Fold P a₁ (.binop_bool hτ₁ hτ₂ hτ op l r) a₄
 | binop_eq
   : {a₁ a₂ a₃ a₄ : α}
+  → {hτ : τ = (bool)}
   → Fold P a₁ l a₂
   → Fold P a₂ r a₃
-  → P _ a₃ (.binop_eq op eq l r h₁ h₂) = some a₄
-  → Fold P a₁ (.binop_eq op eq l r h₁ h₂) a₄
-| binop_rel₁
+  → P _ a₃ (.binop_eq hτ op eq l r h₁ h₂) = some a₄
+  → Fold P a₁ (.binop_eq hτ op eq l r h₁ h₂) a₄
+| binop_rel_int
   : {a₁ a₂ a₃ a₄ : α}
+  → {l : Expr Δ Γ τ₁}
+  → {r : Expr Δ Γ τ₂}
+  → {hτ₁ : τ₁ = (int)}
+  → {hτ₂ : τ₂ = (int)}
+  → {hτ  : τ = (bool)}
   → Fold P a₁ l a₂
   → Fold P a₂ r a₃
-  → P _ a₃ (.binop_rel₁ op eq l r) = some a₄
-  → Fold P a₁ (.binop_rel₁ op eq l r) a₄
-| binop_rel₂
+  → P _ a₃ (.binop_rel_int hτ₁ hτ₂ hτ op eq l r) = some a₄
+  → Fold P a₁ (.binop_rel_int hτ₁ hτ₂ hτ op eq l r) a₄
+| binop_rel_char
   : {a₁ a₂ a₃ a₄ : α}
+  → {l : Expr Δ Γ τ₁}
+  → {r : Expr Δ Γ τ₂}
+  → {hτ₁ : τ₁ = (char)}
+  → {hτ₂ : τ₂ = (char)}
+  → {hτ  : τ = (bool)}
   → Fold P a₁ l a₂
   → Fold P a₂ r a₃
-  → P _ a₃ (.binop_rel₂ op eq l r) = some a₄
-  → Fold P a₁ (.binop_rel₂ op eq l r) a₄
+  → P _ a₃ (.binop_rel_char hτ₁ hτ₂ hτ op eq l r) = some a₄
+  → Fold P a₁ (.binop_rel_char hτ₁ hτ₂ hτ op eq l r) a₄
 | ternop
   : {a₁ a₂ a₃ a₄ a₅ : α}
+  → {cc : Expr Δ Γ τ₁}
+  → {tt : Expr Δ Γ τ₂}
+  → {ff : Expr Δ Γ τ₃}
+  → {hτ₁ : τ₁ = (bool)}
+  → {hτ : τ = τ₂.intersect τ₃}
   → Fold P a₁ cc a₂
   → Fold P a₂ tt a₃
   → Fold P a₃ ff a₄
-  → P _ a₄ (.ternop cc tt ff h₂) = some a₅
-  → Fold P a₁ (.ternop cc tt ff h₂) a₅
+  → P _ a₄ (.ternop hτ₁ hτ cc tt ff h₂) = some a₅
+  → Fold P a₁ (.ternop hτ₁ hτ cc tt ff h₂) a₅
 | app
   : {a₁ a₂ a₃ : α}
   → {hsig : Γ.syms f = .some (.func status)}
@@ -267,42 +298,54 @@ inductive Fold {Δ : GCtx} {Γ : FCtx}
   → Fold P a₁ (.alloc τ₁) a₂
 | alloc_array
   : {a₁ a₂ a₃ : α}
+  → {e : Expr Δ Γ τ₁}
+  → {hτ₁ : τ₁ = (int)}
   → Fold P a₁ e a₂
-  → P _ a₂ (.alloc_array τ₁ e) = some a₃
-  → Fold P a₁ (.alloc_array τ₁ e) a₃
+  → P _ a₂ (.alloc_array hτ₁ τ e) = some a₃
+  → Fold P a₁ (.alloc_array hτ₁ τ e) a₃
 | dot
   : {a₁ a₂ a₃ : α}
+  → {e : Expr Δ Γ τ₁}
+  → {hτ₁ : τ₁ = (struct s)}
   → Fold P a₁ e a₂
-  → P _ a₂ (.dot e f h₁ h₂) = some a₃
-  → Fold P a₁ (.dot e f h₁ h₂) a₃
+  → P _ a₂ (.dot hτ₁ e f h₁ h₂) = some a₃
+  → Fold P a₁ (.dot hτ₁ e f h₁ h₂) a₃
 | deref
   : {a₁ a₂ a₃ : α}
+  → {e : Expr Δ Γ τ₁}
+  → {hτ₁ : τ₁ = (τ*)}
   → Fold P a₁ e a₂
-  → P _ a₂ (.deref e) = some a₃
-  → Fold P a₁ (.deref e) a₃
+  → P _ a₂ (.deref hτ₁ e) = some a₃
+  → Fold P a₁ (.deref hτ₁ e) a₃
 | index
   : {a₁ a₂ a₃ : α}
+  → {e : Expr Δ Γ τ₁}
+  → {indx : Expr Δ Γ τ₂}
+  → {hτ₁ : τ₁ = (τ[])}
+  → {hτ₂ : τ₂ = (int)}
   → Fold P a₁ e a₂
   → Fold P a₂ indx a₃
-  → P _ a₃ (.index e indx) = some a₄
-  → Fold P a₁ (.index e indx) a₄
+  → P _ a₃ (.index hτ₁ hτ₂ e indx) = some a₄
+  → Fold P a₁ (.index hτ₁ hτ₂ e indx) a₄
 | result
   : {a₁ a₂ : α}
   → P (τ := τ) a₁ (.result h) = some a₂
   → Fold P a₁ (.result h : Expr Δ Γ τ) a₂
 | length
   : {a₁ a₂ a₃ : α}
+  → {e : Expr Δ Γ τ₁}
+  → {hτ₁ : τ₁ = (τ[])}
   → Fold P a₁ e a₂
-  → P _ a₂ (.length e) = some a₃
-  → Fold P a₁ (.length e) a₃
+  → P _ a₂ (.length hτ₁ e) = some a₃
+  → Fold P a₁ (.length hτ₁ e) a₃
 
 def All (P : {τ : Typ} → Expr Δ Γ τ → Bool) (e : Expr Δ Γ τ) : Prop :=
   Expr.Fold (fun _ _ e => if P e then some () else none) () e ()
 
 @[inline] def only_contract : Expr Δ Γ τ → Bool
-  | .result _ => .true
-  | .length _ => .true
-  | _         => .false
+  | .result _   => .true
+  | .length _ _ => .true
+  | _           => .false
 @[inline] def has_result : Expr Δ Γ τ → Bool
   | .result _  => .true
   | _          => .false
@@ -358,32 +401,33 @@ def BinOp.toString : BinOp → String
 instance : ToString BinOp where toString := BinOp.toString
 
 def Expr.toString : Expr Δ Γ τ → String
-  | .num v       => s!"({v} : {τ})"
-  | .char c      => s!"('{c.toString.sanitise}' : {τ})"
-  | .str s       => s!"(\"{s.sanitise}\" : {τ})"
-  | .«true»      => s!"(true : {τ})"
-  | .«false»     => s!"(false : {τ})"
-  | .null        => s!"(NULL : {τ})"
-  | .unop op _ e => s!"({op}{Expr.toString e} : {τ})"
-  | .binop_int op l r
-  | .binop_bool op l r
-  | .binop_eq op _ l r _ _
-  | .binop_rel₁ op _ l r
-  | .binop_rel₂ op _ l r =>
+  | .num _ v            => s!"({v} : {τ})"
+  | .char _ c           => s!"('{c.toString.sanitise}' : {τ})"
+  | .str _ s            => s!"(\"{s.sanitise}\" : {τ})"
+  | .«true» _           => s!"(true : {τ})"
+  | .«false» _          => s!"(false : {τ})"
+  | .null _             => s!"(NULL : {τ})"
+  | .unop_int _ _ op e  => s!"({op}{Expr.toString e} : {τ})"
+  | .unop_bool _ _ op e => s!"({op}{Expr.toString e} : {τ})"
+  | .binop_int _ _ _ op l r
+  | .binop_bool _ _ _ op l r
+  | .binop_eq _ op _ l r _ _
+  | .binop_rel_int _ _ _ op _ l r
+  | .binop_rel_char _ _ _ op _ l r =>
     s!"({Expr.toString l} {op} {Expr.toString r} : {τ})"
-  | .ternop cc tt ff _ =>
+  | .ternop _ _ cc tt ff _ =>
     s!"({Expr.toString cc} ? {Expr.toString tt} : {Expr.toString ff} : {τ})"
   | .app f _ _ _ args =>
     let str_args := ", ".intercalate
       (.ofFn (fun i => Expr.toString (args i)))
     s!"({f}({str_args}) : {τ})"
-  | .alloc ty => s!"(alloc({ty}) : {τ})"
-  | .alloc_array ty e => s!"(alloc_array({ty}, {Expr.toString e}) : {τ})"
-  | .var name _ => s!"({name} : {τ})"
-  | .dot e field _ _ => s!"({Expr.toString e}.{field} : {τ})"
-  | .deref e   => s!"(*{Expr.toString e} : {τ})"
-  | .index e i => s!"({Expr.toString e}[{Expr.toString i}] : {τ})"
-  | .result _  => s!"(\\result : {τ})"
-  | .length e  => s!"(\\length {Expr.toString e} : {τ})"
+  | .alloc ty           => s!"(alloc({ty}) : {τ})"
+  | .alloc_array _ ty e => s!"(alloc_array({ty}, {Expr.toString e}) : {τ})"
+  | .var name _         => s!"({name} : {τ})"
+  | .dot _ e field _ _  => s!"({Expr.toString e}.{field} : {τ})"
+  | .deref _ e          => s!"(*{Expr.toString e} : {τ})"
+  | .index _ _ e i      => s!"({Expr.toString e}[{Expr.toString i}] : {τ})"
+  | .result _           => s!"(\\result : {τ})"
+  | .length _ e         => s!"(\\length {Expr.toString e} : {τ})"
 
 instance : ToString (Expr Δ Γ τ) := ⟨Expr.toString⟩

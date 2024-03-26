@@ -50,7 +50,7 @@ inductive BinOp
 | cmp (op : Comparator)
 
 open Typ.Notation in
-inductive TypeValue : Value → Typ → Prop
+inductive TypeValue : Value → Typ → Type
 | num     : TypeValue (.num  i) (int)
 | char    : TypeValue (.char c) (char)
 | string  : TypeValue (.str  s) (string)
@@ -61,7 +61,7 @@ inductive TypeValue : Value → Typ → Prop
 -- todo finish
 
 open Typ.Notation in
-inductive Default : Typ → Value → Prop
+inductive Default : Typ → Value → Type
 | int    : Default (int)        (.num 0)
 | bool   : Default (bool)       (.false)
 | char   : Default (char)       (.char (.ofNat 0))
@@ -84,17 +84,18 @@ variable (Δ : GCtx) (Γ : FCtx) in
 open Typ.Notation in
 inductive Cont : Cont.Res → Type
 | nil : Cont .val                                          -- ·
-| unop : UnOp → Cont .val → Cont .val                      -- op _
+| unop_int : UnOp.Int → Cont .val → Cont .val              -- op _
+| unop_bool : UnOp.Bool → Cont .val → Cont .val
 | binop_int₁                                               -- _ ⊕ e
-  : {τ : {τ : Typ // τ = (int)}}
+  : τ = (int)
   → BinOp.Int → Expr Δ Γ τ → Cont .val → Cont .val
 | binop_eq₁
   : Comparator → Expr Δ Γ τ → Cont .val → Cont .val
 | binop_rel_int₁
-  : {τ : {τ : Typ // τ = (int)}}
+  : τ = (int)
   → Comparator → Expr Δ Γ τ → Cont .val → Cont .val
 | binop_rel_char₁
-  : {τ : {τ : Typ // τ = (char)}}
+  : τ = (char)
   → Comparator → Expr Δ Γ τ → Cont .val → Cont .val
 | binop_int₂                                               -- c ⊕ _
   : Value → BinOp.Int → Cont .val → Cont .val
@@ -105,14 +106,11 @@ inductive Cont : Cont.Res → Type
 | binop_rel_char₂
   : Value → Comparator → Cont .val → Cont .val
 | and                                                      -- _ && e
-  : {τ : {τ : Typ // τ = (bool)}}
-  → Expr Δ Γ τ → Cont .val → Cont .val
+  : τ = (bool) → Expr Δ Γ τ → Cont .val → Cont .val
 | or                                                       -- _ || e
-  : {τ : {τ : Typ // τ = (bool)}}
-  → Expr Δ Γ τ → Cont .val → Cont .val
+  : τ = (bool) → Expr Δ Γ τ → Cont .val → Cont .val
 | ternop                                                   -- _ ? e₁ : e₂
-  : {τ : {τ : Typ // τ = (bool)}}
-  → Expr Δ Γ τ → Expr Δ Γ τ' → Cont .val → Cont .val
+  : Expr Δ Γ τ → Expr Δ Γ τ' → Cont .val → Cont .val
 | app                                                      -- f(vs,_,es)
   : (f : Symbol)
   → (arity : Nat)
@@ -127,8 +125,7 @@ inductive Cont : Cont.Res → Type
 | dot        : Symbol → Cont .addr → Cont .addr            -- &(_.f)
 | deref      : Cont .val → Cont .addr                      -- *_
 | index₁                                                   -- &(_[e])
-  : {τ : {τ' : Typ // τ' = (int)}}
-  → Expr Δ Γ τ → Cont .addr → Cont .val
+  : τ = (int) → Expr Δ Γ τ → Cont .addr → Cont .val
 | index₂     : Address → Cont .addr → Cont .val            -- &(a[_])
 | stmt       : Stmt Δ Γ ρ → Cont .val → Cont .val          -- s
 | assn₁                                                    -- assn(_, e)
@@ -148,7 +145,7 @@ def Cont.consStmtList (K : Cont Δ Γ .val) : List (Stmt Δ Γ ρ) → Cont Δ �
   | [] => K
   | s :: stmts => .stmt s (consStmtList K stmts)
 
-inductive DynResult : Prop
+inductive DynResult : Type
 | val      : Value → Cont Δ Γ r → DynResult
 | eval     : Expr Δ Γ τ → Cont Δ Γ r → DynResult
 | exec     : Stmt Δ Γ ρ → Cont Δ Γ r → DynResult
@@ -263,41 +260,53 @@ structure State (p : Prog) where
   η : Environment
   r : DynResult
 
-
 local notation:50 H:51 " ; " S:51 " ; " η:51 " |= " r:51 => State.mk H S η r
 
 /- TODO: should also track IO interactions à la Mario's C0 impl and CompCert -/
+open Typ.Notation in
 inductive Step {p : Prog} : State p → State p → Prop
 | num
-  : Step (H; S; η |= .eval (.num  c) K)
-         (H; S; η |= .val  (.num  c) K)
+  : Step (H; S; η |= .eval (.num _ c) K)
+         (H; S; η |= .val  (.num   c) K)
 | char
-  : Step (H; S; η |= .eval (.char c) K)
-         (H; S; η |= .val  (.char c) K)
+  : Step (H; S; η |= .eval (.char _ c) K)
+         (H; S; η |= .val  (.char   c) K)
 | str
-  : Step (H; S; η |= .eval (.str  s) K)
-         (H; S; η |= .val  (.str  s) K)
+  : Step (H; S; η |= .eval (.str _ s) K)
+         (H; S; η |= .val  (.str   s) K)
 | «true»
-  : Step (H; S; η |= .eval .true K)
-         (H; S; η |= .val  .true K)
+  : Step (H; S; η |= .eval (.true _) K)
+         (H; S; η |= .val  (.true  ) K)
 | «false»
-  : Step (H; S; η |= .eval .false K)
-         (H; S; η |= .val  .false K)
+  : Step (H; S; η |= .eval (.false _) K)
+         (H; S; η |= .val  (.false  ) K)
 | null
-  : Step (H; S; η |= .eval .null         K)
+  : Step (H; S; η |= .eval (.null _)     K)
          (H; S; η |= .val  (.addr .null) K)
-| unop
-  : Step (H; S; η |= .eval (.unop op h e) K)
-         (H; S; η |= .eval e (.unop op K))
-| unop_res
-  : Step.UnOp op c v
-  → Step (H; S; η |= .val c (.unop op K))
+| unop_int -- can we merge these?
+  : {e : Expr Δ Γ τ₁}
+  → Step (H; S; η |= .eval (.unop_int hτ₁ hτ₂ op e) K)
+         (H; S; η |= .eval e (.unop_int op K))
+| unop_bool
+  : {e : Expr Δ Γ τ₁}
+  → Step (H; S; η |= .eval (.unop_bool hτ₁ hτ₂ op e) K)
+         (H; S; η |= .eval e (.unop_bool op K))
+| unop_int_res
+  : Step.UnOp (.int op) c v
+  → Step (H; S; η |= .val c (.unop_int op K))
+         (H; S; η |= .val v K)
+| unop_bool_res
+  : Step.UnOp (.bool op) c v
+  → Step (H; S; η |= .val c (.unop_bool op K))
          (H; S; η |= .val v K)
 | binop_int₁
-  : Step (H; S; η |= .eval (.binop_int op e₁ e₂) K)
-         (H; S; η |= .eval e₁ (.binop_int₁ op e₂ K))
+  : {e₁ : Expr Δ Γ τ₁}
+  → {e₂ : Expr Δ Γ τ₁}
+  → Step (H; S; η |= .eval (.binop_int hτ₁ hτ₂ hτ op e₁ e₂) K)
+         (H; S; η |= .eval e₁ (.binop_int₁ hτ₂ op e₂ K))
 | binop_int₂
-  : Step (H; S; η |= .val c₁ (.binop_int₁ op e₂ K))
+  : {e₂ : Expr Δ Γ τ₂}
+  → Step (H; S; η |= .val c₁ (.binop_int₁ hτ op e₂ K))
          (H; S; η |= .eval e₂ (.binop_int₂ c₁ op K))
 | binop_int
   : Step.BinOp.Int c₁ op c₂ (.inl v)
@@ -308,7 +317,7 @@ inductive Step {p : Prog} : State p → State p → Prop
   → Step (H; S; η |= .val c₂ (.binop_int₂ c₁ op K))
          (H; S; η |= .exn exn)
 | binop_eq₁
-  : Step (H; S; η |= .eval (.binop_eq op h₁ e₁ e₂ h₂ h₃) K)
+  : Step (H; S; η |= .eval (.binop_eq hτ op h₁ e₁ e₂ h₂ h₃) K)
          (H; S; η |= .eval e₁ (.binop_eq₁ op e₂ K))
 | binop_eq₂
   : Step (H; S; η |= .val c₁ (.binop_eq₁ op e₂ K))
@@ -318,45 +327,59 @@ inductive Step {p : Prog} : State p → State p → Prop
   → Step (H; S; η |= .val c₂ (.binop_eq₂ c₁ op K))
          (H; S; η |= .val v K)
 | binop_rel_int₁
-  : Step (H; S; η |= .eval (.binop_rel₁ op h e₁ e₂) K)
-         (H; S; η |= .eval e₁ (.binop_rel_int₁ op e₂ K))
+  : {e₁ : Expr Δ Γ τ₁}
+  → {e₂ : Expr Δ Γ τ₂}
+  → Step (H; S; η |= .eval (.binop_rel_int hτ₁ hτ₂ hτ op h e₁ e₂) K)
+         (H; S; η |= .eval e₁ (.binop_rel_int₁ hτ₂ op e₂ K))
 | binop_rel_int₂
-  : Step (H; S; η |= .val c₁ (.binop_rel_int₁ op e₂ K))
+  : {e₂ : Expr Δ Γ τ₂}
+  → Step (H; S; η |= .val c₁ (.binop_rel_int₁ hτ op e₂ K))
          (H; S; η |= .eval e₂ (.binop_rel_int₂ c₁ op K))
 | binop_rel_int
   : Step.BinOp.Cmp c₁ op c₂ v
   → Step (H; S; η |= .val c₂ (.binop_rel_int₂ c₁ op K))
          (H; S; η |= .val v K)
 | binop_rel_char₁
-  : Step (H; S; η |= .eval (.binop_rel₂ op h e₁ e₂) K)
-         (H; S; η |= .eval e₁ (.binop_rel_char₁ op e₂ K))
+  : {e₁ : Expr Δ Γ τ₁}
+  → {e₂ : Expr Δ Γ τ₂}
+  → Step (H; S; η |= .eval (.binop_rel_char hτ₁ hτ₂ hτ op h e₁ e₂) K)
+         (H; S; η |= .eval e₁ (.binop_rel_char₁ hτ₂ op e₂ K))
 | binop_rel_char₂
-  : Step (H; S; η |= .val c₁ (.binop_rel_char₁ op e₂ K))
+  : {e₂ : Expr Δ Γ τ₂}
+  → Step (H; S; η |= .val c₁ (.binop_rel_char₁ hτ op e₂ K))
          (H; S; η |= .eval e₂ (.binop_rel_char₂ c₁ op K))
 | binop_rel_char
   : Step.BinOp.Cmp c₁ op c₂ v
   → Step (H; S; η |= .val c₂ (.binop_rel_char₂ c₁ op K))
          (H; S; η |= .val v K)
 | and₁
-  : Step (H; S; η |= .eval (.binop_bool .and e₁ e₂) K)
-         (H; S; η |= .eval e₁ (.and e₂ K))
+  : {e₁ : Expr Δ Γ τ₁}
+  → {e₂ : Expr Δ Γ τ₂}
+  → Step (H; S; η |= .eval (.binop_bool hτ₁ hτ₂ hτ .and e₁ e₂) K)
+         (H; S; η |= .eval e₁ (.and hτ₂ e₂ K))
 | and₂
-  : Step (H; S; η |= .val .true (.and e₂ K))
+  : {e₂ : Expr Δ Γ τ₂}
+  → Step (H; S; η |= .val .true (.and hτ e₂ K))
          (H; S; η |= .eval e₂ K)
 | and_sc
-  : Step (H; S; η |= .val .false (.and e₂ K))
+  : {e₂ : Expr Δ Γ τ₂}
+  → Step (H; S; η |= .val .false (.and hτ e₂ K))
          (H; S; η |= .val .false K)
 | or₁
-  : Step (H; S; η |= .eval (.binop_bool .or e₁ e₂) K)
-         (H; S; η |= .eval e₁ (.or e₂ K))
+  : {e₁ : Expr Δ Γ τ₁}
+  → {e₂ : Expr Δ Γ τ₂}
+  → Step (H; S; η |= .eval (.binop_bool hτ₁ hτ₂ hτ .or e₁ e₂) K)
+         (H; S; η |= .eval e₁ (.or hτ₂ e₂ K))
 | or₂
-  : Step (H; S; η |= .val .false (.or e₂ K))
+  : {e₂ : Expr Δ Γ τ₂}
+  → Step (H; S; η |= .val .false (.or hτ e₂ K))
          (H; S; η |= .eval e₂ K)
 | or_sc
-  : Step (H; S; η |= .val .true (.or e₂ K))
+  : {e₂ : Expr Δ Γ τ₂}
+  → Step (H; S; η |= .val .true (.or hτ e₂ K))
          (H; S; η |= .val .true K)
 | ternop
-  : Step (H; S; η |= .eval (.ternop cc tt ff h) K)
+  : Step (H; S; η |= .eval (.ternop hτ₁ hτ cc tt ff h) K)
          (H; S; η |= .eval cc (.ternop tt ff K))
 | ternop_t
   : Step (H; S; η |= .val .true (.ternop tt ff K))
@@ -373,7 +396,7 @@ inductive Step {p : Prog} : State p → State p → Prop
   → Step (H; S; η |= .eval (.app f h τs eq args) K)
          (H; S; η |=
             .eval (args ⟨0, arg_length⟩)
-                  (.app f stat.type.arity [] τs args 1 (by linarith) K)
+                  (.app f stat.type.arity .nil τs args 1 (by linarith) K)
          )
 | app_args_cont
   : (n_lt : n < arity)
@@ -439,7 +462,7 @@ inductive Step {p : Prog} : State p → State p → Prop
   → Step (H ; S; η |= .eval (.alloc τ) K)
          (H'; S; η |= .val (.addr a) K)
 | alloc_array
-  : Step (H; S; η |= .eval (.alloc_array τ e) K)
+  : Step (H; S; η |= .eval (.alloc_array hτ₁ τ e) K)
          (H; S; η |= .eval e (.alloc_arr τ K))
 | alloc_array_lt_zero
   : n < 0
@@ -455,7 +478,7 @@ inductive Step {p : Prog} : State p → State p → Prop
   : Step (H; S; η |= .eval (.var x h) K)
          (H; S; η |= .val (η.find! x) K)
 | dot
-  : Step (H; S; η |= .eval (.dot e f h₁ h₂) K)
+  : Step (H; S; η |= .eval (.dot hτ₁ e f h₁ h₂) K)
          (H; S; η |= .eval e (.dot f K))
 | dot_val
   : Step (H; S; η |= .val (.struct fields) (.dot f K))
@@ -464,7 +487,7 @@ inductive Step {p : Prog} : State p → State p → Prop
   : Step (H; S; η |= .val (.addr .null) (.dot f K))
          (H; S; η |= .exn .memory)
 | deref₁
-  : Step (H; S; η |= .eval (.deref e) K)
+  : Step (H; S; η |= .eval (.deref hτ₁ e) K)
          (H; S; η |= .eval e (.deref K))
 | deref_val
   : H.find a = .inl v
@@ -475,10 +498,10 @@ inductive Step {p : Prog} : State p → State p → Prop
   → Step (H; S; η |= .val (.addr a) (.deref K))
          (H; S; η |= .exn exn)
 | index₁
-  : Step (H; S; η |= .eval (.index e₁ e₂) K)
-         (H; S; η |= .eval e₁ (.index₁ e₂ K))
+  : Step (H; S; η |= .eval (.index hτ₁ hτ₂ e₁ e₂) K)
+         (H; S; η |= .eval e₁ (.index₁ hτ₂ e₂ K))
 | index₂
-  : Step (H; S; η |= .val (.addr a) (.index₁ e₂ K))
+  : Step (H; S; η |= .val (.addr a) (.index₁ hτ e₂ K))
          (H; S; η |= .eval e₂ (.index₂ a K))
 | index_val
   : H.find a = .inl (.arr arr)
@@ -530,13 +553,14 @@ inductive Step {p : Prog} : State p → State p → Prop
   : Step (H; S; η |= .val v (.assn₂ .null K))
          (H; S; η |= .exn .memory)
 | assn_var_op
-  : Step (H; S; η |= .exec (.asnop (.var x h) op e) K)
-         (H; S; η |= .eval (.var x h) (.binop_int₁ op e.val (.assn_var x K)))
+  : Step (H; S; η |= .exec (.asnop hτ₁ hτ₂ (.var x h) op e) K)
+         (H; S; η |= .eval (.var x h) (.binop_int₁ hτ₂ op e.val
+                                        (.assn_var x K)))
 | assn_addr_op_val
   : H.find a = .inl (.num da)
   → Step (H; S; η |= .val (.num c) (.assn₂ a K))
-         (H; S; η |= .eval (.binop_int op (Expr.intType (.num da) (by rfl))
-                                          (Expr.intType (.num c) (by rfl))) K)
+         (H; S; η |= .eval (.binop_int (by rfl) (by rfl) (by rfl) op
+                                (.num (by rfl) da) (.num (by rfl) c)) K)
 | assn_addr_op_exn
   : H.find a = .inr exn
   → Step (H; S; η |= .val (.num c) (.assn₂ a K))
@@ -548,7 +572,7 @@ inductive Step {p : Prog} : State p → State p → Prop
   : Step (H; S; η |= .val v (.discard K))
          (H; S; η |= .nop K)
 | ite
-  : Step (H; S; η |= .exec (.ite e tt ff) K)
+  : Step (H; S; η |= .exec (.ite hτ e tt ff) K)
          (H; S; η |= .eval e.val (.ite tt ff.toList K))
 | ite_t
   : Step (H; S; η |= .val .true (.ite tt ff K))
@@ -557,16 +581,16 @@ inductive Step {p : Prog} : State p → State p → Prop
   : Step (H; S; η |= .val .false (.ite tt ff K))
          (H; S; η |= .exec_seq ff K)
 | while
-  : Step (H; S; η |= .exec (.while e annos body) K)
+  : Step (H; S; η |= .exec (.while hτ e annos body) K)
          (H; S; η |=
-          .exec (.ite e (body ++ Stmt.List.cons (.while e annos body) .nil) .nil) K
+          .exec (.ite hτ e (body ++ Stmt.List.cons (.while hτ e annos body) .nil) .nil) K
          )
 | return_val₁
-  : Step (H; S; η |= .exec (.return_tau e) K)
+  : Step (H; S; η |= .exec (.return_tau hρ e) K)
          (H; S; η |= .eval e.val .return)
 | return_main
-  : Step (H; []; η |= .val (.num c) .return)
-         (H; []; η |= .res c)
+  : Step (H; .nil; η |= .val (.num c) .return)
+         (H; .nil; η |= .res c)
 | return_val₂
   : Step (H; (frame :: S); η |= .val v .return)
          (H; S; frame.environment |= .val v frame.continuation)
@@ -574,7 +598,7 @@ inductive Step {p : Prog} : State p → State p → Prop
   : Step (H; (frame :: S); η |= .exec (.return_void h) K)
          (H; S; frame.environment |= .nop frame.continuation)
 | assert
-  : Step (H; S; η |= .exec (.assert e) K)
+  : Step (H; S; η |= .exec (.assert hτ e) K)
          (H; S; η |= .eval e.val (.assert K))
 | assert_t
   : Step (H; S; η |= .val .true (.assert K))
@@ -583,7 +607,7 @@ inductive Step {p : Prog} : State p → State p → Prop
   : Step (H; S; η |= .val .false (.assert K))
          (H; S; η |= .exn .abort)
 | error₁
-  : Step (H; S; η |= .exec (.error e) K)
+  : Step (H; S; η |= .exec (.error hτ e) K)
          (H; S; η |= .eval e.val (.error K))
 | error₂
   : Step (H; S; η |= .val (.str s) (.error K))

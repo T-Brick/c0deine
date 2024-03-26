@@ -39,8 +39,8 @@ inductive Stmt (Δ : GCtx) : (Γ : FCtx) → Option Typ → Type
   → (ty_equiv : τ₁.equiv τ₂)
   → Stmt Δ Γ ρ
 | asnop
-  : {τ₁ : {τ : Typ // τ = .prim .int}}
-  → {τ₂ : {τ : Typ // τ = .prim .int}}
+  : (hτ₁ : τ₁ = (int))
+  → (hτ₂ : τ₂ = (int))
   → (lhs : LValue Δ Γ τ₁)
   → BinOp.Int
   → (rhs : Expr.NoContract Δ Γ τ₂)
@@ -49,13 +49,13 @@ inductive Stmt (Δ : GCtx) : (Γ : FCtx) → Option Typ → Type
   : Expr.NoContract Δ Γ τ
   → Stmt Δ Γ ρ
 | ite
-  : {τ : {τ : Typ // τ = (bool)}}
+  : (hτ : τ = (bool))
   → (cond : Expr.NoContract Δ Γ τ)
   → (tt : Stmt.List Δ Γ ρ)
   → (ff : Stmt.List Δ Γ ρ)
   → Stmt Δ Γ ρ
 | while
-  : {τ : {τ : Typ // τ = (bool)}}
+  : (hτ : τ = (bool))
   → (cond : Expr.NoContract Δ Γ τ)
   → List (Anno.Loop Δ Γ)
   → Stmt.List Δ Γ ρ
@@ -64,15 +64,15 @@ inductive Stmt (Δ : GCtx) : (Γ : FCtx) → Option Typ → Type
   : (is_void : ρ.isNone)
   → Stmt Δ Γ ρ
 | return_tau
-  : {τ₁ : {τ' : Typ // τ' = τ }}
-  → Expr.NoContract Δ Γ τ₁
-  → Stmt Δ Γ (some τ)
+  : (hρ : ρ = some τ)
+  → Expr.NoContract Δ Γ τ
+  → Stmt Δ Γ ρ
 | assert
-  : {τ : {τ : Typ // τ = (bool)}}
+  : (hτ : τ = (bool))
   → Expr.NoContract Δ Γ τ
   → Stmt Δ Γ ρ
 | error
-  : {τ : {τ : Typ // τ = (string)}}
+  : (hτ : τ = (string))
   → Expr.NoContract Δ Γ τ
   → Stmt Δ Γ ρ
 | anno : Anno.Free Δ Γ → Stmt Δ Γ ρ
@@ -191,15 +191,14 @@ inductive Stmt.Fold
   → P.stmt (ρ := ρ) a₄ (.assign lhs var rhs eq) = some a₅
   → Stmt.Fold P a₁ ((.assign lhs var rhs eq) : Stmt Δ Γ ρ) a₅
 | asnop
-  : {τ₁ τ₂ : {τ : Typ // τ = (int)}}
-  → {lhs : LValue Δ Γ τ₁}
+  : {lhs : LValue Δ Γ τ₁}
   → {rhs : Expr.NoContract Δ Γ τ₂}
   → {a₁ a₂ a₃ a₄ a₅ : α}
   → P.init (Γ := Γ) a₁ (.asnop lhs op rhs) = some a₂
   → LValue.Fold P.toLValuePred a₂ lhs a₃
   → Expr.Fold P.expr a₃ rhs.val a₄
-  → P.stmt (ρ := ρ) a₄ (.asnop lhs op rhs) = some a₅
-  → Stmt.Fold P a₁ ((.asnop lhs op rhs) : Stmt Δ Γ ρ) a₅
+  → P.stmt (ρ := ρ) a₄ (.asnop hτ₁ hτ₂ lhs op rhs) = some a₅
+  → Stmt.Fold P a₁ ((.asnop hτ₁ hτ₂ lhs op rhs) : Stmt Δ Γ ρ) a₅
 | expr
   : {e : Expr.NoContract Δ Γ τ}
   → {a₁ a₂ a₃ a₄ : α}
@@ -208,27 +207,25 @@ inductive Stmt.Fold
   → P.stmt (ρ := ρ) a₃ (.expr e) = some a₄
   → Stmt.Fold P a₁ ((.expr e) : Stmt Δ Γ ρ) a₄
 | ite
-  : {τ : {τ : Typ // τ = (bool)}}
-  → {cond : Expr.NoContract Δ Γ τ}
+  : {cond : Expr.NoContract Δ Γ τ}
   → {tt ff : Stmt.List Δ Γ ρ}
   → {a₁ a₂ a_t a_f : α}
   → Expr.Fold P.expr a₁ cond.val a₂
   → P.init (Γ := Γ) a₂ (.ite cond) = some a₃
   → Stmt.List.Fold P a₃ tt a_t
   → Stmt.List.Fold P a₃ ff a_f
-  → P.join a_t a_f (.ite cond tt ff) = some a₄
-  → Stmt.Fold P a₁ (.ite cond tt ff) a₄
+  → P.join a_t a_f (.ite hτ cond tt ff) = some a₄
+  → Stmt.Fold P a₁ (.ite hτ cond tt ff) a₄
 | while
-  : {τ : {τ : Typ // τ = (bool)}}
-  → {cond : Expr.NoContract Δ Γ τ}
+  : {cond : Expr.NoContract Δ Γ τ}
   → {body : Stmt.List Δ Γ ρ}
   → {a₁ a₂ a₃ a₄ a₅ a₆ : α}
   → Expr.Fold P.expr a₁ cond.val a₂
   → Anno.List.Fold P.expr a₂ (annos.map (·.val)) a₃
   → P.init (Γ := Γ) a₃ (.while cond) = some a₄
   → Stmt.List.Fold P a₄ body a₅
-  → P.join a₂ a₅ (.while cond annos body) = some a₆
-  → Stmt.Fold P a₁ (.while cond annos body) a₆
+  → P.join a₂ a₅ (.while hτ cond annos body) = some a₆
+  → Stmt.Fold P a₁ (.while hτ cond annos body) a₆
 | return_void
   : {a₁ a₂ : α}
   → {ρ : Option Typ}
@@ -237,29 +234,26 @@ inductive Stmt.Fold
   → P.stmt (Γ := Γ) a₁ (.return_void h) = some a₂
   → Stmt.Fold P a₁ ((.return_void h) : Stmt Δ Γ ρ) a₂
 | return_tau
-  : {τ₁ : {τ' : Typ // τ' = τ}}
-  → {e : Expr.NoContract Δ Γ τ₁}
+  : {e : Expr.NoContract Δ Γ τ}
   → {a₁ a₂ a₃ a₄ : α}
   → P.init (Γ := Γ) a₁ (.return_tau e) = some a₂
   → Expr.Fold P.expr a₂ e.val a₃
-  → P.stmt a₃ (.return_tau e) = some a₄
-  → Stmt.Fold P a₁ (.return_tau e) a₄
+  → P.stmt a₃ (.return_tau hρ e) = some a₄
+  → Stmt.Fold P a₁ ((.return_tau hρ e) : Stmt Δ Γ ρ) a₄
 | assert
-  : {τ : {τ : Typ // τ = (bool)}}
-  → {e : Expr.NoContract Δ Γ τ}
+  : {e : Expr.NoContract Δ Γ τ}
   → {a₁ a₂ a₃ a₄ : α}
   → P.init (Γ := Γ) a₁ (.assert e) = some a₂
   → Expr.Fold P.expr a₂ e.val a₃
-  → P.stmt a₃ ((.assert e) : Stmt Δ Γ ρ) = some a₄
-  → Stmt.Fold P a₁ ((.assert e) : Stmt Δ Γ ρ) a₄
+  → P.stmt a₃ ((.assert hτ₁ e) : Stmt Δ Γ ρ) = some a₄
+  → Stmt.Fold P a₁ ((.assert hτ₁ e) : Stmt Δ Γ ρ) a₄
 | error
-  : {τ : {τ : Typ // τ = (string)}}
-  → {e : Expr.NoContract Δ Γ τ}
+  : {e : Expr.NoContract Δ Γ τ}
   → {a₁ a₂ a₃ a₄ : α}
   → P.init (Γ := Γ) a₁ (.error e) = some a₂
   → Expr.Fold P.expr a₂ e.val a₃
-  → P.stmt a₃ ((.error e) : Stmt Δ Γ ρ) = some a₄
-  → Stmt.Fold P a₁ ((.error e) : Stmt Δ Γ ρ) a₄
+  → P.stmt a₃ ((.error hτ e) : Stmt Δ Γ ρ) = some a₄
+  → Stmt.Fold P a₁ ((.error hτ e) : Stmt Δ Γ ρ) a₄
 | anno
   : {an : Anno.Free Δ Γ}
   → {a₁ a₂ a₃ a₄ : α}
@@ -316,9 +310,9 @@ def Initialised.Acc.ofList : List Symbol → Acc :=
   | _ => acc
 
 @[simp] def Initialised.stmt (acc : Acc) : Stmt Δ Γ ρ → Acc
-  | .return_tau _
+  | .return_tau _ _
   | .return_void _     -- end of controlflow initialises all decl'd variables
-  | .error _        => fun x => if let some _ := Γ.syms x then true else false
+  | .error _ _        => fun x => if let some _ := Γ.syms x then true else false
   | _ => acc
 
 @[simp] def Initialised.lval (τ : Typ) (acc : Acc) : LValue Δ Γ τ → Option Acc
@@ -330,7 +324,7 @@ def Initialised.Acc.ofList : List Symbol → Acc :=
   | _        => some acc
 
 @[simp] def Initialised.join (acc₁ acc₂ : Acc) : Stmt Δ Γ ρ → Acc
-  | .while _ _ _ => acc₁
+  | .while _ _ _ _ => acc₁
   | .decl_init name _ _ _ _
   | .decl name _ _  => (fun x => if x = name.data then false else acc₂ x)
   | _ => (fun x => acc₁ x && acc₂ x)
@@ -363,16 +357,16 @@ def Initialised.Acc.ofList : List Symbol → Acc :=
   | _ => acc
 @[simp] def Returns.stmt (acc : Bool) : Stmt Δ Γ ρ → Bool
   | .return_void _
-  | .return_tau _
-  | .error _       => true
+  | .return_tau _ _
+  | .error _ _       => true
   | _ => acc
 @[simp] def Returns.expr (τ : Typ) (acc : Bool) : Expr Δ Γ τ → Option Bool :=
   fun _ => some acc
 @[simp] def Returns.lval (τ : Typ) (acc : Bool) : LValue Δ Γ τ → Option Bool :=
   fun _ => some acc
 @[simp] def Returns.join (acc₁ acc₂ : Bool) : Stmt Δ Γ ρ → Option Bool
-  | .while _ _ _ => some acc₁ -- acc₂ is the result of the body, we disregard
-  | .ite _ _ _   => some (acc₁ && acc₂)
+  | .while _ _ _ _ => some acc₁ -- acc₂ is the result of the body, we disregard
+  | .ite _  _ _ _   => some (acc₁ && acc₂)
   | _            => some acc₂
 @[simp] def Returns.Predicate : Stmt.Predicate Δ Γ Bool :=
   { init := fun acc s => (some (init acc s))
@@ -392,28 +386,29 @@ def Initialised.Acc.ofList : List Symbol → Acc :=
   intro acc e
   have p : ∀ τ (e' : Expr Δ Γ τ), Returns.expr τ acc e' = some acc := by simp
   induction e with -- is there a better way to do with?
-  | num _       => exact .num   (p _ _)
-  | char _      => exact .char  (p _ _)
-  | str _       => exact .str   (p _ _)
-  | var _ _     => exact .var   (p _ _)
-  | «true»      => exact .true  (p _ _)
-  | «false»     => exact .false (p _ _)
-  | null        => exact .null  (p _ _)
-  | unop        => next ih          => exact .unop ih                 (p _ _)
-  | binop_int   => next ih₁ ih₂     => exact .binop_int   ih₁ ih₂     (p _ _)
-  | binop_bool  => next ih₁ ih₂     => exact .binop_bool  ih₁ ih₂     (p _ _)
-  | binop_eq    => next ih₁ ih₂     => exact .binop_eq    ih₁ ih₂     (p _ _)
-  | binop_rel₁  => next ih₁ ih₂     => exact .binop_rel₁  ih₁ ih₂     (p _ _)
-  | binop_rel₂  => next ih₁ ih₂     => exact .binop_rel₂  ih₁ ih₂     (p _ _)
-  | ternop      => next ih₁ ih₂ ih₃ => exact .ternop      ih₁ ih₂ ih₃ (p _ _)
-  | app         => next ih          => exact .app         ih          (p _ _)
-  | alloc       => next             => exact .alloc                   (p _ _)
-  | alloc_array => next ih          => exact .alloc_array ih          (p _ _)
-  | dot         => next ih          => exact .dot         ih          (p _ _)
-  | deref       => next ih          => exact .deref       ih          (p _ _)
-  | index       => next ih₁ ih₂     => exact .index       ih₁ ih₂     (p _ _)
-  | result      => next             => exact .result                  (p _ _)
-  | length      => next ih          => exact .length      ih          (p _ _)
+  | num   _        => exact .num   (p _ _)
+  | char _         => exact .char  (p _ _)
+  | str _          => exact .str   (p _ _)
+  | var _ _        => exact .var   (p _ _)
+  | «true»         => exact .true  (p _ _)
+  | «false»        => exact .false (p _ _)
+  | null           => exact .null  (p _ _)
+  | unop_int       => next ih          => exact .unop_int    ih          (p _ _)
+  | unop_bool      => next ih          => exact .unop_bool   ih          (p _ _)
+  | binop_int      => next ih₁ ih₂     => exact .binop_int   ih₁ ih₂     (p _ _)
+  | binop_bool     => next ih₁ ih₂     => exact .binop_bool  ih₁ ih₂     (p _ _)
+  | binop_eq       => next ih₁ ih₂     => exact .binop_eq    ih₁ ih₂     (p _ _)
+  | binop_rel_int  => next ih₁ ih₂     => exact .binop_rel_int  ih₁ ih₂  (p _ _)
+  | binop_rel_char => next ih₁ ih₂     => exact .binop_rel_char  ih₁ ih₂ (p _ _)
+  | ternop         => next ih₁ ih₂ ih₃ => exact .ternop      ih₁ ih₂ ih₃ (p _ _)
+  | app            => next ih          => exact .app         ih          (p _ _)
+  | alloc          => next             => exact .alloc                   (p _ _)
+  | alloc_array    => next ih          => exact .alloc_array ih          (p _ _)
+  | dot            => next ih          => exact .dot         ih          (p _ _)
+  | deref          => next ih          => exact .deref       ih          (p _ _)
+  | index          => next ih₁ ih₂     => exact .index       ih₁ ih₂     (p _ _)
+  | result         => next             => exact .result                  (p _ _)
+  | length         => next ih          => exact .length      ih          (p _ _)
 
 @[simp] theorem Returns.lval_fold
   : ∀ acc (lv : LValue Δ Γ τ),
@@ -424,7 +419,7 @@ def Initialised.Acc.ofList : List Symbol → Acc :=
   | var   => exact .var (by simp)
   | dot   => next ih => exact .dot   ih (by simp)
   | deref => next ih => exact .deref ih (by simp)
-  | index _ e => next ih =>
+  | index _ _ _ e => next ih =>
     have : Expr.Fold Predicate.toLValuePred.expr acc e.val acc := by simp
     exact .index (a₃ := acc) ih this (by simp)
 
@@ -456,26 +451,26 @@ partial def Stmt.toString (s : Stmt Δ Γ ρ) : String :=
     let str_body := (Stmt.listToString body).replace "\n" "\n  "
     s!"declare_init({name}, {init},\n  {str_body}\n)"
   | .assign_var lv _ v _
-  | .assign lv _ v _  => s!"{lv} = {v}"
-  | .asnop lv op v  => s!"{lv} {op}= {v}"
-  | .ite cond tt ff =>
+  | .assign lv _ v _    => s!"{lv} = {v}"
+  | .asnop _ _ lv op v  => s!"{lv} {op}= {v}"
+  | .ite _ cond tt ff   =>
     let str_tt := (Stmt.listToString tt).replace "\n" "\n  "
     let str_ff := (Stmt.listToString ff).replace "\n" "\n  "
     s!"if{cond}\n  {str_tt}\nelse\n  {str_ff}\nendif"
-  | .while cond annos body =>
+  | .while _ cond annos body =>
     let str_annos := Anno.listToString (annos.map (·.val))
     let str_body := (Stmt.listToString body).replace "\n" "\n  "
     s!"while{cond}\n  {str_annos}{str_body}\nendwhile"
-  | .return_void _ => s!"return"
-  | .return_tau e  => s!"return {e}"
-  | .assert e      => s!"assert{e}"
-  | .error e       => s!"error{e}"
-  | .expr e        => s!"{e}"
-  | .anno a        => Anno.toString a.val
+  | .return_void _   => s!"return"
+  | .return_tau _  e => s!"return {e}"
+  | .assert _ e      => s!"assert{e}"
+  | .error _ e       => s!"error{e}"
+  | .expr e          => s!"{e}"
+  | .anno a          => Anno.toString a.val
 
 partial def Stmt.listToString : Stmt.List Δ Γ ρ → String
-  | .nil => "nop;"
-  | .cons stmt .nil => s!"{Stmt.toString stmt};"
+  | .nil             => "nop;"
+  | .cons stmt .nil  => s!"{Stmt.toString stmt};"
   | .cons stmt stmts =>
     s!"{Stmt.toString stmt};\n{Stmt.listToString stmts}"
 end
