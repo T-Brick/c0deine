@@ -9,7 +9,7 @@ import Cli
 
 namespace C0deine.Top
 
-def version := "v24.03.1"
+def version := "v24.04.0"
 
 open Cli Directive
 
