@@ -231,7 +231,8 @@ def stmt
           have stmt'_init := .assign resl.init
             (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
             resr.init
-            (by dsimp only [ Tst.Initialised.Predicate
+            (by dsimp only [ init_set'
+                           , Tst.Initialised.Predicate
                            , Tst.Initialised.init
                            , Tst.Initialised.stmt
                            ])
@@ -257,10 +258,11 @@ def stmt
               .asnop
                 (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
                 resl.init resr.init
-                (by dsimp only [ Tst.Initialised.Predicate
-                                , Tst.Initialised.init
-                                , Tst.Initialised.stmt
-                                ])
+                (by dsimp only [ init_set'
+                               , Tst.Initialised.Predicate
+                               , Tst.Initialised.init
+                               , Tst.Initialised.stmt
+                               ])
             have stmt'_rets :=
               .asnop (a₂ := rets) (a₃ := rets) (a₄ := rets)
                 (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])

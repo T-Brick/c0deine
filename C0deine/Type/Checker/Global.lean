@@ -123,7 +123,8 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
           else res.init_set'
       , body_init := by
           if ret_none : ret.isNone then
-            simp only [ Tst.Initialised.Stmt.List
+            simp only [ body''
+                      , Tst.Initialised.Stmt.List
                       , Tst.Initialised.Predicate
                       , ret_none
                       , ↓reduceDite
@@ -133,7 +134,8 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
                     res.init
                     (.return_void (by rfl))
           else
-            simp only [ Tst.Initialised.Stmt.List
+            simp only [ body''
+                      , Tst.Initialised.Stmt.List
                       , Tst.Initialised.Predicate
                       , ret_none
                       , ↓reduceDite
@@ -141,7 +143,8 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
             exact res.init
       , body_rets := by
           if ret_none : ret.isNone then
-            simp only [ Tst.Returns.Stmt.List
+            simp only [ body''
+                      , Tst.Returns.Stmt.List
                       , Tst.Returns.Predicate
                       , ret_none
                       , ↓reduceDite
@@ -155,7 +158,8 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
                       , Bool.not_eq_true
                       , Bool.not_eq_false
                       ] at rets_valid
-            simp only [ Tst.Returns.Stmt.List
+            simp only [ body''
+                      , Tst.Returns.Stmt.List
                       , Tst.Returns.Predicate
                       , ret_none
                       , ↓reduceDite

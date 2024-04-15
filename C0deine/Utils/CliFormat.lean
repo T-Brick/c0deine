@@ -16,8 +16,8 @@ def Rect.ofLines (lines : List String) : Rect :=
     . simp at hl
     . simp at hl ⊢
       cases hl
-      . simp [*, Nat.le_max_left]
-      . simp [*] at *
+      . simp [*, Nat.le_max_left, width]
+      . simp [*, width] at *
   { width, height := lines.length
   , lines := lines.map (fun l => l.pushn ' ' (width - l.length))
   , h_height := by simp, h_width := by
@@ -93,11 +93,10 @@ def Rect.padWidth (r : Rect) (width : Nat) (h_width : r.width ≤ width)
       rcases this with ⟨line,hmem,rfl⟩
       have := r.h_width _ hmem
       cases align <;> simp at * <;> simp [*]
-      . rw [Nat.sub_sub, Nat.add_comm r.width]
-        apply Nat.add_sub_cancel'
-        apply Nat.add_le_of_le_sub h_width
-        apply Nat.div_le_self
-      . apply Nat.sub_add_cancel h_width
+      rw [Nat.sub_sub, Nat.add_comm r.width]
+      apply Nat.add_sub_cancel'
+      apply Nat.add_le_of_le_sub h_width
+      apply Nat.div_le_self
   }
 
 def Rect.joinVert (top bottom : Rect) (h : top.width = bottom.width) : Rect :=
@@ -187,8 +186,8 @@ def vbox (children : List Rect) (align : HAlign := .left)
     . simp at hl
     . simp at hl ⊢
       cases hl
-      . simp [*, Nat.le_max_left]
-      . simp [*] at *
+      . simp [*, Nat.le_max_left, width]
+      . simp [*, width] at *
   match children with
   | [] => space width 0
   | c::cs =>
@@ -221,8 +220,8 @@ def hbox (children : List Rect) (align : VAlign := .top)
     . simp at hl
     . simp at hl ⊢
       cases hl
-      . simp [*, Nat.le_max_left]
-      . simp [*] at *
+      . simp [*, Nat.le_max_left, height]
+      . simp [*, height] at *
   match children with
   | [] => space 0 height
   | c::cs =>
