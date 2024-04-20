@@ -54,6 +54,8 @@ inductive GDecl.List : GCtx → GCtx → Type
 | cons   : GDecl.List Δ₁ Δ₂ → (g : GDecl Δ₂ Δ₃) → GDecl.List Δ₁ Δ₃
 | update : GDecl.List Δ₁ Δ₂ → GDecl.List Δ₁ Δ₃
 
+instance : Inhabited (GDecl.List Δ Δ) := ⟨.nil⟩
+
 def GDecl.List.findFDef (lst : GDecl.List Δ₁ Δ₂) (f : Symbol)
     : Option ((Δ : GCtx) ×' (FDef Δ)) :=
   match lst with
@@ -77,6 +79,7 @@ def GDecl.List.findFDecl (lst : GDecl.List Δ₁ Δ₂) (f : Symbol)
     True means the call is used in a contract, so the function must be pure.
 -/
 def Calls := Symbol.Map Bool
+deriving Inhabited, EmptyCollection
 
 def Calls.merge (calls1 calls2 : Calls) : Calls :=
   calls1.mergeWith (fun _ x y => x || y) calls2
@@ -89,6 +92,15 @@ structure Prog where
   body       : GDecl.List header_ctx body_ctx
   calls      : Calls
   strings    : List String
+
+instance : Inhabited Prog :=
+  ⟨{ header_ctx := {}
+   , header     := .nil
+   , body_ctx   := {}
+   , body       := .nil
+   , calls      := {}
+   , strings    := []
+   }⟩
 
 @[inline] def Prog.findFuncDef (p : Prog) (f : Symbol)
     : Option ((Δ : GCtx) ×' (FDef Δ)) :=

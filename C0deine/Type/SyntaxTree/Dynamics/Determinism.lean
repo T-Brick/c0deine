@@ -23,6 +23,29 @@ theorem Step.BinOp.Cmp.deterministic {op : Comparator} {v₁ v₂ : Value}
     : r₁ = r₂ := by
   cases h₁ <;> (cases h₂; rfl)
 
+theorem Step.BinOp.deterministic {p : Prog} {s s₁ s₂ : State p}
+    (h₁ : Step.BinOp s s₁)
+    (h₂ : Step.BinOp s s₂)
+    : s₁ = s₂ := by
+  cases h₁ <;> cases h₂ <;> try rfl
+  all_goals (
+    simp
+    first
+    | next h₁ _ h₂ =>
+        have := Step.BinOp.Int.deterministic h₁ h₂
+        first | exact Sum.inl.inj this
+              | exact Sum.inr.inj this
+              | contradiction
+    | next h₁ _ h₂ =>
+        have := Step.BinOp.Cmp.deterministic h₁ h₂
+        assumption
+  )
+
+theorem Step.Expr.deterministic {p : Prog} {s s₁ s₂ : State p}
+    (h₁ : Step.Expr s s₁)
+    (h₂ : Step.Expr s s₂)
+    : s₁ = s₂ := by
+  sorry
 
 theorem Step.State.mk_iff_result_eq {p : Prog} {r₁ r₂ : DynResult} :
     r₁ = r₂ ↔ State.mk (p := p) H S η r₁ = State.mk H S η r₂ := by
@@ -32,39 +55,20 @@ theorem Step.State.mk_iff_result_eq {p : Prog} {r₁ r₂ : DynResult} :
     exact h₁
 
 
-theorem Step.val_deterministic {p : Prog} {s₁ s₂ : State p}
-    (h₁ : Step { H := H, S := S, η := η, r := DynResult.val v K } s₁)
-    (h₂ : Step { H := H, S := S, η := η, r := DynResult.val v K } s₂)
-    : s₁ = s₂ := by
-  cases h₁ <;> cases h₂ <;> try (
-    apply Step.State.mk_iff_result_eq.mp
-    simp
-    first
-    | exact Step.UnOp.deterministic (by assumption) (by assumption)
-    | exact Sum.inl.inj (Step.BinOp.Int.deterministic (by assumption) (by assumption))
-    | exact Sum.inr.inj (Step.BinOp.Int.deterministic (by assumption) (by assumption))
-    | exact Step.BinOp.Cmp.deterministic (by assumption) (by assumption)
-    | next h' _exn h'' =>
-        have := Step.BinOp.Int.deterministic h' h''
-        contradiction
-    | skip
-  )
-  all_goals sorry
-
-theorem Step.eval_deterministic {p : Prog} {s₁ s₂ : State p}
-    (h₁ : Step { H := H, S := S, η := η, r := DynResult.eval e K } s₁)
-    (h₂ : Step { H := H, S := S, η := η, r := DynResult.eval e K } s₂)
-    : s₁ = s₂ := by
-  sorry
 
 theorem Step.deterministic {p : Prog} {s s₁ s₂ : State p}
     (h₁ : Step s s₁) (h₂ : Step s s₂) : s₁ = s₂ := by
   let ⟨H, S, η, r⟩ := s
   cases r
-  case val Δ Γ τ v K     => exact Step.val_deterministic h₁ h₂
-  case eval Δ Γ τ rk e K => exact Step.eval_deterministic h₁ h₂
-  case exec Δ Γ ρ rk s K => sorry
-  case exec_seq          => cases h₁
-  case exn               => cases h₁
-  case nop               => cases h₁
-  case res               => cases h₁
+  case val Δ Γ rk v K =>
+    sorry
+  case eval Δ Γ τ rk e K =>
+    sorry
+  case exec => sorry
+  case exec_seq => sorry
+  case exn => sorry
+  case nop Δ Γ rk K =>
+    cases h₁ <;> cases h₂
+    all_goals sorry
+  case res c =>
+    sorry

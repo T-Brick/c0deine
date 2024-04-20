@@ -34,6 +34,9 @@ inductive Status.Symbol
 structure FCtx where
   syms : Symbol → Option Status.Symbol
   ret  : Option Typ
+deriving Inhabited
+
+instance : EmptyCollection FCtx := ⟨fun _ => none, none⟩
 
 @[inline] def FCtx.update (Γ : FCtx) (x : Symbol) (s : Status.Symbol) : FCtx :=
   { Γ with syms := Function.update Γ.syms x (some s) }
