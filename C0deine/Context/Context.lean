@@ -20,7 +20,7 @@ structure Context.State where
   nextSymbolId : UInt64
   inLineAnno   : Option Bool -- none if annotations aren't allow
   symbolCache  : Std.HashMap String Symbol
-deriving Repr
+deriving Repr, Inhabited
 
 def Context.State.new (annotations : Bool) : Context.State where
   nextTemp     := ⟨Temp.startId, none⟩

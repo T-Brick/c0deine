@@ -12,20 +12,17 @@ namespace C0deine.Prover
 
 open Top
 
-def parse_tc (prog : String) : IO (Option (Tst.Prog × Context.State)) := do
-  let libSearchDirs ← mkLibSearchDirs [] []
-  let config : Config :=
-    { (default : Config) with libSearchDirs := libSearchDirs }
-  match ← runFrontend config (fun _ => pure ()) [] [] (some prog) with
-  | none =>
-    IO.println "Could not typecheck program!"
-    return none
-  | some (tst, _config, ctx) => return some (tst, ctx)
+def parse_tc (prog : String) : Option (Tst.Prog × Context.State) := do
+  -- let libSearchDirs ← mkLibSearchDirs [] []
+  let config : Config := default
+    -- { (default : Config) with libSearchDirs := libSearchDirs }
+  let  (tst, _config, ctx) ← runFrontendNoIO config prog
+  return (tst, ctx)
 
-def parse_tc! (prog : String) : IO (Tst.Prog × Context.State) := do
-  match ← parse_tc prog with
+def parse_tc! (prog : String) : Tst.Prog × Context.State :=
+  match parse_tc prog with
   | none => panic! "Could not typecheck program!"
-  | some res => return res
+  | some res => res
 
 
 def verify (prog : Tst.Prog) (ctx : Context.State) (func : String) := do
@@ -43,7 +40,7 @@ int main() {
   return 150;
 }"
 
-#eval (prog₁ >>= (fun (tst, _ctx) => pure (toString tst))).run ()
+#eval prog₁.1
 
 def test_ast := Ast.Expr.binop (.int .plus) (.num 5) (.num 5)
 
@@ -82,7 +79,7 @@ elab "c0_step" : tactic =>
     let goal ← Lean.Elab.Tactic.getMainGoal
     let goal_type ← goal.getType'
     let dyn_res ← get_dyn_res goal_type
-    
+
     match dyn_res.getAppFn with
     | .const `C0deine.Tst.Dynamics.DynResult.val _
     | .const `C0deine.Tst.Dynamics.DynResult.eval _ =>
@@ -91,7 +88,7 @@ elab "c0_step" : tactic =>
       let goal_type ← goal.getType'
       let dyn_res ← get_dyn_res goal_type
       let expr ← dyn_res.getArg? 4
-      
+
       match expr.getAppFn with
       | .const expr_name _ =>
         match expr_name.componentsRev with

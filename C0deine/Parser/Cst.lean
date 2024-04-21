@@ -171,6 +171,7 @@ inductive GDecl
 | cdir  : Directive → GDecl
 
 def Prog := List GDecl
+deriving Inhabited
 instance : HAppend Prog Prog Prog := ⟨List.append⟩
 
 -- directives must appear at the start of file so this removes them

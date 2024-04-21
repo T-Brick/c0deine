@@ -99,6 +99,7 @@ structure ParsedC0 where
   source : Cst.Prog
   tydefs : Std.RBSet Symbol compare
   ctx : Context.State
+deriving Inhabited
 
 def parseHeaderFile
     (acc : ParsedC0)
@@ -114,17 +115,13 @@ def parseHeaderFile
     let (_directives, cst) := Cst.splitDirectives cst
     pure ⟨acc.config, acc.header ++ cst, acc.source, tydefs, ctx⟩
 
-def parseSource
-    (acc : ParsedC0)
-    (c : String)
-    : IO ParsedC0 := do
+def parseSource (acc : ParsedC0) (c : String) : ParsedC0 :=
   match (Parser.C0Parser.prog acc.tydefs).run c.toUTF8 acc.ctx with
   | ((.error e, state), _) =>
-    IO.println s!"{e () |>.formatPretty state}"
-    panic s!"Source parse error"
+    panic s!"Source parse error:\n{e () |>.formatPretty state}"
   | ((.ok (cst, tydefs), _), ctx) =>
     let (_directives, cst) := Cst.splitDirectives cst
-    pure ⟨acc.config, acc.header, acc.source ++ cst, tydefs, ctx⟩
+    ⟨acc.config, acc.header, acc.source ++ cst, tydefs, ctx⟩
 
 def parseFile
     (acc : ParsedC0)
@@ -132,4 +129,4 @@ def parseFile
     : IO ParsedC0 := do
   if acc.config.verbose then IO.println s!"Parsing source {source}"
   let c ← IO.FS.readFile source
-  parseSource acc c
+  return parseSource acc c

@@ -105,10 +105,25 @@ def mkLibSearchDirs
 
   return libSearchDirs ++ (inputs.filterMap (·.parent)) |>.eraseDups
 
+def runFrontendNoIO (config : Config) (src : String)
+    : Option (Tst.Prog × Config × Context.State) := do
+  let init_parsed : Use.ParsedC0 :=
+    ⟨config, [], [], .empty, .new (¬config.lang.under .c0)⟩
+  let parsed := Use.parseSource init_parsed src
+  let config      := parsed.config
+  let ctx         := parsed.ctx
+
+  match Abstractor.abstract config.lang (parsed.header) (parsed.source) with
+  | .error e => panic s!"\n{e}\n"
+  | .ok ast =>
+    match Typechecker.typecheck ast with
+    | .error e => panic s!"\n{e}\n"
+    | .ok tst  =>
+      return (tst, config, ctx)
+
 def runFrontend
     (config : Config)
     (vprintln : {α : Type} → [ToString α] → α → IO Unit)
-    -- (vcprintln : {α : Type} → [ToString α] → Bool → α → IO Unit)
     (inputs libs : List System.FilePath)
     (str_src : Option String)
     : IO (Option (Tst.Prog × Config × Context.State)) := do
@@ -136,10 +151,10 @@ def runFrontend
     ) init_parsed
 
   -- if program was passed on the command line load it here
-  let parsed ← do
+  let parsed :=
     match str_src with
     | .some src => Use.parseSource parsed src
-    | .none     => pure parsed
+    | .none     => parsed
 
   let config      := parsed.config
   let ctx         := parsed.ctx
