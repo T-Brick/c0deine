@@ -1,5 +1,5 @@
-/- C0deine - Prover
-   Experimental tool for proving C0 code correct.
+/- C0deine - Prover.Tactics
+   Tactics for verifying C0 code correct
    - Thea Brick
  -/
 import C0deine.Top
@@ -9,40 +9,6 @@ import C0deine.Type.SyntaxTree.Dynamics.Transitivity
 import C0deine.Ast.Ast
 
 namespace C0deine.Prover
-
-open Top
-
-def parse_tc (prog : String) : Option (Tst.Prog × Context.State) := do
-  -- let libSearchDirs ← mkLibSearchDirs [] []
-  let config : Config := default
-    -- { (default : Config) with libSearchDirs := libSearchDirs }
-  let  (tst, _config, ctx) ← runFrontendNoIO config prog
-  return (tst, ctx)
-
-def parse_tc! (prog : String) : Tst.Prog × Context.State :=
-  match parse_tc prog with
-  | none => panic! "Could not typecheck program!"
-  | some res => res
-
-
-def verify (prog : Tst.Prog) (ctx : Context.State) (func : String) := do
-  let fdef ← prog.findFuncDef (ctx.symbolCache.find! func)
-  return ()
-
-
-
-namespace Testing
-
-def prog₁ := parse_tc! "
-int main() {
-  int x = 150;
-  //@assert x == 150;
-  return 150;
-}"
-
-#eval prog₁.1
-
-def test_ast := Ast.Expr.binop (.int .plus) (.num 5) (.num 5)
 
 macro "c0_step_expr_setup" : tactic =>
   `(tactic| ( apply Tst.Dynamics.Steps.trans
@@ -109,16 +75,3 @@ elab "c0_step" : tactic =>
     | dyn_mode =>
       dbg_trace f!"TODO: {dyn_mode} | type: {goal_type}"
     -- dbg_trace f!""
-
-open Typ.Notation in
-def tst : Tst.Expr {} {} (int) :=
-  Tst.Expr.binop_int (by rfl) (by rfl) (by rfl)
-    .plus (.num (by rfl) 5) (.num (by rfl) 5)
-
-open Tst.Dynamics Notation in
-example /-  5 + 5 ==>* 10   -/
-       : (H; S; η |= (.eval tst .nil)                       [prog|p])
-    ==>* (H; S; η |= (.val (Δ:={}) (Γ:={}) (.num 10) .nil)  [prog|p])
-    := by
-  rw [tst]
-  repeat c0_step
