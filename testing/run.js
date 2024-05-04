@@ -2,343 +2,357 @@
     Viewer discretion is advised xd :')
  */
 const fs = require("fs");
-const { exec } = require('child_process');
-const path = require('path');
+const util = require("util");
+const exec = util.promisify(require("child_process").exec);
+const path = require("path");
 
-var args = process.argv.slice(2);
+let args = process.argv.slice(2);
 
 const quiet = 0;
 const freshMemory = false;
 const checkTimeouts = true;
 const maxEnterLabel = 100000000; // maximum number of times a label is entered
 
-var labelMap = {} // tracking number of times we've reached a label
-var failed = 0;
-var success = 0;
+let failed = 0;
+let success = 0;
 
-var memory = new WebAssembly.Memory({ initial: 1 });
-
-const conio = {
-  print:    str => { process.stdout.write(c0_parse_str(str)); },
-  println:  str => { process.stdout.write(c0_parse_str(str) + "\n"); },
-  flush:    ()  => { process.stdout.flush(); setTimeout(() => {}, 0); },
-  eof:      ()  => { console.log("TODO: eof unimplemented!"); },
-  readline: ()  => { console.log("TODO: readline unimplemented!"); },
-}
-
-const c0_parse_str = function(address) {
+const c0_parse_str = (memory) => async (address) => {
   const bytes = new Uint8Array(memory.buffer.slice(address | 0));
-  var i = 0;
-  var msg = "";
-  while(i < bytes.length && bytes[i] !== undefined && bytes[i] !== 0) {
-    msg += String.fromCharCode(bytes[i])
+  let i = 0;
+  let msg = "";
+  while (i < bytes.length && bytes[i] !== undefined && bytes[i] !== 0) {
+    msg += String.fromCharCode(bytes[i]);
     i += 1;
   }
   return msg;
-}
+};
 
-const log_c0_error = function(str) {
-  var msg = c0_parse_str(str);
+const log_c0_error = (memory) => async (str) => {
+  let msg = await c0_parse_str(memory)(str);
   msg = "error:  " + msg;
   console.log(msg);
-}
+};
 
-const c0_debug = function(lbl) {
-  if(checkTimeouts) {
-    if(labelMap[lbl + ""] === undefined) {
+const c0_debug = (labelMap) => (lbl) => {
+  if (checkTimeouts) {
+    if (labelMap[lbl + ""] === undefined) {
       labelMap[lbl + ""] = 1;
     } else {
       labelMap[lbl + ""] = labelMap[lbl + ""] + 1;
     }
-    if(labelMap[lbl + ""] > maxEnterLabel) {
+    if (labelMap[lbl + ""] > maxEnterLabel) {
       console.log("Exceeded maximum label entry on " + lbl);
       return 1;
     }
   }
   return 0;
-}
+};
 
-const buildLazyList = function(list) {
-  if(list === undefined || list === null || list.length === 0) {
-    return {nil: true}
-  }
-  return {hd: list[0], tl: () => {
-    return buildLazyList(list.slice(1));
-  }};
-}
-
-const passTest = function(filename) {
+const passTest = async (filename) => {
   success++;
-  if(quiet <= 0) {
+  if (quiet <= 0) {
     console.log("\x1b[32m%s\x1b[0m", "Test '" + filename + "' Passed!");
   }
-}
+  return true;
+};
 
-const failTest = function(filename, expect, got) {
+const failTest = async (filename, expect, got) => {
   failed++;
-  if(quiet <= 2) {
+  if (quiet <= 2) {
     console.log("\x1b[31m%s\x1b[0m", "Test '" + filename + "' Failed :(");
-    if(quiet <= 1) {
+    if (quiet <= 1) {
       console.log("\x1b[31m%s\x1b[0m", "  Expected: " + expect);
       console.log("\x1b[31m%s\x1b[0m", "  Received: " + got);
     }
   }
-}
+  return false;
+};
 
-const resultToString = function(result) {
-  if(result["return"] !== undefined) {
-    return (result["return"] | 0);
-  } else if(result["div-by-zero"] !== undefined) {
-    return "div-by-zero"
-  } else if(result["abort"] !== undefined) {
-    return "abort"
-  } else if(result["memerror"] !== undefined) {
-    return "memerror"
-  } else if(result["error"] !== undefined) {
-    return "error"
-  } else if(result["typecheck"] !== undefined) {
-    return "typecheck"
-  } else if(result["compile"] !== undefined) {
-    return "compile"
+const resultToString = (result) => {
+  if (result["return"] !== undefined) {
+    return result["return"] | 0;
+  } else if (result["div-by-zero"] !== undefined) {
+    return "div-by-zero";
+  } else if (result["abort"] !== undefined) {
+    return "abort";
+  } else if (result["memerror"] !== undefined) {
+    return "memerror";
+  } else if (result["error"] !== undefined) {
+    return "error";
+  } else if (result["typecheck"] !== undefined) {
+    return "typecheck";
+  } else if (result["compile"] !== undefined) {
+    return "compile";
   }
-  return "unknown test result"
-}
+  return "unknown test result";
+};
 
-const result = function(filename, expect) {
-  return got => {
-    if(expect["return"] === undefined) {
-      failTest(filename, resultToString(expect), got);
+const result = (filename, expect) => {
+  return async (got) => {
+    if (expect["return"] === undefined) {
+      return failTest(filename, resultToString(expect), got);
     } else {
-      if(expect["return"] === (got | 0)) {
-        passTest(filename, resultToString(expect), (got | 0));
+      if (expect["return"] === (got | 0)) {
+        return passTest(filename, resultToString(expect), got | 0);
       } else {
-        failTest(filename, resultToString(expect), (got | 0));
+        return failTest(filename, resultToString(expect), got | 0);
       }
     }
-    return;
   };
-}
+};
 
-const abort = function(filename, expect) {
-  return got => {
-    if(expect["abort"] !== undefined && (got | 0) === 6) {
-      passTest(filename, "abort", (got | 0));
-      return;
-    } else if(expect["memerror"] !== undefined && (got | 0) === 12) {
-      passTest(filename, "memerror", (got | 0));
-      return;
-    } else if(expect["div-by-zero"] !== undefined && (got | 0) === 8) {
-      return; // checked by the runtime exception
+const abort = (filename, expect) => {
+  return async (got) => {
+    if (expect["abort"] !== undefined && (got | 0) === 6) {
+      return passTest(filename, "abort", got | 0);
+    } else if (expect["memerror"] !== undefined && (got | 0) === 12) {
+      return passTest(filename, "memerror", got | 0);
+    } else if (expect["div-by-zero"] !== undefined && (got | 0) === 8) {
+      return true;
     }
-    failTest(filename, resultToString(expect), "abort" + (got | 0));
-    return;
+    return failTest(filename, resultToString(expect), "abort" + (got | 0));
   };
-}
+};
 
-const error = function(filename, expect) {
-  return got => {
-    if(expect["abort"] !== undefined) {
-      passTest(filename, "abort", c0_parse_str(got));
-      return;
+const error = (memory) => (filename, expect) => {
+  return async (got) => {
+    const str = await c0_parse_str(memory)(got);
+    if (expect["abort"] !== undefined) {
+      return passTest(filename, "abort", str);
     }
-    failTest(filename, resultToString(expect), "error:  " + c0_parse_str(got));
-    return;
+    return failTest(filename, resultToString(expect), "error:  " + str);
+  };
+};
+
+async function parseExpectedResult(filename) {
+  const data = await fs.promises.readFile(filename);
+  let str = (data + "").split("\n", 2)[0].trim();
+  if (str.startsWith("//test")) {
+    str = str.substring(7);
+
+    if (str.startsWith("return")) {
+      return {
+        return: str.substring(7).trim().replace("~", "-").replace(";", "") | 0,
+      };
+    } else if (str.startsWith("div-by-zero")) {
+      return { "div-by-zero": true };
+    } else if (str.startsWith("abort")) {
+      return { abort: true };
+    } else if (str.startsWith("memerror")) {
+      return { memerror: true };
+    } else if (str.startsWith("error")) {
+      return { error: true };
+    } else if (str.startsWith("typecheck")) {
+      return { typecheck: true };
+    } else if (str.startsWith("compile")) {
+      return { compile: true };
+    }
   }
+
+  console.log("Couldn't parse testcase result for '" + filename + "' :(");
+  return undefined;
 }
 
-const parseExpectedResult = function(filename, k, next) {
-  fs.readFile(filename, (err, data) => {
-    var str = (data + "").split("\n", 2)[0].trim();
-    if(str.startsWith("//test")) {
-      str = str.substring(7);
+/**
+ * @returns a boolean indicating whether to execute the compiled output.
+ */
+async function compile(filename, header, result) {
+  let cmd = `sh compile.sh "${filename}"`;
+  if (result["typecheck"] || result["compile"]) {
+    cmd = cmd + " -t";
+  }
+  if (header !== undefined) {
+    cmd = cmd + ' -l"' + header + '"';
+  }
+  if (checkTimeouts) {
+    cmd = cmd + " --wasm-debugger";
+  }
 
-      if(str.startsWith("return")) {
-        return k({"return":
-          (str.substring(7).trim().replace("~","-").replace(";", "") | 0)
-        });
-      } else if(str.startsWith("div-by-zero")) {
-        return k({"div-by-zero": true})
-      } else if(str.startsWith("abort")) {
-        return k({"abort": true})
-      } else if(str.startsWith("memerror")) {
-        return k({"memerror": true})
-      } else if(str.startsWith("error")) {
-        return k({"error": true})
-      } else if(str.startsWith("typecheck")) {
-        return k({"typecheck": true})
-      } else if(str.startsWith("compile")) {
-        return k({"compile": true})
-      }
+  try {
+    const { stdout, stderr } = await exec(cmd);
+  } catch (error) {
+    if (result === undefined) {
+      console.log(stdout);
+      console.log(stderr);
+      return false;
     }
 
-    console.log("Couldn't parse testcase result for '" + filename + "' :(")
-    return next();
-  });
-}
-
-const compile = function(filename, header, result, exe, next) {
-  var cmd = 'sh compile.sh';
-  cmd = cmd + ' "' + filename + '" ';
-  if(result["typecheck"] || result["compile"]) {
-    cmd = cmd + ' -t'
-  }
-  if(header !== undefined) {
-    cmd = cmd + ' -l"' + header + '"'
-  }
-  if(checkTimeouts) {
-    cmd = cmd + ' --wasm-debugger';
-  }
-
-  exec(cmd,
-    (error, stdout, stderr) => {
-      if(result === undefined) {
-        if(error !== null) {
-          console.log(stdout);
-          console.log(stderr);
-          return next();
-        }
-        return exe();
-      }
-
-      if (error !== null && result["error"] !== undefined) {
-        passTest(filename, "Compile error", "Compile error")
-        return next();
-      }
-      if (error !== null) {
-        failTest(filename, resultToString(result), "\n" + stdout + "\n" + stderr);
-        return next();
-      }
-      return exe();
+    if (result["error"] !== undefined) {
+      await passTest(filename, "Compile error", "Compile error");
+      return false;
     }
-  );
+    await failTest(
+      filename,
+      resultToString(result),
+      "\n" + stdout + "\n" + stderr
+    );
+    return false;
+  }
+  return true;
 }
 
-const run = function(filename, imports, expect, k) {
-  const bytes = fs.readFileSync(filename + ".wasm");
+async function run(filename, imports, expect) {
+  const bytes = await fs.promises.readFile(filename + ".wasm");
   const wasm = new WebAssembly.Module(bytes);
 
-  if(expect !== undefined && expect["compile"]) {
+  if (expect !== undefined && expect["compile"]) {
     return passTest(filename, "Compile and link", "Compile and link");
   }
 
   try {
     const instance = new WebAssembly.Instance(wasm, imports);
-  } catch(e) {
-    if(expect === undefined) {
+  } catch (e) {
+    if (expect === undefined) {
       console.log(e + "");
-      return;
+      return false;
     }
 
-    if(e instanceof WebAssembly.RuntimeError && expect["div-by-zero"]) {
-      passTest(filename, "div-by-zero", "div-by-zero");
-    } else if(e instanceof WebAssembly.RuntimeError
-              && (expect["memerror"] || expect["abort"])) {
+    if (e instanceof WebAssembly.RuntimeError && expect["div-by-zero"]) {
+      return passTest(filename, "div-by-zero", "div-by-zero");
+    } else if (
+      e instanceof WebAssembly.RuntimeError &&
+      (expect["memerror"] || expect["abort"])
+    ) {
     } else {
-      failTest(filename, resultToString(expect), "\n" + e + "\n")
+      throw e;
+      // return failTest(filename, resultToString(expect), "\n" + e + "\n")
     }
   }
-  labelMap = {};
-  k();
 }
 
-const evalTest = function(filename, header, k) {
-  parseExpectedResult(filename, res => {
-    compile(filename, header, res, () => {
-      if(res["typecheck"]) {
-        passTest(filename, "Typechecked", "Typechecked")
-        return k();
-      }
-      if(freshMemory) {
-        memory = new WebAssembly.Memory({ initial: 1 });
-      }
-      const check_imports = {
-        c0deine: {
-          memory: memory,
-          result: result(filename, res),
-          abort:  abort(filename, res),
-          error:  error(filename, res),
-          debug:  c0_debug,
-        },
-        conio: {
-          print:    str => { process.stdout.write(c0_parse_str(str)); },
-          println:  str => { process.stdout.write(c0_parse_str(str) + "\n"); },
-          flush:    ()  => { process.stdout.flush(); },
-          eof:      ()  => { console.log("TODO: eof unimplemented!"); },
-          readline: ()  => { console.log("TODO: readline unimplemented!"); },
-        },
-      };
-      run(filename, check_imports, res, k);
-    }, k);
-  }, k);
+async function evalTest(filename, header) {
+  const expectRes = await parseExpectedResult(filename);
+  const shldExe = await compile(filename, header, expectRes);
+
+  if (!shldExe) return;
+
+  if (expectRes["typecheck"]) {
+    await passTest(filename, "Typechecked", "Typechecked");
+    return;
+  }
+
+  const memory = new WebAssembly.Memory({ initial: 1 });
+  if (!freshMemory) {
+    // todo dirty the memory
+  }
+  let labelMap = {};
+
+  const check_imports = {
+    c0deine: {
+      memory: memory,
+      result: result(filename, expectRes),
+      abort: abort(filename, expectRes),
+      error: async (got) => await error(memory)(filename, expectRes)(got),
+      debug: c0_debug(labelMap),
+    },
+    conio: {
+      print: async (str) => {
+        process.stdout.write(await c0_parse_str(memory)(str));
+      },
+      println: async (str) => {
+        process.stdout.write((await c0_parse_str(memory)(str)) + "\n");
+      },
+      flush: () => {
+        process.stdout.flush();
+      },
+      eof: () => {
+        console.log("TODO: eof unimplemented!");
+      },
+      readline: () => {
+        console.log("TODO: readline unimplemented!");
+      },
+    },
+  };
+  return run(filename, check_imports, expectRes);
 }
 
-const main = function() {
-  if(!fs.existsSync(args[0])) {
+async function main() {
+  if (!fs.existsSync(args[0])) {
     process.stdout.write("Couldn't find file/directory: " + args[0] + "\n");
     console.log(args);
     return;
   }
 
-  if(fs.lstatSync(args[0]).isFile()) {
+  if (fs.lstatSync(args[0]).isFile()) {
     const filename = args[0];
-    var header = filename.slice(0, -2) + "h0";
-    if(!fs.existsSync(header) || !fs.lstatSync(header).isFile()) {
+    let header = filename.slice(0, -2) + "h0";
+    if (!fs.existsSync(header) || !fs.lstatSync(header).isFile()) {
       header = undefined;
     }
-    evalTest(filename, header, () => {});
+    await evalTest(filename, header);
     return;
   }
 
-  if(fs.lstatSync(args[0]).isDirectory()) {
-    const dir = args[0]
-    fs.readdir(dir, (err, files) => {
-      if(err !== null) {
-        console.log("Something went wrong reading directory!");
-        return;
+  if (fs.lstatSync(args[0]).isDirectory()) {
+    const dir = args[0];
+    const files = await fs.promises.readdir(dir);
+
+    const evalFile = async (file) => {
+      if (
+        file.endsWith(".l4") ||
+        file.endsWith(".l3") ||
+        file.endsWith(".l2") ||
+        file.endsWith(".l1") ||
+        file.endsWith(".c0")
+      ) {
+        let header = file.slice(0, -2) + "h0";
+        header = path.join(dir, header);
+
+        if (!fs.existsSync(header) || !fs.lstatSync(header).isFile()) {
+          header = undefined;
+        }
+
+        await evalTest(path.join(dir, file), header);
       }
+    };
 
-      const iter = function(llist) {
-        if(llist === undefined || llist === null || llist.nil) {
-          console.log("Passed: " + success + "  Failed: "+ failed);
-          return;
-        }
-        const file = llist.hd
-        if(file.endsWith(".l4")
-            || file.endsWith(".l3")
-            || file.endsWith(".l2")
-            || file.endsWith(".l1")
-            || file.endsWith(".c0")) {
+    await Promise.allSettled(files.map((file, _i, _a) => evalFile(file)));
+    console.log(`Passed ${success}  Failed ${failed}`);
 
-          var header = file.slice(0, -2) + "h0";
-          header = path.join(dir, header);
-          if(!fs.existsSync(header) || !fs.lstatSync(header).isFile()) {
-            header = undefined;
-          }
-
-          evalTest(path.join(dir, file), header, () => {
-            iter(llist.tl())
-          });
-        } else {
-          iter(llist.tl())
-        }
-      };
-    iter(buildLazyList(files));
-    });
     return;
   }
 }
 
 main();
 
+let labelMap = {}; // tracking number of times we've reached a label
+let memory = new WebAssembly.Memory({ initial: 1 });
+
+const conio = {
+  print: async (str) => {
+    process.stdout.write(await c0_parse_str(memory)(str));
+  },
+  println: async (str) => {
+    process.stdout.write((await c0_parse_str(memory)(str)) + "\n");
+  },
+  flush: () => {
+    process.stdout.flush();
+    setTimeout(() => {}, 0);
+  },
+  eof: () => {
+    console.log("TODO: eof unimplemented!");
+  },
+  readline: () => {
+    console.log("TODO: readline unimplemented!");
+  },
+};
+
 const print_imports = {
   c0deine: {
     memory: memory,
-    result: res => { console.log((res | 0)) },
-    abort:  sig => { console.log("abort: " + (sig | 0)) },
-    error:  log_c0_error,
-    debug:  lbl => { console.log("debug:  entered label " + lbl);
-                     setTimeout(() => { return 0 }, 0);
-                   },
+    result: (res) => {
+      console.log(res | 0);
+    },
+    abort: (sig) => {
+      console.log("abort: " + (sig | 0));
+    },
+    error: log_c0_error,
+    debug: (lbl) => {
+      console.log("debug:  entered label " + lbl);
+      setTimeout(() => {
+        return 0;
+      }, 0);
+    },
   },
   conio: conio,
 };
@@ -348,4 +362,3 @@ const print_imports = {
     can manually modify.
 */
 // run("tests/c0/reference", print_imports, undefined, () => {});
-
