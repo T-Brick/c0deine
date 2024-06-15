@@ -2,11 +2,7 @@
    Tactics for verifying C0 code correct
    - Thea Brick
  -/
-import C0deine.Top
 import C0deine.Type.SyntaxTree.Dynamics
-import C0deine.Type.SyntaxTree.Dynamics.Notation
-import C0deine.Type.SyntaxTree.Dynamics.Transitivity
-import C0deine.Ast.Ast
 
 namespace C0deine.Prover
 

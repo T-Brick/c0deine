@@ -11,11 +11,8 @@ def prog₁ := parse_tc! "
 int main() {
   int x = 150;
   //@assert x == 150;
-  return 150;
+  return x;
 }"
-
-#eval verify prog₁ "main"
-
 
 open Typ.Notation in
 def tst : Tst.Expr {} {} (int) :=

@@ -3,20 +3,19 @@
    - Thea Brick
  -/
 import C0deine.Top
--- import C0deine.Type.SyntaxTree.Dynamics
--- import C0deine.Type.SyntaxTree.Dynamics.Notation
--- import C0deine.Type.SyntaxTree.Dynamics.Transitivity
+import C0deine.Ast.Ast
+import C0deine.Type.SyntaxTree.Dynamics
 -- import C0deine.Experimental.Prover.Tactics
 
 namespace C0deine.Prover
 
-open Top
+open Tst.Dynamics
 
 def parse_tc (prog : String) : Option (Tst.Prog × Context.State) := do
   -- let libSearchDirs ← mkLibSearchDirs [] []
   let config : Config := default
     -- { (default : Config) with libSearchDirs := libSearchDirs }
-  let  (tst, _config, ctx) ← runFrontendNoIO config prog
+  let  (tst, _config, ctx) ← Top.runFrontendNoIO config prog
   return (tst, ctx)
 
 def parse_tc! (prog : String) : Tst.Prog × Context.State :=
@@ -25,8 +24,54 @@ def parse_tc! (prog : String) : Tst.Prog × Context.State :=
   | some res => res
 
 
-def verify (prog_ctx : Tst.Prog × Context.State) (func : String) := do
+def get_body (prog_ctx : Tst.Prog × Context.State) (func : String) := do
   let (prog, ctx) := prog_ctx
-  let fdef ← prog.findFuncDef (ctx.symbolCache.find! func)
-  return ()
+  let ⟨_Δ, fdef⟩ ← prog.findFuncDef (ctx.symbolCache.find! func)
+  let dyn_res := DynResult.exec_seq fdef.body.toList .nil
+  return dyn_res
+
+open Lean Elab Command Term Meta
+
+-- syntax "#c0_prove" term "," term : command
+
+-- macro_rules
+-- | `(#c0_prove $p:term , $f:term ) =>
+--   `(def x := 5
+--    )
+
+open Qq in
+elab "c0_theorem" n:declId ":" "prove" f:term "in" p:term ":=" b:term : command => do
+  let (prog, ctx) ← liftTermElabM do
+    let τ := Tst.Prog × Context.State
+    let prog ← Term.elabTerm p (some q(Tst.Prog × Context.State))
+    unsafe evalExpr τ (q(Tst.Prog × Context.State)) prog
+
+  let func ← liftTermElabM do
+    let func ← Term.elabTerm f (some q(String))
+    unsafe evalExpr (String) (q(String)) func
+
+
+  match prog.findFuncDef (ctx.symbolCache.find! func) with
+  | none => throwError s!"Could not find function ${func}"
+  | some ⟨_Δ, fdef⟩ =>
+    logInfo s!"{fdef.body}"
+    -- let test : Expr := Lean.toExpr fdef
+    let cmd ← `(
+      theorem $(n) : true = true :=
+        $b
+    )
+    elabCommand cmd
+
+
+
+def prog₁ := parse_tc! "
+int main() {
+  int x = 150;
+  //@assert x == 150;
+  return x;
+}"
+
+c0_theorem test : prove "main" in prog₁ := by
+  skip
+  rfl
 

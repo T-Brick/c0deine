@@ -21,6 +21,7 @@ inductive Exception
 | arithmetic
 | abort
 | error (msg : String)
+deriving Inhabited, Repr
 
 inductive Address
 | ref : Nat → Address
@@ -141,6 +142,8 @@ inductive Cont : Cont.Res → Type
 | error      : Cont .val → Cont .val                       -- error(_)
 | discard    : Cont .val → Cont .val                       -- discard
 
+instance : Inhabited (Cont Δ Γ .val) := ⟨.nil (Δ := Δ) (Γ := Γ)⟩
+
 def Cont.consStmtList (K : Cont Δ Γ .val) : List (Stmt Δ Γ ρ) → Cont Δ Γ .val
   | [] => K
   | s :: stmts => .stmt s (consStmtList K stmts)
@@ -153,6 +156,7 @@ inductive DynResult : Type
 | exn      : Exception → DynResult
 | nop      : Cont Δ Γ r → DynResult       -- maybe move into AST
 | res      : Int32 → DynResult
+deriving Inhabited
 
 
 def Environment := Symbol → Option Value
@@ -187,6 +191,7 @@ structure StackFrame where
   Γ : FCtx
   environment : Environment
   continuation : Cont Δ Γ .val
+deriving Inhabited
 
 
 /- TODO: this implementation is based on the AST dynamics, which doesn't have
@@ -196,6 +201,7 @@ structure StackFrame where
 structure Heap where
   data : Nat → Option Value
   next : Nat
+deriving Inhabited
 
 namespace Heap
 

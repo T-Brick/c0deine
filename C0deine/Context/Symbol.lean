@@ -2,7 +2,7 @@
    Utilities for creating fresh symbols.
    - James Gallicchio
  -/
-import Std
+import C0deine.AuxDefs
 
 namespace C0deine
 
