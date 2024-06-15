@@ -9,7 +9,7 @@ import Cli
 
 namespace C0deine.Top
 
-def version := "v24.04.0"
+def version := "v24.06.0"
 
 open Cli Directive
 
@@ -120,6 +120,22 @@ def runFrontendNoIO (config : Config) (src : String)
     | .error e => panic s!"\n{e}\n"
     | .ok tst  =>
       return (tst, config, ctx)
+
+def runFrontendNoIOAst (config : Config) (src : String)
+    : Option (Ast.Prog × Config × Context.State) := do
+  let init_parsed : Use.ParsedC0 :=
+    ⟨config, [], [], .empty, .new (¬config.lang.under .c0)⟩
+  let parsed := Use.parseSource init_parsed src
+  let config      := parsed.config
+  let ctx         := parsed.ctx
+
+  match Abstractor.abstract config.lang (parsed.header) (parsed.source) with
+  | .error e => panic s!"\n{e}\n"
+  | .ok ast =>
+    match Typechecker.typecheck ast with
+    | .error e => panic s!"\n{e}\n"
+    | .ok _tst  =>
+      return (ast, config, ctx)
 
 def runFrontend
     (config : Config)
