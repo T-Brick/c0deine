@@ -181,7 +181,7 @@ def sdecl (ctx : GlobalCtx) (s : Ast.SDecl) : Except Error (Result Δ) := do
   let structs' :=
     match ctx.structs.find? s.name with
     | none =>
-      ctx.structs.insert s.name ⟨Std.HashMap.empty, false⟩
+      ctx.structs.insert s.name ⟨Batteries.HashMap.empty, false⟩
     | some _ => ctx.structs
   return ⟨{ctx with structs := structs'}, Δ, none⟩
 
@@ -194,7 +194,7 @@ def sdef (ctx : GlobalCtx) (s : Ast.SDef) : Except Error (Result Δ) := do
       else pure ()
     | none => pure ()
   let fieldsMap ← Validate.fields ctx s.fields
-  let status := ⟨Std.HashMap.ofList fieldsMap, true⟩
+  let status := ⟨Batteries.HashMap.ofList fieldsMap, true⟩
   let structs' := ctx.structs.insert s.name status
   let fields' := fieldsMap.map (fun (field, tau) => ⟨tau, field⟩)
   return ⟨{ctx with structs := structs'}, _, some (.sdef ⟨s.name, fields'⟩)⟩

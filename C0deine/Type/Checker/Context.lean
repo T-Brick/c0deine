@@ -2,7 +2,7 @@
    Contexts, Error, and other utilities for typechecking
    - Thea Brick
  -/
-import Std
+import Batteries
 import C0deine.Ast.Ast
 import C0deine.Type.Typ
 import C0deine.Type.Tst
@@ -88,7 +88,7 @@ def FuncCtx.toGlobalCtx (ctx : FuncCtx) : GlobalCtx :=
   { symbols   := ctx.symbols
   , structs   := ctx.structs
   , calls     := ctx.calls
-  , funcCalls := Std.HashMap.empty.insert ctx.name ctx.calls
+  , funcCalls := Batteries.HashMap.empty.insert ctx.name ctx.calls
   , strings   := ctx.strings
   }
 

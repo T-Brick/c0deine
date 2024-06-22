@@ -4,7 +4,7 @@
    - Thea Brick
    - James Gallicchio
  -/
-import Std
+import Batteries
 import C0deine.Context.Temp
 import C0deine.Context.Label
 import C0deine.Context.Symbol
@@ -12,14 +12,15 @@ import C0deine.Context.Symbol
 namespace C0deine
 
 -- this is kinda hacky but allows us to derive Repr for the context
-instance : Repr (Std.HashMap String Symbol) := ⟨fun m => reprPrec m.toArray⟩
+instance : Repr (Batteries.HashMap String Symbol) :=
+  ⟨fun m => reprPrec m.toArray⟩
 
 structure Context.State where
   nextTemp     : Temp
   nextLabel    : Label
   nextSymbolId : UInt64
   inLineAnno   : Option Bool -- none if annotations aren't allow
-  symbolCache  : Std.HashMap String Symbol
+  symbolCache  : Batteries.HashMap String Symbol
 deriving Repr, Inhabited
 
 def Context.State.new (annotations : Bool) : Context.State where
@@ -27,7 +28,7 @@ def Context.State.new (annotations : Bool) : Context.State where
   nextLabel    := ⟨Label.startId, none⟩
   nextSymbolId := 1
   inLineAnno   := if annotations then .some false else .none
-  symbolCache  := Std.HashMap.empty.insert Symbol.main.name Symbol.main
+  symbolCache  := Batteries.HashMap.empty.insert Symbol.main.name Symbol.main
 
 def Context := StateM Context.State
 

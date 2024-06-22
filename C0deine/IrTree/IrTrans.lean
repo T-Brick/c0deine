@@ -24,7 +24,7 @@ structure StructInfo where
   size : UInt64
   alignment : UInt64
   fields : Symbol.Map UInt64
-instance : Inhabited StructInfo where default := ⟨0, 0, Std.HashMap.empty⟩
+instance : Inhabited StructInfo where default := ⟨0, 0, Batteries.HashMap.empty⟩
 
 namespace Env
 
@@ -39,9 +39,9 @@ structure Prog.State : Type where
 def Prog.State.new (config : Config) (str_map : List (String × UInt64))
                    : Env.Prog.State where
   config    := config
-  vars      := Std.HashMap.empty
-  functions := Std.HashMap.empty
-  structs   := Std.HashMap.empty
+  vars      := Batteries.HashMap.empty
+  functions := Batteries.HashMap.empty
+  structs   := Batteries.HashMap.empty
   str_map   := str_map
 
 def Prog := StateT Env.Prog.State Context
@@ -118,7 +118,7 @@ def Func.State.new (config : Config)
                    (str_map : List (String × UInt64))
                    : Func.State :=
   { Prog.State.new config str_map
-    with blocks := Std.HashMap.empty
+    with blocks := Batteries.HashMap.empty
        , curBlockLabel := label
        , curBlockType := .funcEntry
   }
@@ -133,7 +133,7 @@ def Prog.startFunc (lbl : Label)
                    (f : Func α)
                    : Prog (α × Label.Map Block) :=
   fun penv => do
-    let fstate := ⟨penv, Std.HashMap.empty, lbl, type⟩
+    let fstate := ⟨penv, Batteries.HashMap.empty, lbl, type⟩
     let (res, fenv') ← f fstate
     return ((res, fenv'.blocks), fenv'.toState)
 
@@ -290,7 +290,13 @@ partial def transSizeArgs
   | τ :: rest =>
     let se := transSizeExpr (as ⟨0, by simp⟩)
     let ses := transSizeArgs rest (fun i =>
-        as ⟨Nat.succ i, by simp; exact Nat.succ_lt_succ i.isLt⟩
+        as ⟨Nat.succ i, by
+          simp only [
+            Nat.succ_eq_add_one,
+            List.length_cons,
+            add_lt_add_iff_right,
+            Fin.is_lt
+          ]⟩
       )
     1 + max se ses
 end
@@ -842,7 +848,7 @@ def gdecl (header : Bool) (glbl : Tst.GDecl Δ Δ') : Env.Prog (Option Func) := 
     let () ← Env.Prog.addFunc fdef.name label
     let res ← fdef.ret.mapM Typ.tempSize
 
-    if h : Std.HashMap.contains blocks entry
+    if h : Batteries.HashMap.contains blocks entry
     then return some ⟨label, entry, args, blocks, res, h⟩
     else panic! s!"IR Trans: Couldn't find entry block in Std.HashMap"
 
@@ -872,7 +878,7 @@ def gdecl (header : Bool) (glbl : Tst.GDecl Δ Δ') : Env.Prog (Option Func) := 
         (offset' + size, (f.data, offset') :: acc)
       ) (UInt64.ofNat 0, [])
     let size' := align size alignment
-    let offsets := Std.HashMap.ofList offsetsR
+    let offsets := Batteries.HashMap.ofList offsetsR
     let () ← Env.Prog.addStruct sd.name ⟨size', alignment, offsets⟩
     return none
 

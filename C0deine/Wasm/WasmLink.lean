@@ -16,13 +16,13 @@ open Wasm.Text
 open Library in
 def _root_.C0deine.Language.StdLib.toWasmLib : Language.StdLib → Library
   | .conio  => Conio
-  | .file   => sorry
-  | .args   => sorry
+  | .file   => panic "ERR: No implementation for 'file' library!"
+  | .args   => panic "ERR: No implementation for 'args' library!"
   | .parse  => Parse
   | .string => String
-  | .img    => sorry
-  | .rand   => sorry
-  | .util   => sorry
+  | .img    => panic "ERR: No implementation for 'img' library!"
+  | .rand   => panic "ERR: No implementation for 'rand' library!"
+  | .util   => panic "ERR: No implementation for 'util' library!"
 
 def mkImports (config : Wasm.Config)
               (libs : List Library)

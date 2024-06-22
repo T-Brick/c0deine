@@ -10,6 +10,8 @@ import C0deine.Context.Symbol
 
 namespace C0deine.Cst
 
+open Numbers
+
 def Ident := Symbol
 deriving ToString, Repr
 

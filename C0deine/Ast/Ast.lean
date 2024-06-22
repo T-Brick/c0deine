@@ -12,8 +12,10 @@ import C0deine.Utils.Comparison
 
 namespace C0deine.Ast
 
+open Numbers
+
 @[reducible] def Ident := Symbol
-deriving ToString, DecidableEq, Repr
+deriving ToString, DecidableEq, Repr, Inhabited
 
 inductive Typ
 | int
@@ -24,30 +26,36 @@ inductive Typ
 | ptr : Typ → Typ
 | arr : Typ → Typ
 | struct (name : Ident)
+deriving Inhabited
 
 inductive UnOp.Int | neg | not
+deriving Inhabited
+
 inductive UnOp.Bool | neg
+deriving Inhabited
+
 inductive UnOp
 | int (op : UnOp.Int)
 | bool (op : UnOp.Bool)
+deriving Inhabited
 
 inductive BinOp.Int
 | plus | minus | times | div | mod | and | xor | or | lsh | rsh
-deriving DecidableEq
+deriving DecidableEq, Inhabited
 
 inductive BinOp.Bool
 | and | or
-deriving DecidableEq
+deriving DecidableEq, Inhabited
 
 inductive BinOp
 | int (op : BinOp.Int)
 | cmp (op : Comparator)
 | bool (op : BinOp.Bool)
-deriving DecidableEq
+deriving DecidableEq, Inhabited
 
 inductive AsnOp
 | eq | aseq (op : BinOp.Int)
-deriving DecidableEq
+deriving DecidableEq, Inhabited
 
 inductive Expr
 | num (v : Int32)
@@ -68,6 +76,7 @@ inductive Expr
 | index (e : Expr) (index : Expr)
 | result
 | length (e : Expr)
+deriving Inhabited
 
 inductive LValue
 | var (name : Ident)
@@ -75,12 +84,14 @@ inductive LValue
 | arrow (lv : LValue) (field : Ident)
 | deref (lv : LValue)
 | index (lv : LValue) (index : Expr)
+deriving Inhabited
 
 inductive Anno
 | requires   : Expr → Anno
 | ensures    : Expr → Anno
 | loop_invar : Expr → Anno
 | assert     : Expr → Anno
+deriving Inhabited
 
 inductive Stmt
 | decl (type : Typ) (name : Ident) (init : Option Expr) (body : List Stmt)
@@ -92,34 +103,42 @@ inductive Stmt
 | error (e : Expr)
 | exp (e : Expr)
 | anno (a : Anno)
+deriving Inhabited
 
 structure Field where
   type : Typ
   name : Ident
+deriving Inhabited
 
 structure SDef where
   name   : Ident
   fields : List Field
+deriving Inhabited
 
 structure SDecl where
   name : Ident
+deriving Inhabited
 
 structure TyDef where
   type : Typ
   name : Ident
+deriving Inhabited
 
 structure Param where
   type : Typ
   name : Ident
+deriving Inhabited
 
 structure FDecl where
   type   : Option Typ
   name   : Ident
   params : List Param
   annos  : List Anno
+deriving Inhabited
 
 structure FDef extends FDecl where
   body : List Stmt
+deriving Inhabited
 
 inductive GDecl
 | fdecl : FDecl → GDecl
@@ -127,10 +146,18 @@ inductive GDecl
 | tydef : TyDef → GDecl
 | sdecl : SDecl → GDecl
 | sdef  : SDef  → GDecl
+deriving Inhabited
 
 structure Prog where
   header : List GDecl
   program : List GDecl
+deriving Inhabited
+
+def Prog.findFuncDef (p : Prog) (name : Ident) : Option FDef :=
+  p.program.filterMap (fun
+    | .fdef f => if f.name = name then some f else none
+    | _ => none
+  ) |>.get? 0
 
 
 def LValue.toExpr : LValue → Expr

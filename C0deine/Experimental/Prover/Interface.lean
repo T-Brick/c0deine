@@ -57,21 +57,19 @@ elab "c0_theorem" n:declId ":" "prove" f:term "in" p:term ":=" b:term : command 
     logInfo s!"{fdef.body}"
     -- let test : Expr := Lean.toExpr fdef
     let cmd ← `(
-      theorem $(n) : true = true :=
+      theorem $(n) : $(quote true) = true :=
         $b
     )
     elabCommand cmd
 
-
-
-def prog₁ := parse_tc! "
+def prog₁_string := "
 int main() {
   int x = 150;
   //@assert x == 150;
   return x;
 }"
 
-c0_theorem test : prove "main" in prog₁ := by
-  skip
-  rfl
+def prog₁ := parse_tc! prog₁_string
 
+c0_theorem test : prove "main" in prog₁ := by
+  sorry

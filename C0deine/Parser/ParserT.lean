@@ -109,7 +109,7 @@ def getLines (state : State s) (fr to' : Fin state.lines.val.get.size) : String 
           apply e.h_pos⟩
     else
       ⟨s.size, Nat.le_refl _⟩
-  s.extract fr.pos to'.pos |> String.fromUTF8Unchecked
+  s.extract fr.pos to'.pos |> String.fromUTF8!
 
 end ParserT.State
 

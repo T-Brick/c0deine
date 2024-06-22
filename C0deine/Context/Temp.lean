@@ -2,7 +2,7 @@
    Utilities for creating fresh temps.
    - Thea Brick
  -/
-import Std
+import Batteries
 import C0deine.Utils.ValueSize
 import Wasm.Text.Ident
 
@@ -34,8 +34,8 @@ def startId := 2
 def toNat : Temp → Nat := Temp.id
 def toUInt64 : Temp → UInt64 := Nat.toUInt64 ∘ Temp.id
 
-def Map (α : Type) := Std.HashMap Temp α
-def Map.empty : Map α := Std.HashMap.empty
+def Map (α : Type) := Batteries.HashMap Temp α
+def Map.empty : Map α := Batteries.HashMap.empty
 
 def toWasmIdent (temp : Temp) : Wasm.Text.Ident :=
   { name := temp.toRawString

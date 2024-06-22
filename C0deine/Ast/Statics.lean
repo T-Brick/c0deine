@@ -8,7 +8,7 @@ import C0deine.Ast.Ast
 
 namespace C0deine.Ast.Statics
 
-open Ast
+open Ast Numbers
 
 def _root_.C0deine.Ast.Typ.isResolved : Typ → Bool
 | .int      => true

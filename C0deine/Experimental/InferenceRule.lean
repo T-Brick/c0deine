@@ -9,7 +9,7 @@ import C0deine.Type.Tst
 
 namespace C0deine.Experimental
 
-open Lean Meta Tst
+open Lean Meta Tst Numbers
 
 def getConsType (val : Name) : MetaM Lean.Expr := do
   let env ← getEnv

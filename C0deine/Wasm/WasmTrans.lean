@@ -334,9 +334,9 @@ where
   | .multi left right next =>
     let lbls := ControlFlow.Relooper.Shape.getLabels shape
     match left, right, lbls, find_cjump f priorExit with
-    | .some l, .some r, [l_lbl, r_lbl], .some (ct, tt, ff) =>
+    | .some l, .some r, [l_lbl, r_lbl], .some (ct, _tt, ff) =>
       let c_flip := if ff = l_lbl then [i32_eqz] else []
-      let (l_instr, l_exit) := traverse l .none loopBreak
+      let (l_instr, _l_exit) := traverse l .none loopBreak
       let (r_instr, r_exit) := traverse r .none loopBreak
       let (n_instr, next_exit) :=
         match next with -- l_exit == r_exit

@@ -1,6 +1,8 @@
-import Std
+import Batteries
 import Numbers
 import Mathlib.Tactic
+
+open Numbers
 
 def Nat.digitCharInv! : Char → Nat
 | '0' => 0
@@ -89,9 +91,8 @@ where aux (v : UInt64) (n : Nat) : List UInt8 :=
   cases x; case mk val =>
   cases val; case mk val isLt =>
   have : val < 4294967295 + 1 := Nat.le_trans isLt (by decide)
-  simp [UInt8.size] at isLt
-  simp only [toNat]
-  apply Nat.mod_eq_of_lt this
+  simp only [UInt8.size] at isLt
+  simp only [UInt8.toUInt32_toNat, UInt8.toNat]
 
 instance : Coe UInt8 Char where
   coe b := ⟨UInt8.toUInt32 b, by
@@ -113,17 +114,17 @@ structure ThunkCache (a : Unit → α) where
 def ThunkCache.new : ThunkCache a := ⟨Thunk.mk a, by simp [Thunk.get]⟩
 instance : Inhabited (ThunkCache a) := ⟨.new⟩
 
-@[simp] theorem String.length_pushn (s : String) (c n)
-  : (s.pushn c n).length = s.length + n := by
-  induction n
-  . simp [pushn, Nat.repeat]
-  . simp [pushn, Nat.repeat, push, length]
-    rw [Nat.add_succ, Nat.add_succ]
-    congr
+-- @[simp] theorem String.length_pushn (s : String) (c n)
+  -- : (s.pushn c n).length = s.length + n := by
+  -- induction n
+  -- . simp [pushn, Nat.repeat]
+  -- . simp [pushn, Nat.repeat, push, length]
+    -- rw [Nat.add_succ, Nat.add_succ]
+    -- congr
 
-@[simp] theorem String.length_append (s1 s2 : String)
-  : (s1 ++ s2).length = s1.length + s2.length
-  := by simp [append, length]
+-- @[simp] theorem String.length_append (s1 s2 : String)
+  -- : (s1 ++ s2).length = s1.length + s2.length
+  -- := by simp [append, length]
 
 @[simp] theorem String.take_mk (L : List Char) (n)
   : (String.mk L).take n = String.mk (L.take n)
@@ -175,11 +176,11 @@ def List.toMap [DecidableEq α] : List (α × β) → (α → Option β)
 def List.toFn (lst : List α) : Fin lst.length → α :=
   fun i => lst.get i
 
-def Std.HashMap.insert_multi [BEq α] [Hashable α]
-    (self : Std.HashMap α (List β))
+def Batteries.HashMap.insert_multi [BEq α] [Hashable α]
+    (self : Batteries.HashMap α (List β))
     (a : α)
     (b : β)
-    : Std.HashMap α (List β) :=
+    : Batteries.HashMap α (List β) :=
   match self.find? a with
   | .none    => self.insert a [b]
   | .some bs => self.insert a (b :: bs)

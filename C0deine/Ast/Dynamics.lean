@@ -10,8 +10,7 @@ import C0deine.Ast.Statics
 
 namespace C0deine.Ast.Dynamics
 
-open Ast
-open Statics
+open Numbers Ast Statics
 
 inductive Exception
 | memory

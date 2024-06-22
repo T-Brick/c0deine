@@ -12,7 +12,7 @@ import C0deine.ControlFlow.CFG
 
 namespace C0deine.IrTree
 
-open Typ
+open Typ Numbers
 
 inductive PureBinop
 | add | sub | mul | and | xor | or

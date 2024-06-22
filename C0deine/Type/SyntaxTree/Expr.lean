@@ -6,28 +6,28 @@ import C0deine.Type.SyntaxTree.Context
 
 namespace C0deine.Tst
 
-open Typ
+open Typ Numbers
 
-inductive UnOp.Int  | neg | not deriving Inhabited
-inductive UnOp.Bool | neg       deriving Inhabited
+inductive UnOp.Int  | neg | not deriving Inhabited, Lean.ToExpr
+inductive UnOp.Bool | neg       deriving Inhabited, Lean.ToExpr
 inductive UnOp
 | int (op : UnOp.Int)
 | bool (op : UnOp.Bool)
-deriving Inhabited
+deriving Inhabited, Lean.ToExpr
 
 inductive BinOp.Int
 | plus | minus | times | div | mod | and | xor | or | lsh | rsh
-deriving Inhabited
+deriving Inhabited, Lean.ToExpr
 
 inductive BinOp.Bool
 | and | or
-deriving Inhabited
+deriving Inhabited, Lean.ToExpr
 
 inductive BinOp
 | int (op : BinOp.Int)
 | cmp (op : Comparator)
 | bool (op : BinOp.Bool)
-deriving Inhabited
+deriving Inhabited, Lean.ToExpr
 
 @[inline] def UnOp.type : UnOp → Typ
   | .int _  => .prim .int
@@ -377,16 +377,16 @@ instance : ToString UnOp where toString := UnOp.toString
 
 
 def BinOp.Int.toString : BinOp.Int → String
-  | plus => "+"
-  | minus => "-"
-  | times => "*"
-  | div => "/"
-  | mod => "%"
-  | and => "&"
-  | xor => "^"
-  | or => "|"
-  | lsh => "<<"
-  | rsh => ">>"
+  | .plus  => "+"
+  | .minus => "-"
+  | .times => "*"
+  | .div   => "/"
+  | .mod   => "%"
+  | .and   => "&"
+  | .xor   => "^"
+  | .or    => "|"
+  | .lsh   => "<<"
+  | .rsh   => ">>"
 instance : ToString BinOp.Int where toString := BinOp.Int.toString
 
 def BinOp.Bool.toString : BinOp.Bool → String
@@ -395,9 +395,9 @@ def BinOp.Bool.toString : BinOp.Bool → String
 instance : ToString BinOp.Bool where toString := BinOp.Bool.toString
 
 def BinOp.toString : BinOp → String
-  | int op  => s!"{op}"
-  | cmp op  => s!"{op}"
-  | bool op => s!"{op}"
+  | .int op  => s!"{op}"
+  | .cmp op  => s!"{op}"
+  | .bool op => s!"{op}"
 instance : ToString BinOp where toString := BinOp.toString
 
 def Expr.toString : Expr Δ Γ τ → String

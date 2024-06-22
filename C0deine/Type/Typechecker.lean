@@ -17,10 +17,10 @@ def typecheck (prog : Ast.Prog) : Except Error Tst.Prog := do
   let main_info := .func ⟨⟨some (.prim .int), []⟩, false⟩
   let main_sym := Symbol.main
 
-  let init_symbols := Std.HashMap.empty.insert main_sym main_info
-  let init_calls := Std.HashMap.empty.insert main_sym false
+  let init_symbols := Batteries.HashMap.empty.insert main_sym main_info
+  let init_calls := Batteries.HashMap.empty.insert main_sym false
   let init_context : GlobalCtx :=
-    ⟨init_symbols, Std.HashMap.empty, init_calls, Std.HashMap.empty, []⟩
+    ⟨init_symbols, Batteries.HashMap.empty, init_calls, Batteries.HashMap.empty, []⟩
   let init_acc : Global.Result.List {} := ⟨init_context, {}, .nil⟩
 
   let hres ← prog.header.foldlM (Global.gdecs true) init_acc

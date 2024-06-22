@@ -97,7 +97,7 @@ structure ParsedC0 where
   config : Config
   header : Cst.Prog
   source : Cst.Prog
-  tydefs : Std.RBSet Symbol compare
+  tydefs : Batteries.RBSet Symbol compare
   ctx : Context.State
 deriving Inhabited
 

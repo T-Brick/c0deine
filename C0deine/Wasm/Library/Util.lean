@@ -15,6 +15,7 @@ structure Library where
   extern  : List Module.Field
   intern  : List Module.Field
   lib     : List Module.Field
+deriving Inhabited
 
 namespace Library.Util
 -- todo should these just be a functions?

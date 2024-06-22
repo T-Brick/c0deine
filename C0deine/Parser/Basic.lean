@@ -3,7 +3,7 @@
    - James Gallicchio
    - Thea Brick
  -/
-import Std
+import Batteries
 import Numbers
 
 import C0deine.Context.Context
@@ -19,6 +19,8 @@ abbrev C0Parser (s) := ParserT Context s
 namespace C0Parser
 
 open ParserT Cst Numbers
+
+instance : Inhabited (C0Parser s α) := ⟨fun _ => pure default⟩
 
 @[inline] nonrec def withBacktracking (p : C0Parser s α) := withBacktracking p
 @[inline] nonrec def withBacktrackingUntil (p : C0Parser s α) (q : α → C0Parser s β)
@@ -211,7 +213,7 @@ def anyKeyword : C0Parser s Unit :=
   , kw_use
   ]
 
-variable (tydefs : Std.RBSet Symbol Ord.compare)
+variable (tydefs : Batteries.RBSet Symbol Ord.compare)
 
 def rawIdent : C0Parser s Ident :=
   atomically do
@@ -673,7 +675,9 @@ def gdecl : C0Parser s GDecl :=
   , do return .cdir (← cdir)
   ]
 
-partial def prog (tydefs : Std.RBSet Symbol compare := .empty) : C0Parser s (Prog × Std.RBSet Symbol compare) := do
+partial def prog
+    (tydefs : Batteries.RBSet Symbol compare := .empty)
+    : C0Parser s (Prog × Batteries.RBSet Symbol compare) := do
   ws
   let (gdecls,tydefs) ← aux tydefs #[]
   return (gdecls.toList,tydefs)

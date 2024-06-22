@@ -3,7 +3,7 @@
    programs that use features not in the source language are rejected here.
    - Thea Brick
  -/
-import Std
+import Batteries
 import C0deine.Parser.Cst
 import C0deine.Ast.Ast
 import C0deine.Type.Typ

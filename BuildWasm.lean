@@ -3,7 +3,7 @@
   is made : )
 -/
 import ImportGraph.Imports
-import Std.Lean.Util.Path
+import Batteries.Lean.Util.Path
 import Lake
 
 open Lean System
@@ -35,9 +35,8 @@ unsafe def main (args : List String) : IO UInt32 := do
     let link := s!"{lean4_link}/v{Lean.versionString}/{wasm_tc}.tar.zst"
     let local_tar : FilePath := s!"{toolchain}.tar.zst"
 
-    let _ ← Lake.LogIO.captureLog do
-      let () ← Lake.download wasm_tc link local_tar
-      let () ← Lake.untar wasm_tc local_tar "toolchains"
+    let _ ← Lake.download link local_tar |>.run
+    let _ ← Lake.untar local_tar "toolchains" |>.run
 
   IO.println "Finding relevant dependencies..."
   /- Find relevant C-files to compile, we don't want to compile everything
