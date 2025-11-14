@@ -88,7 +88,7 @@ def FuncCtx.toGlobalCtx (ctx : FuncCtx) : GlobalCtx :=
   { symbols   := ctx.symbols
   , structs   := ctx.structs
   , calls     := ctx.calls
-  , funcCalls := Batteries.HashMap.empty.insert ctx.name ctx.calls
+  , funcCalls := Std.HashMap.emptyWithCapacity.insert ctx.name ctx.calls
   , strings   := ctx.strings
   }
 
@@ -98,7 +98,7 @@ def FuncCtx.join (ctx1 ctx2 : FuncCtx) : FuncCtx :=
   let calls := ctx1.calls.merge ctx2.calls
   let intersect :=
     fun var status =>
-      match status, ctx2.symbols.find? var with
+      match status, ctx2.symbols.get? var with
       | .var v1, some (.var v2) =>
         some (.var ⟨v1.type, v1.initialised && v2.initialised⟩)
       | _, none => none

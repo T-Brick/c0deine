@@ -31,11 +31,11 @@ script js (args : List String) do
   IO.print out.stderr
   return out.exitCode
 
--- require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.8.0"
-require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "v4.8.0"
-require Cli from git "https://github.com/mhuisi/lean4-cli" @ "nightly"
+require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.25.0"
+require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "v4.25.0"
+require Cli from git "https://github.com/mhuisi/lean4-cli" @ "1dae8b12f8ba27576ffe5ddee78bebf6458157b0"
 require numbers from git "https://github.com/T-Brick/Numbers" @ "main"
 require controlflow from git "https://github.com/T-Brick/ControlFlow" @ "main"
 require wasm from git "https://github.com/T-Brick/lean-wasm" @ "main"
 
-require importGraph from git "https://github.com/leanprover-community/import-graph" @ "v4.8.0"
+require importGraph from git "https://github.com/leanprover-community/import-graph" @ "v4.25.0"

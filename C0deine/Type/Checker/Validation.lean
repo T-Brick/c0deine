@@ -12,7 +12,7 @@ def Trans.type [Ctx α] (ctx : α) : Ast.Typ → Option Typ
   | .char   => some <| .prim .char
   | .string => some <| .prim .string
   | .tydef name =>
-    match (Ctx.symbols ctx).find? name with
+    match (Ctx.symbols ctx).get? name with
     | some (.alias tau) => some tau
     | _ => none
   | .ptr (tau : Ast.Typ) => Trans.type ctx tau |>.map (.mem ∘ .pointer)
@@ -21,7 +21,7 @@ def Trans.type [Ctx α] (ctx : α) : Ast.Typ → Option Typ
 
 def Trans.isSized [Ctx α] (ctx : α) : Typ → Bool
   | .mem (.struct name) =>
-    match (Ctx.structs ctx).find? name with
+    match (Ctx.structs ctx).get? name with
     | some status => status.defined
     | none => false
   | _ => true
@@ -70,7 +70,7 @@ def Validate.global_var (ctx : GlobalCtx)
   if ¬Typ.isSmall tau
   then throw <| Error.msg s!"Variable '{var}' must have a small type"
   else
-    match ctx.symbols.find? var with
+    match ctx.symbols.get? var with
     | some (.var _) => throw <| Error.msg s!"Variable '{var}' is declared twice"
     | some (.alias _) =>
       throw <| Error.msg <|
@@ -140,7 +140,7 @@ def Validate.func (ctx : GlobalCtx)
   then throw <| Error.func name <|
     s!"Function has non-small output type '{output}'"
   else
-    match ctx.symbols.find? name with
+    match ctx.symbols.get? name with
     | some (.var _var) =>
       throw <| Error.func name s!"Function name is already used as a variable"
     | some (.func f) =>
@@ -163,7 +163,7 @@ def Validate.callsDefined (ctx : GlobalCtx)
   let err := fun name => throw <| Error.msg <|
     s!"Function '{name}' is called but not defined"
   ctx.calls.foldM (fun () name _ => do
-    match ctx.symbols.find? name with
+    match ctx.symbols.get? name with
     | some (.func status) =>
       if status.defined
       then return ()

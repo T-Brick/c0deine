@@ -65,7 +65,7 @@ inductive PostOp
 deriving Repr
 
 inductive Expr
-| num  (v : Int32)
+| num  (v : Numbers.Int32)
 | char (c : Char)
 | str  (s : String)
 | «true» | «false»

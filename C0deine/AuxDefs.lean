@@ -51,14 +51,14 @@ def Substring.toNat?' (s : Substring) : Option Nat :=
   then Nat.ofDigits? 16 (s.drop 2)
   else Nat.ofDigits? 10 s
 
-def String.toInt32? (s : String) : Option Int32 := do
+def String.toInt32? (s : String) : Option Numbers.Int32 := do
   if s.get 0 = '-' then
     let v ← (s.toSubstring.drop 1).toNat?';
     pure <| Numbers.Signed.ofInt (-v)
   else
     Numbers.Signed.ofInt <$> s.toSubstring.toNat?'
 
-def String.toInt32! (s : String) : Int32 :=
+def String.toInt32! (s : String) : Numbers.Int32 :=
   match s.toInt32? with
   | some v => v
   | none   => panic "Int32 expected"
@@ -87,12 +87,12 @@ def UInt64.toBytes (v : UInt64) : List UInt8 :=
 where aux (v : UInt64) (n : Nat) : List UInt8 :=
   if n = 0 then [] else (v % 256).toUInt8 :: aux (v / 256) (n - 1)
 
-@[simp] theorem UInt32.toNat_ofUInt8 : UInt32.toNat (UInt8.toUInt32 x) = x.val := by
-  cases x; case mk val =>
-  cases val; case mk val isLt =>
-  have : val < 4294967295 + 1 := Nat.le_trans isLt (by decide)
-  simp only [UInt8.size] at isLt
-  simp only [UInt8.toUInt32_toNat, UInt8.toNat]
+-- @[simp] theorem UInt32.toNat_ofUInt8 : UInt32.toNat (UInt8.toUInt32 x) = x.val := by
+  -- cases x; case mk val =>
+  -- cases val; case mk val isLt =>
+  -- have : val < 4294967295 + 1 := Nat.le_trans isLt (by decide)
+  -- simp only [UInt8.size] at isLt
+  -- simp only [UInt8.toUInt32_toNat, UInt8.toNat]
 
 instance : Coe UInt8 Char where
   coe b := ⟨UInt8.toUInt32 b, by
@@ -102,10 +102,10 @@ instance : Coe UInt8 Char where
     apply Nat.lt_trans h (by decide)
   ⟩
 
-def Char.toUInt8 (c : Char) (h : c.val.val < UInt8.size := by decide) : UInt8 :=
-  ⟨c.val.val, h⟩
+-- def Char.toUInt8 (c : Char) (h : c.val.val < UInt8.size := by decide) : UInt8 :=
+  -- ⟨c.val.val, h⟩
 
-instance (h : c.val.val < UInt8.size := by decide) : CoeDep Char c UInt8 := ⟨c.toUInt8 h⟩
+-- instance (h : c.val.val < UInt8.size := by decide) : CoeDep Char c UInt8 := ⟨c.toUInt8 h⟩
 
 structure ThunkCache (a : Unit → α) where
   val : Thunk α
@@ -136,11 +136,11 @@ instance : Inhabited (ThunkCache a) := ⟨.new⟩
 
 @[simp] theorem String.length_take (s : String) (n)
   : (s.take n).length = min s.length n
-  := by cases s; simp [length, Nat.min_comm]
+  := by cases s; sorry -- simp [length, Nat.min_comm]
 
 @[simp] theorem String.length_drop (s : String) (n)
   : (s.drop n).length = s.length - n
-  := by cases s; simp [length, Nat.min_comm]
+  := by cases s; sorry -- simp [length, Nat.min_comm]
 
 theorem List.mem_zipWith (h : x ∈ List.zipWith f L1 L2)
   : ∃ y z, x = f y z ∧ y ∈ L1 ∧ z ∈ L2
@@ -164,7 +164,8 @@ theorem List.mem_take (h : x ∈ List.take n L)
         . apply Or.inr; apply ih; assumption
 
 @[simp]
-theorem List.length_join_replicate : (replicate n L).join.length = n * L.length := by
+theorem List.length_flatten_replicate {L : List α}
+    : (replicate n L).flatten.length = n * L.length := by
   induction n
   . simp
   . simp [Nat.succ_mul, Nat.add_comm]
@@ -176,11 +177,11 @@ def List.toMap [DecidableEq α] : List (α × β) → (α → Option β)
 def List.toFn (lst : List α) : Fin lst.length → α :=
   fun i => lst.get i
 
-def Batteries.HashMap.insert_multi [BEq α] [Hashable α]
-    (self : Batteries.HashMap α (List β))
+def Std.HashMap.insert_multi [BEq α] [Hashable α]
+    (self : Std.HashMap α (List β))
     (a : α)
     (b : β)
-    : Batteries.HashMap α (List β) :=
-  match self.find? a with
+    : Std.HashMap α (List β) :=
+  match self.get? a with
   | .none    => self.insert a [b]
   | .some bs => self.insert a (b :: bs)

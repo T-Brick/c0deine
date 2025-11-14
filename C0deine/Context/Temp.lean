@@ -34,8 +34,8 @@ def startId := 2
 def toNat : Temp → Nat := Temp.id
 def toUInt64 : Temp → UInt64 := Nat.toUInt64 ∘ Temp.id
 
-def Map (α : Type) := Batteries.HashMap Temp α
-def Map.empty : Map α := Batteries.HashMap.empty
+def Map (α : Type) := Std.HashMap Temp α
+def Map.empty : Map α := Std.HashMap.emptyWithCapacity
 
 def toWasmIdent (temp : Temp) : Wasm.Text.Ident :=
   { name := temp.toRawString

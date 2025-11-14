@@ -12,7 +12,7 @@ import C0deine.Context.Symbol
 namespace C0deine
 
 -- this is kinda hacky but allows us to derive Repr for the context
-instance : Repr (Batteries.HashMap String Symbol) :=
+instance : Repr (Std.HashMap String Symbol) :=
   ⟨fun m => reprPrec m.toArray⟩
 
 structure Context.State where
@@ -20,7 +20,7 @@ structure Context.State where
   nextLabel    : Label
   nextSymbolId : UInt64
   inLineAnno   : Option Bool -- none if annotations aren't allow
-  symbolCache  : Batteries.HashMap String Symbol
+  symbolCache  : Std.HashMap String Symbol
 deriving Repr, Inhabited
 
 def Context.State.new (annotations : Bool) : Context.State where
@@ -28,7 +28,7 @@ def Context.State.new (annotations : Bool) : Context.State where
   nextLabel    := ⟨Label.startId, none⟩
   nextSymbolId := 1
   inLineAnno   := if annotations then .some false else .none
-  symbolCache  := Batteries.HashMap.empty.insert Symbol.main.name Symbol.main
+  symbolCache  := Std.HashMap.emptyWithCapacity.insert Symbol.main.name Symbol.main
 
 def Context := StateM Context.State
 
@@ -70,7 +70,7 @@ namespace Symbol
 
 def symbol (name : String) : Context Symbol :=
   fun s =>
-    match s.symbolCache.find? name with
+    match s.symbolCache.get? name with
     | some sym => (sym, s)
     | none =>
       let id := s.nextSymbolId

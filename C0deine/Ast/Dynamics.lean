@@ -23,7 +23,7 @@ inductive Address
 deriving Inhabited, Repr
 
 inductive Value
-| num  : Int32 → Value
+| num  : Numbers.Int32 → Value
 | char : Char → Value
 | str  : String → Value
 | «true» | «false»
@@ -117,7 +117,7 @@ inductive DynResult : Prop
 | exec_seq : List Stmt → Cont r → DynResult
 | exn      : Exception → DynResult
 | nop      : Cont r → DynResult -- maybe move into AST
-| res      : Int32 → DynResult
+| res      : Numbers.Int32 → DynResult
 
 
 def Environment := Symbol → Option Value
@@ -171,9 +171,9 @@ inductive Step.UnOp : UnOp → Value → Value → Prop
 | neg_t   : UnOp (.bool .neg) (.true)  (.false)
 | neg_f   : UnOp (.bool .neg) (.false) (.true)
 
-def Step.ofNum : Int32 → Value ⊕ Exception := .inl ∘ .num
+def Step.ofNum : Numbers.Int32 → Value ⊕ Exception := .inl ∘ .num
 
-def Step.ofNum_exn : Option Int32 → Value ⊕ Exception
+def Step.ofNum_exn : Option Numbers.Int32 → Value ⊕ Exception
   | .none => .inr .arithmetic
   | .some i => .inl (.num i)
 

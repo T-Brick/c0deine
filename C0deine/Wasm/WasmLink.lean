@@ -35,7 +35,7 @@ def mkImports (config : Wasm.Config)
   , if config.import_calloc then .some free_import   else .none
   , if config.include_debug then .some debug_import  else .none
   , match config.main with | .import => .some main_import | _ => .none
-  ].filterMap (·) ++ libs.bind (·.imports)
+  ].filterMap (·) ++ libs.flatMap (·.imports)
 
 def mkModule (config : Wasm.Config)
              (libs : List Library)
@@ -51,7 +51,7 @@ def mkModule (config : Wasm.Config)
        ].filterMap (·)
     ++ [.datas data]
     ++ (main config)
-    ++ (libs.bind (·.intern))
-    ++ (libs.bind (·.extern))
+    ++ (libs.flatMap (·.intern))
+    ++ (libs.flatMap (·.extern))
     ++ c0_funcs
   ⟩

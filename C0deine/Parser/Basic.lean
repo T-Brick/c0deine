@@ -26,14 +26,14 @@ instance : Inhabited (C0Parser s α) := ⟨fun _ => pure default⟩
 @[inline] nonrec def withBacktrackingUntil (p : C0Parser s α) (q : α → C0Parser s β)
   := withBacktrackingUntil p q
 
-def num : C0Parser s Int32 :=
+def num : C0Parser s Numbers.Int32 :=
   first
   [ dec
   , hex
   , (do char '0'; notFollowedBy (do let _ ← charMatching (·.isHexDigit)); return .ofNat 0)
   ]
 where
-  dec : C0Parser s Int32 := do
+  dec : C0Parser s Numbers.Int32 := do
     let digs ←
       foldl
         (do return (← charMatching (fun c => '1' ≤ c && c ≤ '9')).toString)
@@ -47,7 +47,7 @@ where
       return .ofNat nat
     else
       throwExpected (fun () => [s!"dec literal ≤ {2^31}"])
-  hex : C0Parser s Int32 := do
+  hex : C0Parser s Numbers.Int32 := do
     withBacktracking (do
       char '0'
       (char 'x' <|> char 'X')

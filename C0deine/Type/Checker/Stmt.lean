@@ -98,7 +98,7 @@ def stmt
           let res ← stmts (Γ := Γ') (init_set := init_set_body)
               {ctx' with calls := ctx.calls, strings := ctx.strings} rets body
           let symbols' := -- restore old symbol status
-            match ctx.symbols.find? name with
+            match ctx.symbols.get? name with
             | some status => res.ctx.symbols.insert name status
             | none => res.ctx.symbols.erase name
           let oldCtx := { res.ctx with symbols := symbols' }
@@ -126,9 +126,9 @@ def stmt
 
             -- if we are assigning something to struct type, must be defined
             if let Typ.mem (.struct sname) := res_init.type then
-              match ctx.structs.find? sname with
+              match ctx.structs.get? sname with
               | some status =>
-                if ¬ status.defined then throw <| Error.stmt stm <|
+                if ¬status.defined then throw <| Error.stmt stm <|
                   s!"Expression '{res_init.texpr}' has undefined type '{res_init.type}'"
               | _ => throw <| Error.stmt stm <|
                 s!"Expression '{res_init.texpr}' has undefined/undeclared type '{res_init.type}'"
@@ -144,7 +144,7 @@ def stmt
             let res ← stmts (Γ := Γ') (init_set := init_set_body)
               {ctx' with calls, strings} rets body
             let symbols' := -- restore old symbol status
-              match ctx.symbols.find? name with
+              match ctx.symbols.get? name with
               | some status => res.ctx.symbols.insert name status
               | none => res.ctx.symbols.erase name
             let oldCtx := { res.ctx with symbols := symbols' }
@@ -365,7 +365,7 @@ def stmt
       if tyeq : some τ = some res.type then
         let e' : Tst.Expr.NoContract Δ Γ _ := ⟨res.texpr, res.valid⟩
 
-        let symbols' := ctx.symbols.mapVal (fun _ status =>
+        let symbols' := ctx.symbols.map (fun _ status =>
             match status with
             | .var vstatus => Status.Symbol.var {vstatus with initialised := true}
             | _ => status
@@ -432,7 +432,7 @@ def stmt
           not warn about uninitialised variables after an `exit`, which
           indicates to me that this should be the behaviour.
       -/
-      let symbols' := ctx.symbols.mapVal (fun _ status =>
+      let symbols' := ctx.symbols.map (fun _ status =>
         match status with
         | .var vstatus => Status.Symbol.var {vstatus with initialised := true}
         | _ => status

@@ -33,8 +33,8 @@ structure Result.List
     (init_set : Tst.Initialised.Acc)
 where
   calls   : Tst.Calls
-  strings : List String
-  texprs  : List (Result.Core P init_set)
+  strings : _root_.List String
+  texprs  : _root_.List (Result.Core P init_set)
 
 
 @[inline] def ExprOutput
@@ -71,7 +71,7 @@ def expr (ctx : FuncCtx)
   | .num n             =>
     let e' := .num (by rfl) n
     if p : P e' then
-      have p' := .num (by simp only [p, ↓reduceIte])
+      have p' := .num (by simp only [p, e', ↓reduceIte])
       have e'_init := .num (by dsimp only [Tst.Initialised.expr])
       return ⟨ctx.calls, ctx.strings, .prim .int, e', p', e'_init⟩
     else throw <| fail e' p
@@ -79,7 +79,7 @@ def expr (ctx : FuncCtx)
   | .char c            =>
     let e' := .char (by rfl) c
     if p : P e' then
-      have p' := .char (by simp only [p, ↓reduceIte])
+      have p' := .char (by simp only [p, e', ↓reduceIte])
       have e'_init := .char (by dsimp only [Tst.Initialised.expr])
       return ⟨ctx.calls, ctx.strings, .prim .char, e', p', e'_init⟩
     else throw <| fail e' p
@@ -88,7 +88,7 @@ def expr (ctx : FuncCtx)
     let strings' := if s ∉ ctx.strings then s::ctx.strings else ctx.strings
     let e' := .str (by rfl) s
     if p : P e' then
-      have p' := .str (by simp only [p, ↓reduceIte])
+      have p' := .str (by simp only [p, e', ↓reduceIte])
       have e'_init := .str (by dsimp only [Tst.Initialised.expr])
       return ⟨ctx.calls, strings', .prim .string, e', p', e'_init⟩
     else throw <| fail e' p
@@ -96,7 +96,7 @@ def expr (ctx : FuncCtx)
   | .true              =>
     let e' := .true (by rfl)
     if p : P e' then
-      have p' := .true (by simp only [p, ↓reduceIte])
+      have p' := .true (by simp only [p, e', ↓reduceIte])
       have e'_init := .true (by dsimp only [Tst.Initialised.expr])
       return ⟨ctx.calls, ctx.strings, .prim .bool, e', p', e'_init⟩
     else throw <| fail e' p
@@ -104,7 +104,7 @@ def expr (ctx : FuncCtx)
   | .false             =>
     let e' := .false (by rfl)
     if p : P e' then
-      have p' := .false (by simp only [p, ↓reduceIte])
+      have p' := .false (by simp only [p, e', ↓reduceIte])
       have e'_init := .false (by dsimp only [Tst.Initialised.expr])
       return ⟨ctx.calls, ctx.strings, .prim .bool, e', p', e'_init⟩
     else throw <| fail e' p
@@ -112,7 +112,7 @@ def expr (ctx : FuncCtx)
   | .null              =>
     let e' := .null (by rfl)
     if p : P e' then
-      have p' := .null (by simp only [p, ↓reduceIte])
+      have p' := .null (by simp only [p, e', ↓reduceIte])
       have e'_init := .null (by dsimp only [Tst.Initialised.expr])
       return ⟨ctx.calls, ctx.strings, .mem (.pointer .any), e', p', e'_init⟩
     else throw <| fail e' p
@@ -125,7 +125,7 @@ def expr (ctx : FuncCtx)
       if eq : res.type.equiv (.prim .int) then
         let e' := Tst.Expr.unop_int eq (by rfl) op' res.texpr
         if p : P e' then
-          have p' := .unop_int res.valid (by simp only [p, ↓reduceIte])
+          have p' := .unop_int res.valid (by simp only [p, e', ↓reduceIte])
           have e'_init := .unop_int res.init (by dsimp only [Tst.Initialised.expr])
           return ⟨res.calls, res.strings, .prim .int, e', p', e'_init⟩
         else throw <| fail e' p
@@ -135,7 +135,7 @@ def expr (ctx : FuncCtx)
       if eq : res.type.equiv (.prim .bool) then
         let e' := Tst.Expr.unop_bool eq (by rfl) (.neg) res.texpr
         if p : P e' then
-          have p' := .unop_bool res.valid (by simp only [p, ↓reduceIte])
+          have p' := .unop_bool res.valid (by simp only [p, e', ↓reduceIte])
           have e'_init := .unop_bool res.init (by dsimp only [Tst.Initialised.expr])
           return ⟨res.calls, res.strings, .prim .bool, e', p', e'_init⟩
         else throw <| fail e' p
@@ -158,7 +158,7 @@ def expr (ctx : FuncCtx)
           if p : P e' then
             let lvalid : Tst.Expr.All _ resl.texpr := resl.valid
             let rvalid : Tst.Expr.All _ resr.texpr := resr.valid
-            let p' := .binop_int lvalid rvalid (by simp only [p, ↓reduceIte])
+            let p' := .binop_int lvalid rvalid (by simp only [p, e', ↓reduceIte])
             have e'_init :=
               .binop_int resl.init resr.init
                 (by dsimp only [Tst.Initialised.expr])
@@ -178,7 +178,7 @@ def expr (ctx : FuncCtx)
             if p : P e' then
               let lvalid : Tst.Expr.All _ resl.texpr := resl.valid
               let rvalid : Tst.Expr.All _ resr.texpr := resr.valid
-              let p' := .binop_eq lvalid rvalid (by simp only [p, ↓reduceIte])
+              let p' := .binop_eq lvalid rvalid (by simp only [p, e', ↓reduceIte])
               have e'_init :=
                 .binop_eq resl.init resr.init
                   (by dsimp only [Tst.Initialised.expr])
@@ -197,7 +197,7 @@ def expr (ctx : FuncCtx)
             if p : P e' then
               let p' :=
                 .binop_rel_int resl.valid resr.valid
-                  (by simp only [p, ↓reduceIte])
+                  (by simp only [p, e', ↓reduceIte])
               have e'_init :=
                 .binop_rel_int resl.init resr.init
                   (by dsimp only [Tst.Initialised.expr])
@@ -211,7 +211,7 @@ def expr (ctx : FuncCtx)
               if p : P e' then
                 let p' :=
                   .binop_rel_char resl.valid resr.valid
-                    (by simp only [p, ↓reduceIte])
+                    (by simp only [p, e', ↓reduceIte])
                 have e'_init :=
                   .binop_rel_char resl.init resr.init
                     (by dsimp only [Tst.Initialised.expr])
@@ -229,7 +229,7 @@ def expr (ctx : FuncCtx)
           let e' := .binop_bool leq req (by rfl) op' resl.texpr resr.texpr
           if p : P e' then
             let p' :=
-              .binop_bool resl.valid resr.valid (by simp only [p, ↓reduceIte])
+              .binop_bool resl.valid resr.valid (by simp only [p, e', ↓reduceIte])
             have e'_init :=
               .binop_bool resl.init resr.init
                 (by dsimp only [Tst.Initialised.expr])
@@ -251,7 +251,7 @@ def expr (ctx : FuncCtx)
         if p : P e' then
           have p' :=
             .ternop resc.valid rest.valid resf.valid
-              (by simp only [p, ↓reduceIte])
+              (by simp only [p, e', ↓reduceIte])
           have e'_init :=
             .ternop resc.init rest.init resf.init
               (by dsimp only [Tst.Initialised.expr])
@@ -297,7 +297,7 @@ def expr (ctx : FuncCtx)
 
           let e' := .app f is_func τs eq args
           if p : P e' then
-            let p' := .app valid (by simp only [p, ↓reduceIte])
+            let p' := .app valid (by simp only [p, e', ↓reduceIte])
             have e'_init := .app init (by dsimp only [Tst.Initialised.expr])
             return ⟨calls, resargs.strings, status.type.retTy, e', p', e'_init⟩
           else throw <| fail e' p
@@ -318,7 +318,7 @@ def expr (ctx : FuncCtx)
     | some tau' =>
       let e' := .alloc tau'
       if p : P e' then
-        have p' := .alloc (by simp only [p, ↓reduceIte])
+        have p' := .alloc (by simp only [p, e', ↓reduceIte])
         have e'_init := .alloc (by dsimp only [Tst.Initialised.expr])
         return ⟨ctx.calls, ctx.strings, .mem (.pointer tau'), e', p', e'_init⟩
       else throw <| fail e' p
@@ -332,7 +332,7 @@ def expr (ctx : FuncCtx)
       if eq : res.type = .prim .int then
         let e' := .alloc_array eq tau' res.texpr
         if p : P e' then
-          let p' := .alloc_array res.valid (by simp only [p, ↓reduceIte])
+          let p' := .alloc_array res.valid (by simp only [p, e', ↓reduceIte])
           have e'_init :=
             .alloc_array res.init (by dsimp only [Tst.Initialised.expr])
           return ⟨ctx.calls, ctx.strings, .mem (.array tau'), e', p', e'_init⟩
@@ -347,7 +347,7 @@ def expr (ctx : FuncCtx)
       | true =>
           let e' := .var name h
           if p : P e' then
-            have p' := .var (by simp only [p, ↓reduceIte])
+            have p' := .var (by simp only [p, e', ↓reduceIte])
             have e'_init :=
               .var (by simp [Tst.Initialised.expr]; exact is_init)
             return ⟨ctx.calls, ctx.strings, tau, e', p', e'_init⟩
@@ -367,7 +367,7 @@ def expr (ctx : FuncCtx)
             let e' :=
               .dot eq res.texpr field (by rw [←defined]; exact hsig) f_ty
             if p : P e' then
-              have p' := .dot res.valid (by simp only [p, ↓reduceIte])
+              have p' := .dot res.valid (by simp only [p, e', ↓reduceIte])
               have e'_init :=
                 .dot res.init (by dsimp only [Tst.Initialised.expr])
               return ⟨res.calls, res.strings, tau, e', p', e'_init⟩
@@ -390,7 +390,7 @@ def expr (ctx : FuncCtx)
           if pe : P te' then
             have pe' : Tst.Expr.All P te' := by
               simp only [te']
-              exact .deref res.valid (by simp only [pe, ↓reduceIte])
+              exact .deref res.valid (by simp only [pe, te', ↓reduceIte])
             have pe'_init : Tst.Initialised.Expr te' init_set := by
               simp only [Tst.Initialised.Expr]
               exact .deref res.init (by dsimp only [Tst.Initialised.expr])
@@ -400,7 +400,7 @@ def expr (ctx : FuncCtx)
               let e' :=
                 .dot (by rfl) te' field (by rw [←defined]; exact hsig) f_ty
               if p : P e' then
-                have p' := .dot pe' (by simp only [p, ↓reduceIte])
+                have p' := .dot pe' (by simp only [p, e', ↓reduceIte])
                 have e'_init :=
                   .dot pe'_init (by dsimp only [Tst.Initialised.expr])
                 return ⟨res.calls, res.strings, tau, e', p', e'_init⟩
@@ -421,7 +421,7 @@ def expr (ctx : FuncCtx)
     | .mem (.pointer tau)  =>
       let e' := .deref eq res.texpr
       if p : P e' then
-        have p' := .deref res.valid (by simp only [p, ↓reduceIte])
+        have p' := .deref res.valid (by simp only [p, e', ↓reduceIte])
         have e'_init := .deref res.init (by dsimp only [Tst.Initialised.expr])
         return ⟨res.calls, res.strings, tau, e', p', e'_init⟩
       else throw <| fail e' p
@@ -438,7 +438,7 @@ def expr (ctx : FuncCtx)
       if ieq : resi.type = .prim .int then
         let e' := .index aeq ieq resa.texpr resi.texpr
         if p : P e' then
-          have p' := .index resa.valid resi.valid (by simp only [p, ↓reduceIte])
+          have p' := .index resa.valid resi.valid (by simp only [p, e', ↓reduceIte])
           have e'_init :=
             .index resa.init resi.init (by dsimp only [Tst.Initialised.expr])
           return ⟨calls, strings, tau, e', p', e'_init⟩
@@ -465,7 +465,7 @@ def expr (ctx : FuncCtx)
     | .mem (.array tau) =>
       let e' := .length eq res.texpr
       if p : P e' then
-        have p' := .length res.valid (by simp only [p, ↓reduceIte])
+        have p' := .length res.valid (by simp only [p, e', ↓reduceIte])
         have e'_init := .length res.init (by dsimp only [Tst.Initialised.expr])
         return ⟨res.calls, res.strings, .prim .int, e', p', e'_init⟩
       else throw <| fail e' p

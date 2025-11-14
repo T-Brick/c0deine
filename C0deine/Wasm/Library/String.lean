@@ -11,22 +11,22 @@ namespace C0deine.Target.Wasm.Library.String
 open Numbers C0deine.Target.Wasm Wasm.Text Wasm.Text.Instr
   Wasm.Syntax.Instr.Numeric Wasm.Syntax.Instr.Memory
 
-def string_length_id         : Ident := ⟨"string_length"        , by decide, by decide⟩
-def string_charat_id         : Ident := ⟨"string_charat"        , by decide, by decide⟩
-def string_join_id           : Ident := ⟨"string_join"          , by decide, by decide⟩
-def string_sub_id            : Ident := ⟨"string_sub"           , by decide, by decide⟩
-def string_equal_id          : Ident := ⟨"string_equal"         , by decide, by decide⟩
-def string_compare_id        : Ident := ⟨"string_compare"       , by decide, by decide⟩
-def string_fromint_id        : Ident := ⟨"string_fromint"       , by decide, by decide⟩
-def string_frombool_id       : Ident := ⟨"string_frombool"      , by decide, by decide⟩
-def string_fromchar_id       : Ident := ⟨"string_fromchar"      , by decide, by decide⟩
-def string_tolower_id        : Ident := ⟨"string_tolower"       , by decide, by decide⟩
-def string_terminated_id     : Ident := ⟨"string_terminated"    , by decide, by decide⟩
-def string_to_chararray_id   : Ident := ⟨"string_to_chararray"  , by decide, by decide⟩
-def string_from_chararray_id : Ident := ⟨"string_from_chararray", by decide, by decide⟩
-def char_ord_id              : Ident := ⟨"char_ord"             , by decide, by decide⟩
-def char_chr_id              : Ident := ⟨"char_chr"             , by decide, by decide⟩
-def format_id                : Ident := ⟨"format"               , by decide, by decide⟩
+def string_length_id         : Ident := ⟨"string_length"        , by decide, by decide +native⟩
+def string_charat_id         : Ident := ⟨"string_charat"        , by decide, by decide +native⟩
+def string_join_id           : Ident := ⟨"string_join"          , by decide, by decide +native⟩
+def string_sub_id            : Ident := ⟨"string_sub"           , by decide, by decide +native⟩
+def string_equal_id          : Ident := ⟨"string_equal"         , by decide, by decide +native⟩
+def string_compare_id        : Ident := ⟨"string_compare"       , by decide, by decide +native⟩
+def string_fromint_id        : Ident := ⟨"string_fromint"       , by decide, by decide +native⟩
+def string_frombool_id       : Ident := ⟨"string_frombool"      , by decide, by decide +native⟩
+def string_fromchar_id       : Ident := ⟨"string_fromchar"      , by decide, by decide +native⟩
+def string_tolower_id        : Ident := ⟨"string_tolower"       , by decide, by decide +native⟩
+def string_terminated_id     : Ident := ⟨"string_terminated"    , by decide, by decide +native⟩
+def string_to_chararray_id   : Ident := ⟨"string_to_chararray"  , by decide, by decide +native⟩
+def string_from_chararray_id : Ident := ⟨"string_from_chararray", by decide, by decide +native⟩
+def char_ord_id              : Ident := ⟨"char_ord"             , by decide, by decide +native⟩
+def char_chr_id              : Ident := ⟨"char_chr"             , by decide, by decide +native⟩
+def format_id                : Ident := ⟨"format"               , by decide, by decide +native⟩
 
 open Wasm.Text.Notation
 
@@ -35,7 +35,7 @@ def string_length : Module.Field := .funcs
   { lbl     := .some string_length_id
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       i32.const 0
       local.set 1
       block
@@ -55,7 +55,7 @@ def string_length : Module.Field := .funcs
       end
       local.get 1
       return
-    ]
+    <<
   }
 
 /- string_charat : (s : string) × (idx : int) → char
@@ -65,7 +65,7 @@ def string_charat : Module.Field := .funcs
   { lbl     := .some string_charat_id
   , typeuse := .elab_param_res [(str, .num .i32), (idx, .num .i32)] [.num .i32]
   , locals  := []
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       block
         block
           local.get ↑idx
@@ -87,18 +87,18 @@ def string_charat : Module.Field := .funcs
       i32.add
       i32.load8_u
       return
-    ]
+    <<
   }
 where
-  str : Ident := ⟨"str", by decide, by decide⟩
-  idx : Ident := ⟨"idx", by decide, by decide⟩
+  str : Ident := ⟨"str", by decide, by decide +native⟩
+  idx : Ident := ⟨"idx", by decide, by decide +native⟩
 
 /- string_join : string × string → string -/
 def string_join : Module.Field := .funcs
   { lbl     := .some string_join_id
   , typeuse := .elab_param_res [(str1, .num .i32), (str2, .num .i32)] [.num .i32]
   , locals  := [⟨str3, .num .i32⟩, ⟨len1, .num .i32⟩, ⟨len2, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       local.get ↑str1
       call ↑string_length_id
       local.tee ↑len1
@@ -121,21 +121,21 @@ def string_join : Module.Field := .funcs
       memory.copy
       local.get ↑str3
       return
-    ]
+    <<
   }
 where
-  str1 : Ident := ⟨"str1", by decide, by decide⟩
-  str2 : Ident := ⟨"str2", by decide, by decide⟩
-  str3 : Ident := ⟨"str3", by decide, by decide⟩
-  len1 : Ident := ⟨"len1", by decide, by decide⟩
-  len2 : Ident := ⟨"len2", by decide, by decide⟩
+  str1 : Ident := ⟨"str1", by decide, by decide +native⟩
+  str2 : Ident := ⟨"str2", by decide, by decide +native⟩
+  str3 : Ident := ⟨"str3", by decide, by decide +native⟩
+  len1 : Ident := ⟨"len1", by decide, by decide +native⟩
+  len2 : Ident := ⟨"len2", by decide, by decide +native⟩
 
 /- string_sub : string × int × int → string -/
 def string_sub : Module.Field := .funcs
   { lbl     := .some string_sub_id
   , typeuse := .elab_param_res [(str, .num .i32), (start, .num .i32), (finish, .num .i32)] [.num .i32]
   , locals  := [⟨temp, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       local.get ↑finish
       local.get ↑start
       i32.sub
@@ -174,20 +174,20 @@ def string_sub : Module.Field := .funcs
       memory.copy
       local.get ↑finish
       return
-    ]
+    <<
   }
 where
-  str    : Ident := ⟨"str"   , by decide, by decide⟩
-  start  : Ident := ⟨"start" , by decide, by decide⟩
-  finish : Ident := ⟨"finish", by decide, by decide⟩
-  temp   : Ident := ⟨"temp"  , by decide, by decide⟩
+  str    : Ident := ⟨"str"   , by decide, by decide +native⟩
+  start  : Ident := ⟨"start" , by decide, by decide +native⟩
+  finish : Ident := ⟨"finish", by decide, by decide +native⟩
+  temp   : Ident := ⟨"temp"  , by decide, by decide +native⟩
 
 /- string_equal : string × string → bool -/
 def string_equal : Module.Field := .funcs
   { lbl     := .some string_equal_id
   , typeuse := .elab_param_res [(str1, .num .i32), (str2, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       block
         loop
           local.get ↑str1
@@ -216,18 +216,18 @@ def string_equal : Module.Field := .funcs
       end
       i32.const 0
       return
-    ]
+    <<
   }
 where
-  str1 : Ident := ⟨"str1", by decide, by decide⟩
-  str2 : Ident := ⟨"str2", by decide, by decide⟩
+  str1 : Ident := ⟨"str1", by decide, by decide +native⟩
+  str2 : Ident := ⟨"str2", by decide, by decide +native⟩
 
 /- string_compare : string × string → int -/
 def string_compare : Module.Field := .funcs
   { lbl     := .some string_compare_id
   , typeuse := .elab_param_res [(str1, .num .i32), (str2, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       block
         loop
           local.get ↑str1
@@ -266,11 +266,11 @@ def string_compare : Module.Field := .funcs
       end
       i32.const 1
       return
-    ]
+    <<
   }
 where
-  str1 : Ident := ⟨"str1", by decide, by decide⟩
-  str2 : Ident := ⟨"str2", by decide, by decide⟩
+  str1 : Ident := ⟨"str1", by decide, by decide +native⟩
+  str2 : Ident := ⟨"str2", by decide, by decide +native⟩
 
 /- string_fromint : int → string -/
 def string_fromint : Module.Field := .funcs
@@ -310,7 +310,7 @@ def string_tolower : Module.Field := .funcs
   { lbl     := .some string_tolower_id
   , typeuse := .elab_param_res [(str, .num .i32)] [.num .i32]
   , locals  := [⟨temp, .num .i32⟩, ⟨str2, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       local.get ↑str
       call ↑string_length_id
       i32.const 1
@@ -354,12 +354,12 @@ def string_tolower : Module.Field := .funcs
       end
       local.get ↑str
       return
-    ]
+    <<
   }
 where
-  temp : Ident := ⟨"temp", by decide, by decide⟩
-  str  : Ident := ⟨"str" , by decide, by decide⟩
-  str2 : Ident := ⟨"str2", by decide, by decide⟩
+  temp : Ident := ⟨"temp", by decide, by decide +native⟩
+  str  : Ident := ⟨"str" , by decide, by decide +native⟩
+  str2 : Ident := ⟨"str2", by decide, by decide +native⟩
 
 /- string_terminated : char[] × int → bool
    Checks that the char array is \0 terminated
@@ -368,7 +368,7 @@ def string_terminated : Module.Field := .funcs
   { lbl     := .some string_terminated_id
   , typeuse := .elab_param_res [(arr, .num .i32), (n, .num .i32)] [.num .i32]
   , locals  := [⟨i, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       block     -- bounds check
         block
           local.get ↑n
@@ -418,21 +418,21 @@ def string_terminated : Module.Field := .funcs
       end ↑fail
       i32.const 0
       return
-    ]
+    <<
   }
 where
-  arr  : Ident := ⟨"arr" , by decide, by decide⟩
-  n    : Ident := ⟨"n"   , by decide, by decide⟩
-  i    : Ident := ⟨"i"   , by decide, by decide⟩
-  fail : Ident := ⟨"fail", by decide, by decide⟩
-  succ : Ident := ⟨"succ", by decide, by decide⟩
+  arr  : Ident := ⟨"arr" , by decide, by decide +native⟩
+  n    : Ident := ⟨"n"   , by decide, by decide +native⟩
+  i    : Ident := ⟨"i"   , by decide, by decide +native⟩
+  fail : Ident := ⟨"fail", by decide, by decide +native⟩
+  succ : Ident := ⟨"succ", by decide, by decide +native⟩
 
 /- string_to_chararray : string → char[] -/
 def string_to_chararray : Module.Field := .funcs
   { lbl     := .some string_to_chararray_id
   , typeuse := .elab_param_res [(str, .num .i32)] [.num .i32]
   , locals  := [⟨arr, .num .i32⟩, ⟨temp, .num .i32⟩, ⟨arrw, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       local.get ↑str
       call ↑string_length_id
       i32.const 1
@@ -472,20 +472,20 @@ def string_to_chararray : Module.Field := .funcs
       end
       local.get ↑arr
       return
-    ]
+    <<
   }
 where
-  str  : Ident := ⟨"str" , by decide, by decide⟩
-  arr  : Ident := ⟨"arr" , by decide, by decide⟩
-  temp : Ident := ⟨"temp", by decide, by decide⟩
-  arrw : Ident := ⟨"arrw", by decide, by decide⟩
+  str  : Ident := ⟨"str" , by decide, by decide +native⟩
+  arr  : Ident := ⟨"arr" , by decide, by decide +native⟩
+  temp : Ident := ⟨"temp", by decide, by decide +native⟩
+  arrw : Ident := ⟨"arrw", by decide, by decide +native⟩
 
 /- string_from_chararray : char[] → string -/
 def string_from_chararray : Module.Field := .funcs
   { lbl     := .some string_from_chararray_id
   , typeuse := .elab_param_res [(arr, .num .i32)] [.num .i32]
   , locals  := [⟨str, .num .i32⟩, ⟨strw, .num .i32⟩, ⟨temp, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       block       -- contract checks
         block
           local.get ↑arr
@@ -531,13 +531,13 @@ def string_from_chararray : Module.Field := .funcs
       end
       local.get ↑str
       return
-    ]
+    <<
   }
 where
-  str  : Ident := ⟨"str" , by decide, by decide⟩
-  arr  : Ident := ⟨"arr" , by decide, by decide⟩
-  temp : Ident := ⟨"temp", by decide, by decide⟩
-  strw : Ident := ⟨"strw", by decide, by decide⟩
+  str  : Ident := ⟨"str" , by decide, by decide +native⟩
+  arr  : Ident := ⟨"arr" , by decide, by decide +native⟩
+  temp : Ident := ⟨"temp", by decide, by decide +native⟩
+  strw : Ident := ⟨"strw", by decide, by decide +native⟩
 
 /- char_ord : char → int -/
 def char_ord : Module.Field := .funcs

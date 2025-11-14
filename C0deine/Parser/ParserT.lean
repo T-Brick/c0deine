@@ -44,8 +44,8 @@ end AsciiPos
 def ParserT.State.lineIndices (s : ByteArray) : Array (AsciiPos s) := Id.run do
   let mut lines := #[⟨0, Nat.zero_le _⟩]
   for h:i in [0:s.size] do
-    if s[i]'h.2 = '\n'.toUInt8 then
-      lines := lines.push ⟨i+1, h.2⟩
+    if s[i]'(h.2.1) = '\n'.toUInt8 then
+      lines := lines.push ⟨i+1, h.2.1⟩
   return lines
 
 structure ParserT.State (s : ByteArray) where
@@ -66,8 +66,13 @@ def getPosLine (state : State s) : Fin state.lines.val.get.size :=
         (Nat.zero_le _) hlo hhi
     else ⟨lines.size-1, by assumption⟩
   else ⟨0, by assumption⟩
-where aux lines tgt (lo hi : Fin lines.size) (h : lo ≤ hi)
-      (hlo : lines[lo] ≤ tgt) (hhi : tgt < lines[hi]) :=
+where aux
+    (lines : Array (AsciiPos s))
+    (tgt : AsciiPos s)
+    (lo hi : Fin lines.size)
+    (h : lo ≤ hi)
+    (hlo : lines[lo] ≤ tgt)
+    (hhi : tgt < lines[hi]) :=
   if h':lo = hi then lo
   else
     have : lo < hi := Nat.lt_of_le_of_ne h (by intro; apply h'; cases lo; cases hi; simp at *; assumption)

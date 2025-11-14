@@ -64,7 +64,8 @@ partial def find_files_from_source
     IO.println s!"{e () |>.formatPretty state}"
     panic s!"Could not parse directives!"
   | ((.ok refs, _), _) =>
-    let refs := (← refs.mapM (find_use_file config)).join
+    let refs := (← refs.mapM (find_use_file config))
+      |>.flatten
       |>.filter (· ∉ acc)
       |>.eraseDups
       |>.reverse

@@ -58,7 +58,7 @@ inductive AsnOp
 deriving DecidableEq, Inhabited
 
 inductive Expr
-| num (v : Int32)
+| num (v : Numbers.Int32)
 | char (c : Char)
 | str (s : String)
 | «true» | «false»
@@ -154,10 +154,10 @@ structure Prog where
 deriving Inhabited
 
 def Prog.findFuncDef (p : Prog) (name : Ident) : Option FDef :=
-  p.program.filterMap (fun
+  (p.program.filterMap (fun
     | .fdef f => if f.name = name then some f else none
     | _ => none
-  ) |>.get? 0
+  ))[0]?
 
 
 def LValue.toExpr : LValue → Expr

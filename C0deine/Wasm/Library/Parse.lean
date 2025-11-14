@@ -10,16 +10,16 @@ namespace C0deine.Target.Wasm.Library.Parse
 open Numbers C0deine.Target.Wasm Wasm.Text Wasm.Text.Instr
   Wasm.Syntax.Instr.Numeric Wasm.Syntax.Instr.Memory
 
-def is_space_id      : Ident := ⟨"is_space"     , by decide, by decide⟩
-def consume_space_id : Ident := ⟨"consume_space", by decide, by decide⟩
-def take_int_id      : Ident := ⟨"take_int"     , by decide, by decide⟩
+def is_space_id      : Ident := ⟨"is_space"     , by decide, by decide +native⟩
+def consume_space_id : Ident := ⟨"consume_space", by decide, by decide +native⟩
+def take_int_id      : Ident := ⟨"take_int"     , by decide, by decide +native⟩
 
-def parse_bool_id    : Ident := ⟨"parse_bool"   , by decide, by decide⟩
-def parse_int_id     : Ident := ⟨"parse_int"    , by decide, by decide⟩
-def num_tokens_id    : Ident := ⟨"num_tokens"   , by decide, by decide⟩
-def int_tokens_id    : Ident := ⟨"int_tokens"   , by decide, by decide⟩
-def parse_tokens_id  : Ident := ⟨"parse_tokens" , by decide, by decide⟩
-def parse_ints_id    : Ident := ⟨"parse_ints"   , by decide, by decide⟩
+def parse_bool_id    : Ident := ⟨"parse_bool"   , by decide, by decide +native⟩
+def parse_int_id     : Ident := ⟨"parse_int"    , by decide, by decide +native⟩
+def num_tokens_id    : Ident := ⟨"num_tokens"   , by decide, by decide +native⟩
+def int_tokens_id    : Ident := ⟨"int_tokens"   , by decide, by decide +native⟩
+def parse_tokens_id  : Ident := ⟨"parse_tokens" , by decide, by decide +native⟩
+def parse_ints_id    : Ident := ⟨"parse_ints"   , by decide, by decide +native⟩
 
 -- todo consider way to embed lists of instrs like in `is_space`
 /- is_space : char → bool
@@ -60,7 +60,7 @@ def consume_space : Module.Field := .funcs
   { lbl     := .some consume_space_id
   , typeuse := .elab_param_res [(str, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       block               -- try consume spaces
         loop
           local.get ↑str
@@ -81,10 +81,10 @@ def consume_space : Module.Field := .funcs
       end
       local.get ↑str
       return
-    ]
+    <<
   }
 where
-  str : Ident := ⟨"str", by decide, by decide⟩
+  str : Ident := ⟨"str", by decide, by decide +native⟩
 
 /- take_int: string × (base : int) → bool × int × string
    Tries to parse an integer from the string and returns the remainder when a
@@ -95,7 +95,7 @@ def take_int : Module.Field := .funcs
   , typeuse := .elab_param_res [(str, .num .i32), (base, .num .i32)]
                   [.num .i32, .num .i32, .num .i32]
   , locals  := [⟨c, .num .i32⟩, ⟨res, .num .i32⟩, ⟨sign, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       block                       -- check base is within bounds
         block
           local.get ↑base
@@ -225,16 +225,16 @@ def take_int : Module.Field := .funcs
       i32.const 0
       local.get ↑str
       return
-    ]
+    <<
   }
 where
-  str  : Ident := ⟨"str"  , by decide, by decide⟩
-  base : Ident := ⟨"base" , by decide, by decide⟩
-  c    : Ident := ⟨"c"    , by decide, by decide⟩
-  res  : Ident := ⟨"res"  , by decide, by decide⟩
-  sign : Ident := ⟨"sign" , by decide, by decide⟩
-  next : Ident := ⟨"next" , by decide, by decide⟩
-  fail : Ident := ⟨"fail" , by decide, by decide⟩
+  str  : Ident := ⟨"str"  , by decide, by decide +native⟩
+  base : Ident := ⟨"base" , by decide, by decide +native⟩
+  c    : Ident := ⟨"c"    , by decide, by decide +native⟩
+  res  : Ident := ⟨"res"  , by decide, by decide +native⟩
+  sign : Ident := ⟨"sign" , by decide, by decide +native⟩
+  next : Ident := ⟨"next" , by decide, by decide +native⟩
+  fail : Ident := ⟨"fail" , by decide, by decide +native⟩
 
 /- parse_bool : string → bool*
    returns pointer to bool if could parse, otherwise NULL
@@ -243,7 +243,7 @@ def parse_bool : Module.Field := .funcs
   { lbl     := .some parse_bool_id
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       block
         block
           local.get 0
@@ -319,7 +319,7 @@ def parse_bool : Module.Field := .funcs
       end
       i32.const 0
       return
-    ]
+    <<
   }
 
 /- parse_int : string × (base : int) → bool*
@@ -330,7 +330,7 @@ def parse_int : Module.Field := .funcs
   { lbl     := .some parse_int_id
   , typeuse := .elab_param_res [(str, .num .i32), (base, .num .i32)] [.num .i32]
   , locals  := [⟨succ, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       local.get ↑str
       local.get ↑base
       call ↑take_int_id
@@ -358,19 +358,19 @@ def parse_int : Module.Field := .funcs
       i32.store
       local.get ↑succ
       return
-    ]
+    <<
   }
 where
-  str  : Ident := ⟨"str"  , by decide, by decide⟩
-  base : Ident := ⟨"base" , by decide, by decide⟩
-  succ : Ident := ⟨"succ" , by decide, by decide⟩
+  str  : Ident := ⟨"str"  , by decide, by decide +native⟩
+  base : Ident := ⟨"base" , by decide, by decide +native⟩
+  succ : Ident := ⟨"succ" , by decide, by decide +native⟩
 
 /- num_tokens : string → int -/
 def num_tokens : Module.Field := .funcs
   { lbl     := .some num_tokens_id
   , typeuse := .elab_param_res [(str, .num .i32)] [.num .i32]
   , locals  := [⟨res, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       i32.const 0
       local.set ↑res
       block ↑done
@@ -404,13 +404,13 @@ def num_tokens : Module.Field := .funcs
       end ↑done
       local.get ↑res
       return
-    ]
+    <<
   }
 where
-  str  : Ident := ⟨"str" , by decide, by decide⟩
-  res  : Ident := ⟨"res" , by decide, by decide⟩
-  done : Ident := ⟨"done", by decide, by decide⟩
-  cont : Ident := ⟨"cont", by decide, by decide⟩
+  str  : Ident := ⟨"str" , by decide, by decide +native⟩
+  res  : Ident := ⟨"res" , by decide, by decide +native⟩
+  done : Ident := ⟨"done", by decide, by decide +native⟩
+  cont : Ident := ⟨"cont", by decide, by decide +native⟩
 
 /- int_tokens : string × (base : int) → bool
    Returns true if the string is whitespace separated ints
@@ -419,7 +419,7 @@ def int_tokens : Module.Field := .funcs
   { lbl     := .some int_tokens_id
   , typeuse := .elab_param_res [(str, .num .i32), (base, .num .i32)] [.num .i32]
   , locals  := []
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       block ↑fail
         block ↑succ
           local.get ↑str
@@ -447,13 +447,13 @@ def int_tokens : Module.Field := .funcs
       end ↑fail
       i32.const 0
       return
-    ]
+    <<
   }
 where
-  str  : Ident := ⟨"str" , by decide, by decide⟩
-  base : Ident := ⟨"base", by decide, by decide⟩
-  succ : Ident := ⟨"succ", by decide, by decide⟩
-  fail : Ident := ⟨"fail", by decide, by decide⟩
+  str  : Ident := ⟨"str" , by decide, by decide +native⟩
+  base : Ident := ⟨"base", by decide, by decide +native⟩
+  succ : Ident := ⟨"succ", by decide, by decide +native⟩
+  fail : Ident := ⟨"fail", by decide, by decide +native⟩
 
 /- parse_tokens : string → string[] -/
 def parse_tokens : Module.Field := .funcs
@@ -461,7 +461,7 @@ def parse_tokens : Module.Field := .funcs
   , typeuse := .elab_param_res [(str, .num .i32)] [.num .i32]
   , locals  := [ ⟨toks, .num .i32⟩, ⟨tok, .num .i32⟩, ⟨start, .num .i32⟩
                , ⟨temp, .num .i32⟩, ⟨toksw, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       local.get ↑str
       call ↑num_tokens_id
       local.tee ↑temp
@@ -527,23 +527,23 @@ def parse_tokens : Module.Field := .funcs
       end ↑done
       local.get ↑toks
       return
-    ]
+    <<
   }
 where
-  str   : Ident := ⟨"str"  , by decide, by decide⟩
-  toks  : Ident := ⟨"toks" , by decide, by decide⟩
-  tok   : Ident := ⟨"tok"  , by decide, by decide⟩
-  start : Ident := ⟨"start", by decide, by decide⟩
-  temp  : Ident := ⟨"temp" , by decide, by decide⟩
-  toksw : Ident := ⟨"toksw", by decide, by decide⟩
-  done  : Ident := ⟨"done" , by decide, by decide⟩
+  str   : Ident := ⟨"str"  , by decide, by decide +native⟩
+  toks  : Ident := ⟨"toks" , by decide, by decide +native⟩
+  tok   : Ident := ⟨"tok"  , by decide, by decide +native⟩
+  start : Ident := ⟨"start", by decide, by decide +native⟩
+  temp  : Ident := ⟨"temp" , by decide, by decide +native⟩
+  toksw : Ident := ⟨"toksw", by decide, by decide +native⟩
+  done  : Ident := ⟨"done" , by decide, by decide +native⟩
 
 /- parse_ints : string → int[] -/
 def parse_ints : Module.Field := .funcs
   { lbl     := .some parse_ints_id
   , typeuse := .elab_param_res [(str, .num .i32), (base, .num .i32)] [.num .i32]
   , locals  := [⟨arr, .num .i32⟩, ⟨temp, .num .i32⟩, ⟨temp2, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       local.get ↑str
       call ↑num_tokens_id
       local.tee ↑temp
@@ -595,16 +595,16 @@ def parse_ints : Module.Field := .funcs
       ↑Error.assert
       call ↑Label.abort.toWasmIdent
       unreachable
-    ]
+    <<
   }
 where
-  str   : Ident := ⟨"str"  , by decide, by decide⟩
-  base  : Ident := ⟨"base" , by decide, by decide⟩
-  temp  : Ident := ⟨"temp" , by decide, by decide⟩
-  temp2 : Ident := ⟨"temp2", by decide, by decide⟩
-  arr   : Ident := ⟨"arr"  , by decide, by decide⟩
-  succ  : Ident := ⟨"succ" , by decide, by decide⟩
-  fail  : Ident := ⟨"fail" , by decide, by decide⟩
+  str   : Ident := ⟨"str"  , by decide, by decide +native⟩
+  base  : Ident := ⟨"base" , by decide, by decide +native⟩
+  temp  : Ident := ⟨"temp" , by decide, by decide +native⟩
+  temp2 : Ident := ⟨"temp2", by decide, by decide +native⟩
+  arr   : Ident := ⟨"arr"  , by decide, by decide +native⟩
+  succ  : Ident := ⟨"succ" , by decide, by decide +native⟩
+  fail  : Ident := ⟨"fail" , by decide, by decide +native⟩
 
 def imports : List Module.Field := []
 def «extern» : List Module.Field :=

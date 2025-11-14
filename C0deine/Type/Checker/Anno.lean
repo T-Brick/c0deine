@@ -20,7 +20,7 @@ structure Result.List
     (init_set : Tst.Initialised.Acc)
 where
   ctx   : FuncCtx
-  annos : List {a : Tst.Anno Δ Γ // P a}
+  annos : _root_.List {a : Tst.Anno Δ Γ // P a}
   init  : Tst.Initialised.Anno.List (annos.map (·.val)) init_set
 
 def func (ctx : FuncCtx) (as : List Ast.Anno)
@@ -32,7 +32,7 @@ def func (ctx : FuncCtx) (as : List Ast.Anno)
     let res ← Synth.Expr.small_nonvoid <|
       Synth.Expr.expr anno_ctx Tst.Expr.no_result Error.no_result e
     if tyeq : res.type = .prim .bool then
-      let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
+      let calls' := ctx.calls.merge (res.calls.map (fun _ _ => true))
       let ⟨ctx', rest', rest'_init⟩ ←
         func {ctx with calls := calls'} (init_set := init_set) rest
       let e' := ⟨res.texpr, res.valid⟩
@@ -48,7 +48,7 @@ def func (ctx : FuncCtx) (as : List Ast.Anno)
     let res ← Synth.Expr.small_nonvoid <|
       Synth.Expr.expr anno_ctx (fun _ => true) (fun _ np => by simp at np) e
     if tyeq : res.type = .prim .bool then
-      let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
+      let calls' := ctx.calls.merge (res.calls.map (fun _ _ => true))
       let ⟨ctx', rest', rest'_init⟩ ← func {ctx with calls := calls'} rest
       let anno' := ⟨.ensures tyeq res.texpr, by simp⟩
       have anno'_init := .ensures res.init
@@ -73,7 +73,7 @@ def loop (ctx : FuncCtx) (as : List Ast.Anno)
     let res ← Synth.Expr.small_nonvoid <|
       Synth.Expr.expr anno_ctx Tst.Expr.no_result Error.no_result e
     if tyeq : res.type = .prim .bool then
-      let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
+      let calls' := ctx.calls.merge (res.calls.map (fun _ _ => true))
       let ⟨ctx', rest', rest'_init⟩ ← loop {ctx with calls := calls'} rest
       let e' := ⟨res.texpr, res.valid⟩
       let anno' := ⟨.loop_invar tyeq e', by simp⟩
@@ -97,7 +97,7 @@ def free (ctx : FuncCtx) (a : Ast.Anno)
     let res ← Synth.Expr.small_nonvoid <|
       Synth.Expr.expr anno_ctx Tst.Expr.no_result Error.no_result e
     if tyeq : res.type = .prim .bool then
-      let calls' := ctx.calls.merge (res.calls.mapVal (fun _ _ => true))
+      let calls' := ctx.calls.merge (res.calls.map (fun _ _ => true))
       let ctx' := {ctx with calls := calls'}
       let anno' := ⟨.assert tyeq ⟨res.texpr, res.valid⟩, by simp⟩
       have anno'_init := .assert res.init

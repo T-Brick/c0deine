@@ -49,7 +49,7 @@ deriving Inhabited, Lean.ToExpr
  -/
 open Typ.Notation in
 inductive Expr (Δ : GCtx) (Γ : FCtx) : (τ : Typ) → Type
-| num  : (hτ : τ = (int))    → Int32  → Expr Δ Γ τ
+| num  : (hτ : τ = (int))    → Numbers.Int32  → Expr Δ Γ τ
 | char : (hτ : τ = (char))   → Char   → Expr Δ Γ τ
 | str  : (hτ : τ = (string)) → String → Expr Δ Γ τ
 | var

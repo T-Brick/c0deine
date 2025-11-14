@@ -26,7 +26,7 @@ def parse_tc! (prog : String) : Tst.Prog × Context.State :=
 
 def get_body (prog_ctx : Tst.Prog × Context.State) (func : String) := do
   let (prog, ctx) := prog_ctx
-  let ⟨_Δ, fdef⟩ ← prog.findFuncDef (ctx.symbolCache.find! func)
+  let ⟨_Δ, fdef⟩ ← prog.findFuncDef (ctx.symbolCache.get! func)
   let dyn_res := DynResult.exec_seq fdef.body.toList .nil
   return dyn_res
 
@@ -51,7 +51,7 @@ elab "c0_theorem" n:declId ":" "prove" f:term "in" p:term ":=" b:term : command 
     unsafe evalExpr (String) (q(String)) func
 
 
-  match prog.findFuncDef (ctx.symbolCache.find! func) with
+  match prog.findFuncDef (ctx.symbolCache.get! func) with
   | none => throwError s!"Could not find function ${func}"
   | some ⟨_Δ, fdef⟩ =>
     logInfo s!"{fdef.body}"

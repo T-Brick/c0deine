@@ -1,4 +1,5 @@
 import C0deine.AuxDefs
+import Init.Data.List
 
 namespace C0deine.Utils.CliFormat
 
@@ -16,7 +17,7 @@ def Rect.ofLines (lines : List String) : Rect :=
     . simp at hl
     . simp at hl ⊢
       cases hl
-      . simp [*, Nat.le_max_left, width]
+      . simp [*, width]
       . simp [*, width] at *
   { width, height := lines.length
   , lines := lines.map (fun l => l.pushn ' ' (width - l.length))
@@ -73,8 +74,9 @@ def Rect.padHeight (r : Rect) (height : Nat) (h_height : r.height ≤ height)
         cases h <;> (try rename _ ∨ _ => h; cases h) <;>
           first
           | (apply r.h_width; assumption)
-          | (have := List.mem_replicate.mp (by assumption) |>.2
-             cases this; simp)
+          | (simp only [↓Char.isValue, String.length_pushn, String.length_empty,
+                        zero_add, *]
+            )
         )
   }
 
@@ -141,7 +143,7 @@ def Rect.trimWidth (width : Nat) (r : Rect) : Rect :=
   , h_width := by intro l hl; have := List.mem_map.mp hl
                   rcases this with ⟨a, ha, rfl⟩
                   simp [r.h_width _ ha]
-  , h_height := by simp [r.h_height, Nat.min_comm] }
+  , h_height := by simp [r.h_height] }
 
 def Rect.dropLeft (n : Nat)  (r : Rect): Rect :=
   { width := r.width - n, height := r.height
@@ -153,18 +155,20 @@ def Rect.dropLeft (n : Nat)  (r : Rect): Rect :=
 
 def Rect.tileVert (height : Nat) (r : Rect) (hr : r.height > 0) : Rect :=
   { width := r.width, height
-  , lines := List.replicate (height / r.height + 1) r.lines |>.join.take height
+  , lines := List.replicate (height / r.height + 1) r.lines |>.flatten.take height
   , h_width   := by intro l hl
-                    have := List.mem_join.mp <| List.mem_take hl
+                    have := List.mem_flatten.mp <| List.mem_take hl
                     rcases this with ⟨l',hl',h⟩
                     rw [List.mem_replicate] at hl'
                     simp at hl'; cases hl'
                     simp [r.h_width _ h]
   , h_height  := by simp [r.h_height]
                     conv => lhs; rw [← Nat.div_add_mod (m := height) (n := r.height)]
-                    conv => rhs; rw [Nat.mul_comm _ r.height, Nat.add_comm]
+                    conv => rhs; rw [Nat.mul_comm, Nat.mul_add, Nat.mul_one]
                     apply Nat.add_le_add_left
-                    apply Nat.le_of_lt; apply Nat.mod_lt _ hr }
+                    apply Nat.le_of_lt
+                    apply Nat.mod_lt _ hr
+  }
 
 def Rect.tileHorz (width : Nat) (r : Rect) (hr : r.width > 0) : Rect :=
   { width, height := r.height
@@ -186,7 +190,7 @@ def vbox (children : List Rect) (align : HAlign := .left)
     . simp at hl
     . simp at hl ⊢
       cases hl
-      . simp [*, Nat.le_max_left, width]
+      . simp [*, width]
       . simp [*, width] at *
   match children with
   | [] => space width 0
@@ -220,7 +224,7 @@ def hbox (children : List Rect) (align : VAlign := .top)
     . simp at hl
     . simp at hl ⊢
       cases hl
-      . simp [*, Nat.le_max_left, height]
+      . simp [*, height]
       . simp [*, height] at *
   match children with
   | [] => space 0 height

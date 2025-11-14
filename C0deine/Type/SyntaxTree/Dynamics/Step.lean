@@ -32,11 +32,11 @@ def Address.toNat : Address → Nat
   | .ref n => n
   | .null  => 0
 
-def Address.toInt32 : Address → Int32 := Signed.ofNat ∘ Address.toNat
+def Address.toInt32 : Address → Numbers.Int32 := Signed.ofNat ∘ Address.toNat
 
 -- should this take in a type/be enforced?
 inductive Value
-| num  : Int32 → Value
+| num  : Numbers.Int32 → Value
 | char : Char → Value
 | str  : String → Value
 | «true» | «false»
@@ -155,7 +155,7 @@ inductive DynResult : Type
 | exec_seq : List (Stmt Δ Γ ρ) → Cont Δ Γ r → DynResult
 | exn      : Exception → DynResult
 | nop      : Cont Δ Γ r → DynResult       -- maybe move into AST
-| res      : Int32 → DynResult
+| res      : Numbers.Int32 → DynResult
 deriving Inhabited
 
 
@@ -231,9 +231,9 @@ inductive Step.UnOp : UnOp → Value → Value → Prop
 | neg_f   : UnOp (.bool .neg) (.false) (.true)
 
 
-def Step.ofNum : Int32 → Value ⊕ Exception := .inl ∘ .num
+def Step.ofNum : Numbers.Int32 → Value ⊕ Exception := .inl ∘ .num
 
-def Step.ofNum_exn : Option Int32 → Value ⊕ Exception
+def Step.ofNum_exn : Option Numbers.Int32 → Value ⊕ Exception
   | .none => .inr .arithmetic
   | .some i => .inl (.num i)
 

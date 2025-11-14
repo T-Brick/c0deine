@@ -78,12 +78,12 @@ def Error.arith  : Instr := i32_const 8     -- SIGFPE
 open Wasm.Text.Notation
 
 def c0deine : Name :=
-  ⟨"c0deine", by simp [String.length, Wasm.Vec.max_length]⟩
+  ⟨"c0deine", by decide⟩
 
-def result_id : Ident := ⟨"result", by decide, by decide⟩
+def result_id : Ident := ⟨"result", by decide, by decide +native⟩
 def result_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"result" , by simp [String.length, Wasm.Vec.max_length]⟩
+  , ⟨"result" , by decide⟩
   , .func (.some result_id) (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
@@ -91,7 +91,7 @@ def calloc_func : Module.Field := .funcs
   { lbl     := .some Label.calloc.toWasmIdent
   , typeuse := .elab_param_res [(.none, .num .i32)] [.num .i32]
   , locals  := [⟨.none, .num .i32⟩]
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       local.get 0           -- get arg (ie. sizeOf type)
       i32.const 0           -- get next free pointer after alloc
       i32.load
@@ -121,11 +121,11 @@ def calloc_func : Module.Field := .funcs
       local.get 1
       i32.store             -- update free pointer
       return
-    ]
+    <<
   }
 def calloc_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"calloc" , by simp [String.length, Wasm.Vec.max_length]⟩
+  , ⟨"calloc" , by decide⟩
   , .func (.some Label.calloc.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
@@ -141,7 +141,7 @@ def free_func : Module.Field := .funcs
   }
 def free_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"free" , by simp [String.length, Wasm.Vec.max_length]⟩
+  , ⟨"free" , by decide⟩
   , .func (.some Label.free.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
@@ -150,54 +150,54 @@ def abort_func : Module.Field := .funcs
   { lbl     := .some Label.abort.toWasmIdent
   , typeuse := .elab_param_res [(.none, .num .i32)] []
   , locals  := []
-  , body    := [wat_instr_list|
+  , body    := >>wat_expr|
       local.get 0
       call ↑result_id
       unreachable
-    ]
+    <<
   }
 def abort_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"abort"  , by simp [String.length, Wasm.Vec.max_length]⟩
+  , ⟨"abort"  , by decide⟩
   , .func (.some Label.abort.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
 def error_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"error"  , by simp [String.length, Wasm.Vec.max_length]⟩
+  , ⟨"error"  , by decide⟩
   , .func (.some Label.error.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
 def debug_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"debug"  , by simp [String.length, Wasm.Vec.max_length]⟩
+  , ⟨"debug"  , by decide⟩
   , .func (.some Label.debug.toWasmIdent)
           (.elab_param_res [(.none, .num .i32)] [.num .i32])
   ⟩
 
 def memory_import : Module.Field := .imports
   ⟨ c0deine
-  , ⟨"memory" , by simp [String.length, Wasm.Vec.max_length]⟩
+  , ⟨"memory" , by decide⟩
   , .mem .none ⟨1, .none⟩
   ⟩
 
 def start  : Module.Field := .start ⟨.name Label.main.toWasmIdent⟩
 
 def main_import : Module.Field := .imports
-  ⟨ ⟨"c0deine", by simp [String.length, Wasm.Vec.max_length]⟩
-  , ⟨"main"   , by simp [String.length, Wasm.Vec.max_length]⟩
+  ⟨ ⟨"c0deine", by decide⟩
+  , ⟨"main"   , by decide⟩
   , .func (.some Label.main.toWasmIdent) (.elab_param_res [] [])
   ⟩
 
 def main (config : Wasm.Config) : List Module.Field :=
-  let main_body := [Plain.call (.name ⟨"_c0_main", by decide, by decide⟩)]
+  let main_body := [Plain.call (.name ⟨"_c0_main", by decide, by decide +native⟩)]
   match config.main with
   | .import =>
     [ .exports
-        ⟨ ⟨"_c0_main", by simp [String.length, Wasm.Vec.max_length]⟩
-        , .func (.name ⟨"_c0_main", by decide, by decide⟩)
+        ⟨ ⟨"_c0_main", by decide⟩
+        , .func (.name ⟨"_c0_main", by decide, by decide +native⟩)
         ⟩
     ]
   | .start  => [start, .funcs

@@ -23,7 +23,7 @@ namespace Library.Util
 open Wasm.Text.Notation
 
 /- takes int in local string_fromint.num and returns string_fromint.str -/
-def string_fromint : List Instr := [wat_instr_list|
+def string_fromint : List Instr := >>wat_expr|
     block
       block
         local.get ↑num
@@ -113,14 +113,14 @@ def string_fromint : List Instr := [wat_instr_list|
         br 0
       end -- loop
     end
-  ]
+  <<
 where
-  num  : Ident := ⟨"num" , by decide, by decide⟩
-  n    : Ident := ⟨"n"   , by decide, by decide⟩
-  str  : Ident := ⟨"str" , by decide, by decide⟩
-  strw : Ident := ⟨"strw", by decide, by decide⟩
-  len  : Ident := ⟨"len" , by decide, by decide⟩
-  sign : Ident := ⟨"sign", by decide, by decide⟩
+  num  : Ident := ⟨"num" , by decide, by decide +native⟩
+  n    : Ident := ⟨"n"   , by decide, by decide +native⟩
+  str  : Ident := ⟨"str" , by decide, by decide +native⟩
+  strw : Ident := ⟨"strw", by decide, by decide +native⟩
+  len  : Ident := ⟨"len" , by decide, by decide +native⟩
+  sign : Ident := ⟨"sign", by decide, by decide +native⟩
   params : List Typ.Param := [⟨num, .num .i32⟩]
   locals : List Module.Local :=
     [ ⟨n, .num .i32⟩, ⟨str, .num .i32⟩, ⟨strw, .num .i32⟩, ⟨len, .num .i32⟩
@@ -128,7 +128,7 @@ where
     ]
 
 /- takes a bool in the zeroth local returns string in same local -/
-def string_frombool : List Instr := [wat_instr_list|
+def string_frombool : List Instr := >>wat_expr|
     block
       block
         local.get 0
@@ -167,14 +167,14 @@ def string_frombool : List Instr := [wat_instr_list|
       i32.const ↑(Unsigned.ofNat 'e'.toNat)
       i32.store8 offset=3
     end
-  ]
+  <<
 
 /- takes a char in the zeroth local returns string in first local
  -/
-def string_fromchar : List Instr := [wat_instr_list|
+def string_fromchar : List Instr := >>wat_expr|
     i32.const 2
     call ↑Label.calloc.toWasmIdent
     local.tee 1
     local.get 0
     i32.store8
-  ]
+  <<

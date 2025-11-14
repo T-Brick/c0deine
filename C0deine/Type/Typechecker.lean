@@ -17,22 +17,27 @@ def typecheck (prog : Ast.Prog) : Except Error Tst.Prog := do
   let main_info := .func ⟨⟨some (.prim .int), []⟩, false⟩
   let main_sym := Symbol.main
 
-  let init_symbols := Batteries.HashMap.empty.insert main_sym main_info
-  let init_calls := Batteries.HashMap.empty.insert main_sym false
-  let init_context : GlobalCtx :=
-    ⟨init_symbols, Batteries.HashMap.empty, init_calls, Batteries.HashMap.empty, []⟩
+  let init_symbols := Std.HashMap.emptyWithCapacity.insert main_sym main_info
+  let init_calls := Std.HashMap.emptyWithCapacity.insert main_sym false
+  let init_context : GlobalCtx := {
+    symbols := init_symbols
+    structs := Std.HashMap.emptyWithCapacity
+    calls := init_calls
+    funcCalls := Std.HashMap.emptyWithCapacity
+    strings := []
+  }
   let init_acc : Global.Result.List {} := ⟨init_context, {}, .nil⟩
 
   let hres ← prog.header.foldlM (Global.gdecs true) init_acc
   let bres ← prog.program.foldlM (Global.gdecs false) ⟨hres.ctx, hres.Δ', .nil⟩
 
   let () ← Validate.callsDefined bres.ctx main_sym
-  let prog :=
-    { header_ctx := hres.Δ'
-    , header     := hres.gdecls
-    , body_ctx   := bres.Δ'
-    , body       := bres.gdecls
-    , calls      := bres.ctx.calls
-    , strings    := bres.ctx.strings
-    }
+  let prog := {
+    header_ctx := hres.Δ'
+    header     := hres.gdecls
+    body_ctx   := bres.Δ'
+    body       := bres.gdecls
+    calls      := bres.ctx.calls
+    strings    := bres.ctx.strings
+  }
   return prog

@@ -24,7 +24,8 @@ structure StructInfo where
   size : UInt64
   alignment : UInt64
   fields : Symbol.Map UInt64
-instance : Inhabited StructInfo where default := ⟨0, 0, Batteries.HashMap.empty⟩
+instance : Inhabited StructInfo where
+  default := ⟨0, 0, Std.HashMap.emptyWithCapacity⟩
 
 namespace Env
 
@@ -39,9 +40,9 @@ structure Prog.State : Type where
 def Prog.State.new (config : Config) (str_map : List (String × UInt64))
                    : Env.Prog.State where
   config    := config
-  vars      := Batteries.HashMap.empty
-  functions := Batteries.HashMap.empty
-  structs   := Batteries.HashMap.empty
+  vars      := Std.HashMap.emptyWithCapacity
+  functions := Std.HashMap.emptyWithCapacity
+  structs   := Std.HashMap.emptyWithCapacity
   str_map   := str_map
 
 def Prog := StateT Env.Prog.State Context
@@ -53,7 +54,7 @@ def Prog.config : Prog Config :=
 
 def Prog.new_var (size : ValueSize) (v : Typ.Typed Symbol) : Prog SizedTemp :=
   fun env =>
-    match env.vars.find? v.data with
+    match env.vars.get? v.data with
     | some t => return (t, env)
     | none => do
       let t ← Temp.namedFresh v.data.name
@@ -63,7 +64,7 @@ def Prog.new_var (size : ValueSize) (v : Typ.Typed Symbol) : Prog SizedTemp :=
 
 def Prog.var (v : Symbol) : Prog SizedTemp :=
   fun env =>
-    match env.vars.find? v with
+    match env.vars.get? v with
     | some t => return (t, env)
     | none => do
       let t ← Temp.fresh
@@ -78,7 +79,7 @@ def Prog.addFunc (f : Symbol) (lbl : Label) : Prog Unit :=
 
 def Prog.func (f : Symbol) : Prog Label :=
   fun env =>
-    match env.functions.find? f with
+    match env.functions.get? f with
     | some l => return (l, env)
     | none => do
       let l ← Label.namedFresh ("_c0_" ++ f.name)
@@ -118,7 +119,7 @@ def Func.State.new (config : Config)
                    (str_map : List (String × UInt64))
                    : Func.State :=
   { Prog.State.new config str_map
-    with blocks := Batteries.HashMap.empty
+    with blocks := Std.HashMap.emptyWithCapacity
        , curBlockLabel := label
        , curBlockType := .funcEntry
   }
@@ -133,7 +134,7 @@ def Prog.startFunc (lbl : Label)
                    (f : Func α)
                    : Prog (α × Label.Map Block) :=
   fun penv => do
-    let fstate := ⟨penv, Batteries.HashMap.empty, lbl, type⟩
+    let fstate := ⟨penv, Std.HashMap.emptyWithCapacity, lbl, type⟩
     let (res, fenv') ← f fstate
     return ((res, fenv'.blocks), fenv'.toState)
 
@@ -218,7 +219,7 @@ def Typ.size (tau : Typ) : Env.Prog (Option UInt64) := do
   | .mem (.array _)   => return some 8
   | .mem (.struct n)  =>
     let s ← Env.Prog.structs
-    return s.find? n |>.map (fun info => info.size)
+    return s.get? n |>.map (fun info => info.size)
 
 def Typ.tempSize (tau : Typ) : Env.Prog ValueSize := do
   match ← Typ.size tau with
@@ -321,8 +322,8 @@ partial def expr (tau : Typ)
   match exp with
   | .num _ v     => return (acc, .const v)
   | .char _ c    =>
-    if h : c.val.val < 256
-    then return (acc, .byte (c.toUInt8 h))
+    if h : c.val < 256
+    then return (acc, .byte c.toUInt8)
     else panic! s!"IR Trans: Char {c} is too large!"
   | .str _ s     =>
     let src ← Env.Func.string_offset s
@@ -425,7 +426,7 @@ partial def expr (tau : Typ)
         let size' := -- don't need to store length if unsafe
           match e'.data with -- optimise if size is constant
           | .const c =>
-            match c.toNat' with
+            match c.toNat? with
             | some n => .memory (n * size.toNat)
             | none   => .binop .mul e' (MkTyped.int (.const size.toNat))
           | _ => .binop .mul e' (MkTyped.int (.const size.toNat))
@@ -437,7 +438,7 @@ partial def expr (tau : Typ)
         let size' : Expr :=
           match e'.data with -- optimise if size is constant
           | .const c =>
-            match c.toNat' with
+            match c.toNat? with
             | some n => .memory (n * size.toNat + 8)
             | none   =>
               .binop .mul e' (MkTyped.int (.const size.toNat))
@@ -570,12 +571,12 @@ partial def Addr.dot (acc : List IrTree.Stmt)
   let struct :=
     match τ with
     | .mem (.struct name) =>
-      match structs.find? name with
+      match structs.get? name with
       | some info => info
       | none => panic! s!"IR Trans: Could not find struct {name}"
     | _ => panic! s!"IR Trans: Expression {texp} does not have struct type"
   let foffset :=
-    match struct.fields.find? field with
+    match struct.fields.get? field with
     | some foffset => foffset
     | none => panic! s!"IR Trans: Could not find field offset {field}"
   Addr.addr τ acc texp (offset + foffset) true
@@ -848,7 +849,7 @@ def gdecl (header : Bool) (glbl : Tst.GDecl Δ Δ') : Env.Prog (Option Func) := 
     let () ← Env.Prog.addFunc fdef.name label
     let res ← fdef.ret.mapM Typ.tempSize
 
-    if h : Batteries.HashMap.contains blocks entry
+    if h : Std.HashMap.contains blocks entry
     then return some ⟨label, entry, args, blocks, res, h⟩
     else panic! s!"IR Trans: Couldn't find entry block in Std.HashMap"
 
@@ -856,7 +857,7 @@ def gdecl (header : Bool) (glbl : Tst.GDecl Δ Δ') : Env.Prog (Option Func) := 
     let alignList ← sd.fields |>.mapM (fun ts =>
         match ts.type with
         | .mem (.struct str) => do
-          match (← Env.Prog.structs).find? str with
+          match (← Env.Prog.structs).get? str with
           | some s' => pure s'.alignment
           | none    => panic! s!"IR Trans: {sd.name} field has undefined struct"
         | _ =>
@@ -878,7 +879,7 @@ def gdecl (header : Bool) (glbl : Tst.GDecl Δ Δ') : Env.Prog (Option Func) := 
         (offset' + size, (f.data, offset') :: acc)
       ) (UInt64.ofNat 0, [])
     let size' := align size alignment
-    let offsets := Batteries.HashMap.ofList offsetsR
+    let offsets := Std.HashMap.ofList offsetsR
     let () ← Env.Prog.addStruct sd.name ⟨size', alignment, offsets⟩
     return none
 

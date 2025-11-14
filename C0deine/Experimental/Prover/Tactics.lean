@@ -35,23 +35,23 @@ elab "c0_step" : tactic =>
       Lean.Elab.Tactic.evalTactic (← `(tactic| c0_step_one_setup))
 
     -- try stepping the code
-    let get_dyn_res : Lean.Expr → _ :=
+    let get_dyn_res : Lean.Expr → Option Lean.Expr :=
       fun goal_type => do (← goal_type.getArg? 1).getArg? 4
 
     let goal ← Lean.Elab.Tactic.getMainGoal
     let goal_type ← goal.getType'
-    let dyn_res ← get_dyn_res goal_type
+    let dyn_res := get_dyn_res goal_type
 
-    match dyn_res.getAppFn with
+    match dyn_res.get!.getAppFn with
     | .const `C0deine.Tst.Dynamics.DynResult.val _
     | .const `C0deine.Tst.Dynamics.DynResult.eval _ =>
       Lean.Elab.Tactic.evalTactic (← `(tactic| apply Tst.Dynamics.Step.expr))
       let goal ← Lean.Elab.Tactic.getMainGoal
       let goal_type ← goal.getType'
-      let dyn_res ← get_dyn_res goal_type
-      let expr ← dyn_res.getArg? 4
+      let dyn_res := get_dyn_res goal_type |>.get!
+      let expr := dyn_res.getArg? 4
 
-      match expr.getAppFn with
+      match expr.get!.getAppFn with
       | .const expr_name _ =>
         match expr_name.componentsRev with
         | `binop_int :: _

@@ -10,34 +10,29 @@ namespace C0deine.Target.Wasm.Library.Conio
 open Numbers C0deine.Target.Wasm Wasm.Text Wasm.Text.Instr
   Wasm.Syntax.Instr.Numeric Wasm.Syntax.Instr.Memory
 
-def print_id     : Ident := ⟨"print"    , by decide, by decide⟩
-def println_id   : Ident := ⟨"println"  , by decide, by decide⟩
-def printint_id  : Ident := ⟨"printint" , by decide, by decide⟩
-def printbool_id : Ident := ⟨"printbool", by decide, by decide⟩
-def printchar_id : Ident := ⟨"printchar", by decide, by decide⟩
-def flush_id     : Ident := ⟨"flush"    , by decide, by decide⟩
-def eof_id       : Ident := ⟨"eof"      , by decide, by decide⟩
-def readline_id  : Ident := ⟨"readline" , by decide, by decide⟩
-def printf_id    : Ident := ⟨"printf"   , by decide, by decide⟩
+def print_id     : Ident := ⟨"print"    , by decide, by decide +native⟩
+def println_id   : Ident := ⟨"println"  , by decide, by decide +native⟩
+def printint_id  : Ident := ⟨"printint" , by decide, by decide +native⟩
+def printbool_id : Ident := ⟨"printbool", by decide, by decide +native⟩
+def printchar_id : Ident := ⟨"printchar", by decide, by decide +native⟩
+def flush_id     : Ident := ⟨"flush"    , by decide, by decide +native⟩
+def eof_id       : Ident := ⟨"eof"      , by decide, by decide +native⟩
+def readline_id  : Ident := ⟨"readline" , by decide, by decide +native⟩
+def printf_id    : Ident := ⟨"printf"   , by decide, by decide +native⟩
 
-def conio : Name :=
-  ⟨"conio", by simp [String.length, Wasm.Vec.max_length]⟩
+def conio : Name := ⟨"conio", by decide⟩
 
 /- print : string → unit -/
 def print : Module.Field := .imports
   ⟨ conio
-  , ⟨ print_id.name, by
-      simp [print_id, Ident.name, String.length, Wasm.Vec.max_length]
-    ⟩
+  , ⟨ print_id.name, by decide⟩
   , .func (.some print_id) (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
 /- println : string → unit -/
 def println : Module.Field := .imports
   ⟨ conio
-  , ⟨ println_id.name, by
-      simp [println_id, Ident.name, String.length, Wasm.Vec.max_length]
-    ⟩
+  , ⟨ println_id.name, by decide⟩
   , .func (.some println_id) (.elab_param_res [(.none, .num .i32)] [])
   ⟩
 
@@ -79,29 +74,21 @@ def printchar : Module.Field := .funcs
 /- flush : unit → unit -/
 def flush : Module.Field := .imports
   ⟨ conio
-  , ⟨ flush_id.name, by
-      simp [flush_id, Ident.name, String.length, Wasm.Vec.max_length]
-    ⟩
+  , ⟨ flush_id.name, by decide⟩
   , .func (.some flush_id) (.elab_param_res [] [])
   ⟩
 
 /- eof : unit → bool -/
 def eof : Module.Field := .imports
   ⟨ conio
-  , ⟨ eof_id.name, by
-      simp [eof_id, Ident.name, String.length, Wasm.Vec.max_length]
-  
-    ⟩
+  , ⟨ eof_id.name, by decide⟩
   , .func (.some eof_id) (.elab_param_res [] [.num .i32])
   ⟩
 
 /- readline : unit → string -/
 def readline : Module.Field := .imports
   ⟨ conio
-  , ⟨ readline_id.name, by
-      simp [readline_id, Ident.name, String.length, Wasm.Vec.max_length]
-  
-    ⟩
+  , ⟨ readline_id.name, by decide⟩
   , .func (.some readline_id) (.elab_param_res [] [.num .i32])
   ⟩
 
@@ -110,10 +97,7 @@ def readline : Module.Field := .imports
  -/
 def printf : Module.Field := .imports
   ⟨ conio
-  , ⟨ printf_id.name, by
-      simp [printf_id, Ident.name, String.length, Wasm.Vec.max_length]
-  
-    ⟩
+  , ⟨ printf_id.name, by decide⟩
   , .func (.some printf_id) (.elab_param_res [] [.num .i32])
   ⟩
 

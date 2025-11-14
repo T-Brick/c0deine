@@ -33,7 +33,7 @@ def func (ctx : GlobalCtx)
 
   let (status, fctx) ← Validate.func ctx extern defining name params ret'
   let status' ←
-    match ctx.symbols.find? name with
+    match ctx.symbols.get? name with
     | some (.func f) =>
       if ¬extern && defining && f.defined
       then throw <| Error.func name <| s!"Function was already defined"
@@ -57,13 +57,14 @@ def fdecl (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDecl)
     let init_Γ := Tst.FCtx.init Δ ret params
     let init_set := Tst.Initialised.Acc.ofList (params.map (·.data))
     let res ← Synth.Anno.func (Γ := init_Γ) (init_set := init_set) fctx f.annos
-    let fdecl := Tst.GDecl.fdecl
-      { ret
-      , name := f.name
-      , params
-      , annos := res.annos
-      , initial_init := init_set
-      , annos_init   := res.init
+    let fdecl := Tst.GDecl.fdecl {
+        ret
+        name := f.name
+        params
+        annos := res.annos
+        initial_init := init_set
+        annos_init   := res.init
+        init_Γ := init_Γ
       }
     return ⟨{ctx' with calls := ctx'.calls.merge res.ctx.calls}, _, some fdecl⟩
 
@@ -84,14 +85,14 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
     let init_Γ := Tst.FCtx.init Δ ret params
     let init_set := Tst.Initialised.Acc.ofList (params.map (·.data))
     let resa ← Synth.Anno.func (Γ := init_Γ) (init_set := init_set) fctx f.annos
-    let fdecl : Tst.FDecl Δ :=
-      { ret
-      , name := f.name
-      , params
-      , init_Γ
-      , annos := resa.annos
-      , initial_init := init_set
-      , annos_init   := resa.init
+    let fdecl : Tst.FDecl Δ := {
+        ret
+        name := f.name
+        params
+        init_Γ
+        annos := resa.annos
+        initial_init := init_set
+        annos_init   := resa.init
       }
 
     let Γ := init_Γ.addFunc f.name retTy params
@@ -127,7 +128,6 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
                       , Tst.Initialised.Stmt.List
                       , Tst.Initialised.Predicate
                       , ret_none
-                      , ↓reduceDite
                       ]
             exact Tst.Stmt.List.Fold.consEnd (a₂ := res.init_set')
                     res.stmts
@@ -138,7 +138,6 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
                       , Tst.Initialised.Stmt.List
                       , Tst.Initialised.Predicate
                       , ret_none
-                      , ↓reduceDite
                       ]
             exact res.init
       , body_rets := by
@@ -147,7 +146,6 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
                       , Tst.Returns.Stmt.List
                       , Tst.Returns.Predicate
                       , ret_none
-                      , ↓reduceDite
                       ]
             exact Tst.Stmt.List.Fold.consEnd (a₂ := res.rets') (a₃ := true)
                     res.stmts res.returns (.return_void (by rfl))
@@ -162,7 +160,6 @@ def fdef (extern : Bool) (ctx : GlobalCtx) (f : Ast.FDef)
                       , Tst.Returns.Stmt.List
                       , Tst.Returns.Predicate
                       , ret_none
-                      , ↓reduceDite
                       ]
             rw [rets_valid] at this
             exact this
@@ -179,22 +176,22 @@ def tydef (ctx : GlobalCtx) (t : Ast.TyDef) : Except Error (Result Δ) := do
 
 def sdecl (ctx : GlobalCtx) (s : Ast.SDecl) : Except Error (Result Δ) := do
   let structs' :=
-    match ctx.structs.find? s.name with
+    match ctx.structs.get? s.name with
     | none =>
-      ctx.structs.insert s.name ⟨Batteries.HashMap.empty, false⟩
+      ctx.structs.insert s.name ⟨Std.HashMap.emptyWithCapacity, false⟩
     | some _ => ctx.structs
   return ⟨{ctx with structs := structs'}, Δ, none⟩
 
 def sdef (ctx : GlobalCtx) (s : Ast.SDef) : Except Error (Result Δ) := do
   let () ←
-    match ctx.structs.find? s.name with
+    match ctx.structs.get? s.name with
     | some status =>
       if status.defined
       then throw <| Error.msg <| s!"Struct {s.name} has already been defined"
       else pure ()
     | none => pure ()
   let fieldsMap ← Validate.fields ctx s.fields
-  let status := ⟨Batteries.HashMap.ofList fieldsMap, true⟩
+  let status := ⟨Std.HashMap.ofList fieldsMap, true⟩
   let structs' := ctx.structs.insert s.name status
   let fields' := fieldsMap.map (fun (field, tau) => ⟨tau, field⟩)
   return ⟨{ctx with structs := structs'}, _, some (.sdef ⟨s.name, fields'⟩)⟩

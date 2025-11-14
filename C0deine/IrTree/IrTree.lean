@@ -75,7 +75,7 @@ structure Func where
   enter_in    : blocks.contains enter
 
 def Block.succ_labels (f : Func) (b : Block) : Option (List Label) :=
-  f.blocks.find? b.label |>.map (fun b => (
+  f.blocks.get? b.label |>.map (fun b => (
       match b.exit with
       | .jump lbl => [lbl]
       | .cjump _ (.some false) tt ff => [ff, tt]
@@ -86,13 +86,13 @@ def Block.succ_labels (f : Func) (b : Block) : Option (List Label) :=
   )
 
 def Block.succ (f : Func) (b : Block) : Option (List Block) :=
-  b.succ_labels f |>.map (List.filterMap f.blocks.find?)
+  b.succ_labels f |>.map (List.filterMap f.blocks.get?)
 
 def Func.to_cfg (f : Func) : ControlFlow.C0_CFG Stmt BlockExit :=
   let labels := (f.blocks.toList).map (·.fst)
   let succ := fun l =>
     if f.blocks.contains l then
-      match f.blocks.find? l |>.bind (Block.succ_labels f) with
+      match f.blocks.get? l |>.bind (Block.succ_labels f) with
       | .none => []
       | .some lbls => lbls
     else []
@@ -101,12 +101,12 @@ def Func.to_cfg (f : Func) : ControlFlow.C0_CFG Stmt BlockExit :=
   ⟨cfg, f.name, f.blocks⟩
 
 @[inline] def _root_.C0deine.Label.loop (f : Func) (l : Label) : Bool :=
-  match f.blocks.find? l with
+  match f.blocks.get? l with
   | .some b => b.loop
   | _       => false
 
 @[inline] def _root_.C0deine.Label.after_loop (f : Func) (l : Label) : Bool :=
-  match f.blocks.find? l with
+  match f.blocks.get? l with
   | .some b => b.after_loop
   | _       => false
 

@@ -23,26 +23,26 @@ open Numbers Wasm.Text Wasm.Text.Instr Wasm.Syntax.Instr.Numeric
 open Wasm.Text.Notation in
 def pure_binop (op : IrTree.PureBinop) : Instr :=
   match op with
-  | .add                 => [wat_instr| i32.add ]
-  | .sub                 => [wat_instr| i32.sub ]
-  | .mul                 => [wat_instr| i32.mul ]
-  | .and                 => [wat_instr| i32.and ]
-  | .xor                 => [wat_instr| i32.xor ]
-  | .or                  => [wat_instr| i32.or  ]
-  | .comp .less          => [wat_instr| i32.lt_s]
-  | .comp .greater       => [wat_instr| i32.gt_s]
-  | .comp .equal         => [wat_instr| i32.eq  ]
-  | .comp .not_equal     => [wat_instr| i32.ne  ]
-  | .comp .less_equal    => [wat_instr| i32.le_s]
-  | .comp .greater_equal => [wat_instr| i32.ge_s]
+  | .add                 => >>wat_instr| i32.add <<
+  | .sub                 => >>wat_instr| i32.sub <<
+  | .mul                 => >>wat_instr| i32.mul <<
+  | .and                 => >>wat_instr| i32.and <<
+  | .xor                 => >>wat_instr| i32.xor <<
+  | .or                  => >>wat_instr| i32.or  <<
+  | .comp .less          => >>wat_instr| i32.lt_s<<
+  | .comp .greater       => >>wat_instr| i32.gt_s<<
+  | .comp .equal         => >>wat_instr| i32.eq  <<
+  | .comp .not_equal     => >>wat_instr| i32.ne  <<
+  | .comp .less_equal    => >>wat_instr| i32.le_s<<
+  | .comp .greater_equal => >>wat_instr| i32.ge_s<<
 
 open Wasm.Text.Notation in
 def effect_binop (op : IrTree.EffectBinop) : Instr :=
   match op with
-  | .div => [wat_instr| i32.div_s]
-  | .mod => [wat_instr| i32.rem_s]
-  | .lsh => [wat_instr| i32.shl  ]
-  | .rsh => [wat_instr| i32.shr_s]
+  | .div => >>wat_instr| i32.div_s<<
+  | .mod => >>wat_instr| i32.rem_s<<
+  | .lsh => >>wat_instr| i32.shl  <<
+  | .rsh => >>wat_instr| i32.shr_s<<
 
 partial def texpr (te : Typ.Typed IrTree.Expr) : List Instr :=
   match te.data with
@@ -182,7 +182,7 @@ def stmt : IrTree.Stmt → List Instr
 
   | .call dest name args    =>
     let args' := args.map texpr
-    args'.join.append [Plain.call (label name)] ++ (
+    args'.flatten.append [Plain.call (label name)] ++ (
       if let .any := dest.type then []
       else [locl (.set (stemp dest.data))]
     )
@@ -246,14 +246,14 @@ def stmt : IrTree.Stmt → List Instr
 partial def find_cjump
     (f : IrTree.Func) : Option IrTree.BlockExit → Option (Temp × Label × Label)
   | .none => .none
-  | .some (.jump l) => find_cjump f (f.blocks.find? l |>.map (·.exit))
+  | .some (.jump l) => find_cjump f (f.blocks.get? l |>.map (·.exit))
   | .some (.cjump t _ tt ff) => .some (t, tt, ff)
   | _ => .none
 
 open Wasm.Text.Notation in
 def debugger (config : Wasm.Config) (l : Label) : List Instr :=
   if config.include_debug then
-    [wat_instr_list|
+    >>wat_expr|
       block
         i32.const ↑(Unsigned.ofNat l.id)
         call ↑Label.debug.toWasmIdent
@@ -263,7 +263,7 @@ def debugger (config : Wasm.Config) (l : Label) : List Instr :=
         call ↑Label.abort.toWasmIdent
         unreachable
       end
-    ]
+    <<
   else []
 
 partial def func_body
@@ -281,9 +281,9 @@ where
            : List Instr × Option IrTree.BlockExit :=
   match shape with
   | .simple l next =>
-    match f.blocks.find? l with
+    match f.blocks.get? l with
     | .some block =>
-      let body_instr := block.body.bind stmt
+      let body_instr := block.body.flatMap stmt
       let exit_instr := exit block.exit loopBreak
       let (next_instr, next_exit) :=
         match next with
@@ -412,5 +412,5 @@ def prog (config : Wasm.Config)
 /- Computes the data section of the WASM module, as described in `langs.md`. -/
 def data (prog : IrTree.Prog) : Module.Data :=
   let free_seg := prog.str_size.toBytes
-  let str_data := prog.str_map.bind (·.1.data.map (·.toUInt8 sorry) ++ [0])
+  let str_data := prog.str_map.flatMap (·.1.data.map (·.toUInt8) ++ [0])
   ⟨.none, ⟨free_seg ++ str_data, sorry⟩, .active 0 [i32_const 0]⟩

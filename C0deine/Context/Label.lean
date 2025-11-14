@@ -34,7 +34,7 @@ def debug  : Label := ⟨5, "debug"⟩
 
 def startId := 6
 
-@[inline, reducible] def Map (α : Type) := Batteries.HashMap Label α
+@[inline, reducible] def Map (α : Type) := Std.HashMap Label α
 
 def toWasmIdent (l : Label) : Wasm.Text.Ident :=
   { name := toString l

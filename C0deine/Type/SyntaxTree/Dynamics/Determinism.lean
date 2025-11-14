@@ -50,7 +50,7 @@ theorem Step.Expr.deterministic {p : Prog} {s s₁ s₂ : State p}
 theorem Step.State.mk_iff_result_eq {p : Prog} {r₁ r₂ : DynResult} :
     r₁ = r₂ ↔ State.mk (p := p) H S η r₁ = State.mk H S η r₂ := by
   apply Iff.intro <;> intro h₁
-  . simp only [State.mk.injEq, DynResult.val.injEq, true_and, h₁]
+  . simp only [h₁]
   . simp only [State.mk.injEq, true_and] at h₁
     exact h₁
 

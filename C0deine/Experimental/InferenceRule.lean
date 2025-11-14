@@ -40,7 +40,7 @@ private def _root_.Lean.Name.lastToString (val : Name) : String :=
 def InferenceRule.TyDefault := Name → Name → Option String
 instance : Inhabited InferenceRule.TyDefault where
   default :=
-    fun | _, ``Int32      => some "n"
+    fun | _, ``Numbers.Int32      => some "n"
         | _, ``Char       => some "c"
         | _, ``String     => some "s"
         | n, ``Symbol     => some n.toString
@@ -135,7 +135,7 @@ def InferenceRule.Judgement.anno : InferenceRule.Judgement :=
                     -- , ``Tst.Anno.Function
                     ]
   , recurObjSym  := "anno"
-  , extractRes   := fun e => some (e, "") -- no type info don't care
+  , extractRes   := fun e => return some (e, "") -- no type info don't care
   , mkConclusion := fun a _ => s!"{a} valid"
   }
 
@@ -220,7 +220,7 @@ structure Builder where
 
 -- couldn't find an existing function that does this so here
 def replaceDeBruijn (bindings : List Name) : Lean.Expr → Lean.Expr
-  | .bvar i => .fvar ⟨bindings.get! i⟩
+  | .bvar i => .fvar ⟨bindings[i]!⟩
   | .app fn arg =>
     .app (replaceDeBruijn bindings fn) (replaceDeBruijn bindings arg)
   | .lam binderName ty body info =>
@@ -260,14 +260,14 @@ def buildJudgement
       let cur := judge.mkJudgeObj builder.name builder.cur.reverse
       let conclusion := judge.mkConclusion cur τ
       return s!"{ctx_str}{judge.tee}{conclusion}"
-    | none => none
-  | none => none
+    | none => return none
+  | none => return none
 
 def findBuildJudgement (style : Style) (builder : Builder)
     : MetaM (Option String) := do
   aux (replaceDeBruijn builder.bindings builder.expr) style.judgements
 where aux (expr : Lean.Expr) : List Judgement → MetaM (Option String)
-  | [] => none
+  | [] => return none
   | j :: js => (buildJudgement j builder expr) <|> (aux expr js)
 
 def hasJudgement (style : Style) (ty : Lean.Expr) : Option Judgement :=

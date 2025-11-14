@@ -9,7 +9,7 @@ import Cli
 
 namespace C0deine.Top
 
-def version := "v24.06.0"
+def version := "v25.11.0"
 
 open Cli Directive
 
@@ -145,7 +145,7 @@ def runFrontend
     : IO (Option (Tst.Prog × Config × Context.State)) := do
   let inputsCat := inputs.map (Config.Library.src)
   let libsCat :=
-    (← libs.mapM (Use.find_lib config ·.toString)).join |>.eraseDups
+    (← libs.mapM (Use.find_lib config ·.toString)).flatten |>.eraseDups
   let cats := (inputsCat.reverse ++ libsCat).reverse
   let files := inputs ++ libs
 
@@ -312,7 +312,7 @@ def topCmd : Cmd := `[Cli|
     L, L : Array String;       "Add library directories to search path (comma separated)"
     v, verbose;                "Give verbose output"
     x, lang : String;          "Source language (usually derived from filename)"
-    e, emit : String;          s!"Specify compilation target\n{Target.supported_str}"
+    e, emit : String;          emitMessage
     t, "only-typecheck";       "Only typecheck a file"
     o, output : String;        "Output to given file"
     -- O0, O0;                    "Compile with no optimizations"
@@ -333,3 +333,4 @@ def topCmd : Cmd := `[Cli|
   ARGS:
     ...inputs : String;      "The input files"
 ]
+where emitMessage := s!"Specify compilation target\n{Target.supported_str}"

@@ -182,7 +182,7 @@ private partial def complex
            entries are the blocks that have an edge from the handled blocks -/
         let next_e :=
           handled_labels
-          |>.bind (succ cfg.digraph · |>.inter valid_succs)
+          |>.flatMap (succ cfg.digraph · |>.inter valid_succs)
           |>.eraseDups
           |>.union (ls.diff handled_labels)
         let next_r := reach.filterMap (fun (l, _) => -- is this correct?
@@ -205,7 +205,7 @@ where mk_loop (entries : List Label)
   let next  := reach.filter (¬ ·.snd.elem l)
   let inner_lbls := inner.map (·.fst)
   let inner_entry := l :: entries.filter (inner_lbls.elem ·)
-  let next_entry := (l::inner_lbls).bind (succ cfg.digraph)
+  let next_entry := (l::inner_lbls).flatMap (succ cfg.digraph)
     |>.filter (· ∉ l::inner_lbls)
   let inner_shape := reloop' fuel cfg inner_entry inner_lbls
   let next_shape  := reloop' fuel cfg (next_entry) (next |>.map (·.fst))
