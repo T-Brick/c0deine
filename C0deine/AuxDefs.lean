@@ -185,3 +185,5 @@ def Std.HashMap.insert_multi [BEq α] [Hashable α]
   match self.get? a with
   | .none    => self.insert a [b]
   | .some bs => self.insert a (b :: bs)
+
+deriving instance Lean.ToExpr for Numbers.Int32

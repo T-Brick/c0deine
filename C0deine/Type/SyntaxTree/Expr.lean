@@ -8,26 +8,26 @@ namespace C0deine.Tst
 
 open Typ Numbers
 
-inductive UnOp.Int  | neg | not deriving Inhabited, Lean.ToExpr
-inductive UnOp.Bool | neg       deriving Inhabited, Lean.ToExpr
+inductive UnOp.Int  | neg | not deriving Inhabited, Lean.ToExpr, Repr
+inductive UnOp.Bool | neg       deriving Inhabited, Lean.ToExpr, Repr
 inductive UnOp
 | int (op : UnOp.Int)
 | bool (op : UnOp.Bool)
-deriving Inhabited, Lean.ToExpr
+deriving Inhabited, Lean.ToExpr, Repr
 
 inductive BinOp.Int
 | plus | minus | times | div | mod | and | xor | or | lsh | rsh
-deriving Inhabited, Lean.ToExpr
+deriving Inhabited, Lean.ToExpr, Repr
 
 inductive BinOp.Bool
 | and | or
-deriving Inhabited, Lean.ToExpr
+deriving Inhabited, Lean.ToExpr, Repr
 
 inductive BinOp
 | int (op : BinOp.Int)
 | cmp (op : Comparator)
 | bool (op : BinOp.Bool)
-deriving Inhabited, Lean.ToExpr
+deriving Inhabited, Lean.ToExpr, Repr
 
 @[inline] def UnOp.type : UnOp → Typ
   | .int _  => .prim .int
@@ -362,8 +362,8 @@ end Expr
 
 
 def UnOp.Int.toString : UnOp.Int → String
-  | neg => "~"
-  | not => "!"
+  | neg => "-"
+  | not => "~"
 instance : ToString UnOp.Int where toString := UnOp.Int.toString
 
 def UnOp.Bool.toString : UnOp.Bool → String

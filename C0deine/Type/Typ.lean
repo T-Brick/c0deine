@@ -12,20 +12,20 @@ inductive Typ.Primitive
 | bool
 | char
 | string
-deriving DecidableEq, Inhabited, Hashable
+deriving DecidableEq, Inhabited, Hashable, Repr, Lean.ToExpr
 
 mutual
 inductive Typ
 | any
 | prim (p : Typ.Primitive)
 | mem (m : Typ.Memory)
-deriving DecidableEq, Inhabited, Hashable
+deriving DecidableEq, Inhabited, Hashable, Repr, Lean.ToExpr
 
 inductive Typ.Memory
 | pointer (typ : Typ)
 | array (typ : Typ)
 | struct (sym : Symbol)
-deriving DecidableEq, Inhabited, Hashable
+deriving DecidableEq, Inhabited, Hashable, Repr, Lean.ToExpr
 end
 
 namespace Typ
@@ -188,7 +188,7 @@ end Notation
 
 inductive Typed (α : Type) where
 | mk : (type : Typ) → (data : α) → Typed α
-deriving Inhabited, DecidableEq
+deriving Inhabited, DecidableEq, Repr, Lean.ToExpr
 
 @[reducible, simp] def Typed.data : Typed α → α   | .mk _ data => data
 @[reducible, simp] def Typed.type : Typed α → Typ | .mk type _ => type

@@ -5,6 +5,7 @@
 import C0deine.Top
 import C0deine.Ast.Ast
 import C0deine.Type.SyntaxTree.Dynamics
+import C0deine.Experimental.Prover.ProofSyntaxTree
 -- import C0deine.Experimental.Prover.Tactics
 
 namespace C0deine.Prover
@@ -55,21 +56,27 @@ elab "c0_theorem" n:declId ":" "prove" f:term "in" p:term ":=" b:term : command 
   | none => throwError s!"Could not find function ${func}"
   | some ⟨_Δ, fdef⟩ =>
     logInfo s!"{fdef.body}"
-    -- let test : Expr := Lean.toExpr fdef
+    let test ← liftTermElabM do
+      let pst := (Pst.FDef.ofTst fdef).body
+      -- let pst := Lean.toExpr (Pst.FDef.ofTst fdef)
+      return ← Lean.PrettyPrinter.delab (Lean.toExpr pst)
+    -- logInfo s!"{test}"
     let cmd ← `(
-      theorem $(n) : $(quote true) = true :=
+      theorem $(n) : $(test) = $(test) :=
         $b
     )
     elabCommand cmd
 
 def prog₁_string := "
 int main() {
-  int x = 150;
+  int x = 100 + 5 * 10;
   //@assert x == 150;
   return x;
 }"
 
 def prog₁ := parse_tc! prog₁_string
 
+open Pst.Notation
 c0_theorem test : prove "main" in prog₁ := by
-  sorry
+  rfl
+

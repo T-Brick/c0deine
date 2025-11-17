@@ -79,7 +79,7 @@ def GDecl.List.findFDecl (lst : GDecl.List Δ₁ Δ₂) (f : Symbol)
     True means the call is used in a contract, so the function must be pure.
 -/
 def Calls := Symbol.Map Bool
-deriving Inhabited, EmptyCollection
+deriving Inhabited, EmptyCollection, Repr
 
 def Calls.merge (calls1 calls2 : Calls) : Calls :=
   calls1.mergeWith (fun _ x y => x || y) calls2

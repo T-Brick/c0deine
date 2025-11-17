@@ -9,7 +9,7 @@ namespace C0deine
 structure Symbol where
   name : String
   id : UInt64
-deriving DecidableEq, Inhabited, Repr
+deriving DecidableEq, Inhabited, Repr, Lean.ToExpr
 
 instance : ToString Symbol where toString s := s.name
 instance : Hashable Symbol where hash s := hash s.id
