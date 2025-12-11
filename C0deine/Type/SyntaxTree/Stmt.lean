@@ -64,7 +64,7 @@ inductive Stmt (Δ : GCtx) : (Γ : FCtx) → Option Typ → Type
   : (is_void : ρ.isNone)
   → Stmt Δ Γ ρ
 | return_tau
-  : (hρ : ρ = some τ)
+  : (hρ : Typ.equiv_opt ρ (.some τ))
   → Expr.NoContract Δ Γ τ
   → Stmt Δ Γ ρ
 | assert
