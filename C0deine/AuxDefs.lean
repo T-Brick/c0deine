@@ -4,6 +4,15 @@ import Mathlib.Tactic
 
 open Numbers
 
+def Char.isSubscriptNat : Char → Bool
+| '₀' | '₁' | '₂' | '₃' | '₄' | '₅' | '₆' | '₇' | '₈' | '₉' => true
+| _ => false
+
+def Nat.ofSubscriptString! (s : String) : Nat :=
+  if s.all (·.isSubscriptNat)
+  then s.foldl (fun n c => n * 10 + (c.toNat - '₀'.toNat)) 0
+  else panic! "nan"
+
 def Nat.digitCharInv! : Char → Nat
 | '0' => 0
 | '1' => 1

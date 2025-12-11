@@ -76,7 +76,5 @@ int main() {
 
 def prog₁ := parse_tc! prog₁_string
 
-open Pst.Notation
 c0_theorem test : prove "main" in prog₁ := by
   rfl
-
