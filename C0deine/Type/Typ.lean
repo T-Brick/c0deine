@@ -112,6 +112,11 @@ mutual
     | _, _ => false
 end
 
+/-- True if the types are both `some` and are equiv -/
+def equiv_opt : Option Typ → Option Typ → Bool
+| .some τ₁, .some τ₂ => τ₁.equiv τ₂
+| _, _ => false
+
 mutual
 @[simp] theorem equiv_refl : ∀ τ, equiv τ τ := by
   intro τ; cases τ <;> simp [equiv]; next m => exact Memory.equiv_refl m

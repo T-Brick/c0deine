@@ -362,7 +362,7 @@ def stmt
     | some τ =>
       let res ← handle <| Synth.Expr.small_nonvoid <|
         Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
-      if tyeq : some τ = some res.type then
+      if tyeq : Typ.equiv_opt (some τ) (some res.type) then
         let e' : Tst.Expr.NoContract Δ Γ _ := ⟨res.texpr, res.valid⟩
 
         let symbols' := ctx.symbols.map (fun _ status =>
