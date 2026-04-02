@@ -16,12 +16,12 @@ structure FuncSig where
   arity  : Nat
   argTys : Fin arity → Typ
   retTy  : Typ    -- use .any if void
-deriving Inhabited
+deriving Inhabited, DecidableEq
 
 structure Status.Func where
   type    : FuncSig
   defined : Bool
-deriving Inhabited
+deriving Inhabited, DecidableEq
 
 structure Status.Struct where
   fields  : Symbol → Option Typ
@@ -32,7 +32,7 @@ inductive Status.Symbol
 | var   (v : Typ)
 | func  (f : Status.Func)
 | alias (t : Typ)
-deriving Inhabited
+deriving Inhabited, DecidableEq
 
 -- use Status.Symbol to prevent collisions with funcs/tydefs
 structure FCtx where

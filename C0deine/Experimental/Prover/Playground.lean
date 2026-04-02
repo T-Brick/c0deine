@@ -4,7 +4,8 @@
  -/
 import C0deine.Experimental.Prover.Interface
 import C0deine.Experimental.Prover.Tactics
-import C0deine.Experimental.Prover.ProofSyntaxTree
+import C0deine.Experimental.Prover.SyntaxTree.Pst
+import C0deine.Experimental.Prover.SyntaxTree.Notation
 
 namespace C0deine.Prover.Playground
 
@@ -22,7 +23,7 @@ def tst : Tst.Expr {} {} (int) :=
 
 open Tst.Dynamics Notation in
 example /-  5 + 2 ==>* 7   -/
-       : (H; S; η |= (.eval tst .nil)                       [prog|p])
+       : (H; S; η |= (.eval tst .nil)                      [prog|p])
     ==>* (H; S; η |= (.val (Δ:={}) (Γ:={}) (.num 7) .nil)  [prog|p])
     := by
   rw [tst]

@@ -13,25 +13,24 @@ import C0deine.Type.Checker.Global
 
 namespace C0deine.Typechecker
 
-def typecheck (prog : Ast.Prog) : Except Error Tst.Prog := do
-  let main_info := .func ⟨⟨some (.prim .int), []⟩, false⟩
-  let main_sym := Symbol.main
+@[macro_inline]
+def main_func_status : Status.Symbol := .func ⟨⟨some (.prim .int), []⟩, false⟩
 
-  let init_symbols := Std.HashMap.emptyWithCapacity.insert main_sym main_info
-  let init_calls := Std.HashMap.emptyWithCapacity.insert main_sym false
-  let init_context : GlobalCtx := {
-    symbols := init_symbols
+@[macro_inline]
+def init_context : GlobalCtx := {
+    symbols := Std.HashMap.emptyWithCapacity.insert Symbol.main main_func_status
     structs := Std.HashMap.emptyWithCapacity
-    calls := init_calls
+    calls := Std.HashMap.emptyWithCapacity.insert Symbol.main false
     funcCalls := Std.HashMap.emptyWithCapacity
     strings := []
   }
-  let init_acc : Global.Result.List {} := ⟨init_context, {}, .nil⟩
 
+def typecheck (prog : Ast.Prog) : Except Error Tst.Prog := do
+  let init_acc : Global.Result.List {} := ⟨init_context, {}, .nil⟩
   let hres ← prog.header.foldlM (Global.gdecs true) init_acc
   let bres ← prog.program.foldlM (Global.gdecs false) ⟨hres.ctx, hres.Δ', .nil⟩
 
-  let () ← Validate.callsDefined bres.ctx main_sym
+  let () ← Validate.callsDefined bres.ctx Symbol.main
   let prog := {
     header_ctx := hres.Δ'
     header     := hres.gdecls

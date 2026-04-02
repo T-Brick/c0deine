@@ -5,7 +5,9 @@
 import C0deine.Top
 import C0deine.Ast.Ast
 import C0deine.Type.SyntaxTree.Dynamics
-import C0deine.Experimental.Prover.ProofSyntaxTree
+import C0deine.Experimental.Prover.SyntaxTree.Pst
+import C0deine.Experimental.Prover.SyntaxTree.Notation
+import C0deine.Type.SyntaxTree.Dynamics.Notation
 -- import C0deine.Experimental.Prover.Tactics
 
 namespace C0deine.Prover
@@ -40,8 +42,36 @@ open Lean Elab Command Term Meta
 --   `(def x := 5
 --    )
 
+open C0deine.Tst.Dynamics.Notation
+
+def _root_.Except.get! [Inhabited α] [ToString ε] : Except ε α → α
+| .ok a => a
+| .error e => panic! (toString e)
+
+def toTst! (Γ : Tst.FCtx) (stmts : List Pst.Stmt) : List (Tst.Stmt Δ Γ ρ) :=
+  stmts.mapM (Pst.Stmt.toTst Γ) |>.get!
+
 open Qq in
-elab "c0_theorem" n:declId ":" "prove" f:term "in" p:term ":=" b:term : command => do
+elab "c0_init_proof" f:term : tactic => do
+  Lean.Elab.Tactic.withMainContext do
+    let func ← do
+      let func ← Term.elabTerm f (some q(String))
+      unsafe evalExpr (String) (q(String)) func
+    Lean.Elab.Tactic.evalTactic (← `(tactic|
+        constructor; constructor; constructor
+      ))
+    let goals ← Lean.Elab.Tactic.getGoals
+    let _ ← goals.mapIdxM (fun n goal =>
+        match n with
+        | 0 => goal.setUserName (.mkSimple s!"`{func}`")
+        | 1 => goal.setUserName (.mkSimple "env")
+        | 2 => goal.setUserName (.mkSimple "stack")
+        | 3 => goal.setUserName (.mkSimple "heap")
+        | _ => pure ()
+      )
+
+open Qq in
+elab "c0_theorem" n:declId ":" "prove" f:term "in" p:term ":= " b:tacticSeq : command => do
   let (prog, ctx) ← liftTermElabM do
     let τ := Tst.Prog × Context.State
     let prog ← Term.elabTerm p (some q(Tst.Prog × Context.State))
@@ -54,16 +84,22 @@ elab "c0_theorem" n:declId ":" "prove" f:term "in" p:term ":=" b:term : command 
 
   match prog.findFuncDef (ctx.symbolCache.get! func) with
   | none => throwError s!"Could not find function ${func}"
-  | some ⟨_Δ, fdef⟩ =>
+  | some ⟨Δ, fdef⟩ =>
     logInfo s!"{fdef.body}"
-    let test ← liftTermElabM do
-      let pst := (Pst.FDef.ofTst fdef).body
-      -- let pst := Lean.toExpr (Pst.FDef.ofTst fdef)
+    let progPst ← liftTermElabM do
+      -- TODO need to implement notation
+      let pst := Pst.Prog.ofTst prog
       return ← Lean.PrettyPrinter.delab (Lean.toExpr pst)
-    -- logInfo s!"{test}"
+    let bodyPst ← liftTermElabM do
+      let pst := (Pst.FDef.ofTst fdef).body
+      return ← Lean.PrettyPrinter.delab (Lean.toExpr pst)
     let cmd ← `(
-      theorem $(n) : $(test) = $(test) :=
-        $b
+      -- TODO delab/convert to PST: p Γ Δ
+      theorem $n {p Γ Δ} : ∃ H S η,
+        ({}; {}; {} |= (.exec_seq (ρ := .some (.prim .int)) (Δ := Δ) (toTst! Γ $bodyPst) .nil) [prog|p])
+   ==>* (H; S; η |= (.val (Δ:=Δ) (Γ:=Γ) (.num 150) .nil) [prog|p]) := by
+        c0_init_proof $f
+        ($b)
     )
     elabCommand cmd
 
@@ -76,5 +112,6 @@ int main() {
 
 def prog₁ := parse_tc! prog₁_string
 
-c0_theorem test : prove "main" in prog₁ := by
-  rfl
+
+c0_theorem test : prove "main" in prog₁ :=
+  all_goals sorry
