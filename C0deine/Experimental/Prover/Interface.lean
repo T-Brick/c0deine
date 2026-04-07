@@ -51,24 +51,26 @@ def _root_.Except.get! [Inhabited α] [ToString ε] : Except ε α → α
 def toTst! (Γ : Tst.FCtx) (stmts : List Pst.Stmt) : List (Tst.Stmt Δ Γ ρ) :=
   stmts.mapM (Pst.Stmt.toTst Γ) |>.get!
 
-open Qq in
+open Qq Lean.Elab.Tactic in
 elab "c0_init_proof" f:term : tactic => do
-  Lean.Elab.Tactic.withMainContext do
+  withMainContext do
     let func ← do
       let func ← Term.elabTerm f (some q(String))
       unsafe evalExpr (String) (q(String)) func
-    Lean.Elab.Tactic.evalTactic (← `(tactic|
-        constructor; constructor; constructor
-      ))
-    let goals ← Lean.Elab.Tactic.getGoals
+    evalTactic (← `(tactic| constructor))
+    evalTactic (← `(tactic| apply Exists.intro {}))
+    evalTactic (← `(tactic| constructor))
+    let goals ← getGoals
     let _ ← goals.mapIdxM (fun n goal =>
         match n with
         | 0 => goal.setUserName (.mkSimple s!"`{func}`")
         | 1 => goal.setUserName (.mkSimple "env")
-        | 2 => goal.setUserName (.mkSimple "stack")
-        | 3 => goal.setUserName (.mkSimple "heap")
+        | 2 => goal.setUserName (.mkSimple "heap")
         | _ => pure ()
       )
+    -- remove the duplicated heap case
+    let prunedGoals := goals.dropLast
+    setGoals prunedGoals
 
 open Qq in
 elab "c0_theorem" n:declId ":" "prove" f:term "in" p:term ":= " b:tacticSeq : command => do
