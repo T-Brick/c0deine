@@ -8,7 +8,7 @@ def Char.isSubscriptNat : Char → Bool
 | '₀' | '₁' | '₂' | '₃' | '₄' | '₅' | '₆' | '₇' | '₈' | '₉' => true
 | _ => false
 
-def Nat.ofSubscriptString! (s : String) : Nat :=
+def Nat.ofSubscriptString! (s : String.Slice) : Nat :=
   if s.all (·.isSubscriptNat)
   then s.foldl (fun n c => n * 10 + (c.toNat - '₀'.toNat)) 0
   else panic! "nan"
@@ -32,13 +32,7 @@ def Nat.digitCharInv! : Char → Nat
 | 'f' | 'F' => 0xf
 | _   => panic! "nan"
 
-def Char.isHexDigit : Char → Bool
-| '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
-| 'a' | 'b' | 'c' | 'd' | 'e' | 'f'
-| 'A' | 'B' | 'C' | 'D' | 'E' | 'F' => true
-| _ => false
-
-def Nat.ofDigits? (base : Nat) (s : Substring) : Option Nat :=
+def Nat.ofDigits? (base : Nat) (s : Substring.Raw) : Option Nat :=
   s.foldl (fun acc c =>
     acc.bind fun acc =>
       if c.isHexDigit then
@@ -55,17 +49,17 @@ def UInt8.toHexNumString (n : UInt8) : String :=
   let str := Nat.toHexNumString n.toNat
   if str.length == 1 then "0" ++ str else str
 
-def Substring.toNat?' (s : Substring) : Option Nat :=
+def Substring.Raw.toNat?' (s : Substring.Raw) : Option Nat :=
   if s.get 0 = '0' && ((s.drop 1 |>.get 0) = 'x' || (s.drop 1 |>.get 0) = 'X')
   then Nat.ofDigits? 16 (s.drop 2)
   else Nat.ofDigits? 10 s
 
 def String.toInt32? (s : String) : Option Numbers.Int32 := do
-  if s.get 0 = '-' then
-    let v ← (s.toSubstring.drop 1).toNat?';
+  if String.Pos.Raw.get s 0 = '-' then
+    let v ← (s.toRawSubstring.drop 1).toNat?';
     pure <| Numbers.Signed.ofInt (-v)
   else
-    Numbers.Signed.ofInt <$> s.toSubstring.toNat?'
+    Numbers.Signed.ofInt <$> s.toRawSubstring.toNat?'
 
 def String.toInt32! (s : String) : Numbers.Int32 :=
   match s.toInt32? with
@@ -136,19 +130,19 @@ instance : Inhabited (ThunkCache a) := ⟨.new⟩
   -- := by simp [append, length]
 
 @[simp] theorem String.take_mk (L : List Char) (n)
-  : (String.mk L).take n = String.mk (L.take n)
+  : (String.ofList L).take n = String.ofList (L.take n)
   := sorry
 
 @[simp] theorem String.drop_mk (L : List Char) (n)
-  : (String.mk L).drop n = String.mk (L.drop n)
+  : (String.ofList L).drop n = String.ofList (L.drop n)
   := sorry
 
 @[simp] theorem String.length_take (s : String) (n)
-  : (s.take n).length = min s.length n
+  : (s.take n).copy.length = min s.length n
   := by cases s; sorry -- simp [length, Nat.min_comm]
 
 @[simp] theorem String.length_drop (s : String) (n)
-  : (s.drop n).length = s.length - n
+  : (s.drop n).copy.length = s.length - n
   := by cases s; sorry -- simp [length, Nat.min_comm]
 
 theorem List.mem_zipWith (h : x ∈ List.zipWith f L1 L2)

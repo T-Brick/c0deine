@@ -134,8 +134,8 @@ scoped syntax ">>c0_stmts| " c0_stmts " <<" : term
 macro_rules
 | `(c0_symbol% $ident:ident) =>
   let identStr := toString ident.getId
-  let id := identStr.dropWhile (¬·.isSubscriptNat) |> Nat.ofSubscriptString!
-  let x := identStr.takeWhile (¬·.isSubscriptNat)
+  let id := identStr.dropWhile (fun (c : Char) => ¬c.isSubscriptNat) |> Nat.ofSubscriptString!
+  let x := identStr.takeWhile (fun (c : Char) => ¬c.isSubscriptNat) |>.copy
   `(Symbol.mk $(Lean.quote x) $(Lean.quote id))
 
 macro_rules

@@ -412,5 +412,5 @@ def prog (config : Wasm.Config)
 /- Computes the data section of the WASM module, as described in `langs.md`. -/
 def data (prog : IrTree.Prog) : Module.Data :=
   let free_seg := prog.str_size.toBytes
-  let str_data := prog.str_map.flatMap (·.1.data.map (·.toUInt8) ++ [0])
+  let str_data := prog.str_map.flatMap (·.1.toList.map (·.toUInt8) ++ [0])
   ⟨.none, ⟨free_seg ++ str_data, sorry⟩, .active 0 [i32_const 0]⟩

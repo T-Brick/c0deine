@@ -60,7 +60,7 @@ where
     if nat < UInt32.size then
       return .ofNat nat
     else
-      throwExpected (fun () => [s!"hex literal ≤ {2^32-1 |>.toDigits (base := 16) |> String.mk}"])
+      throwExpected (fun () => [s!"hex literal ≤ {2^32-1 |>.toDigits (base := 16) |> String.ofList}"])
   hexDig := charMatching (fun c => '0' ≤ c && c ≤ '9' || 'a' ≤ c && c ≤ 'f' || 'A' ≤ c && c ≤ 'F')
 
 def esc_seq : C0Parser s Char := do
@@ -88,7 +88,7 @@ def chrlit : C0Parser s Char := do
 
 partial def strlit : C0Parser s String := do
   char '"'
-  return String.mk (← aux)
+  return String.ofList (← aux)
 where aux : C0Parser s (List Char) := do
   (do char '"'; return [])
   <|> (do let c ← esc_seq
@@ -102,7 +102,7 @@ where aux : C0Parser s (List Char) := do
 
 partial def liblit : C0Parser s String := do
   char '<'
-  return String.mk (← aux)
+  return String.ofList (← aux)
 where aux : C0Parser s (List Char) := do
   (do char '>'; return [])
   <|> (do let c ← charMatching (fun | '>'  => false
@@ -213,7 +213,7 @@ def anyKeyword : C0Parser s Unit :=
   , kw_use
   ]
 
-variable (tydefs : Batteries.RBSet Symbol Ord.compare)
+variable (tydefs : Std.TreeSet Symbol Ord.compare)
 
 def rawIdent : C0Parser s Ident :=
   atomically do
@@ -676,8 +676,8 @@ def gdecl : C0Parser s GDecl :=
   ]
 
 partial def prog
-    (tydefs : Batteries.RBSet Symbol compare := .empty)
-    : C0Parser s (Prog × Batteries.RBSet Symbol compare) := do
+    (tydefs : Std.TreeSet Symbol compare := .empty)
+    : C0Parser s (Prog × Std.TreeSet Symbol compare) := do
   ws
   let (gdecls,tydefs) ← aux tydefs #[]
   return (gdecls.toList,tydefs)

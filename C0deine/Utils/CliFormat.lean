@@ -139,7 +139,7 @@ def Rect.trimHeight (height : Nat) (r : Rect) : Rect :=
 
 def Rect.trimWidth (width : Nat) (r : Rect) : Rect :=
   { width := min r.width width, height := r.height
-  , lines := r.lines.map (·.take width)
+  , lines := r.lines.map (·.take width |>.copy)
   , h_width := by intro l hl; have := List.mem_map.mp hl
                   rcases this with ⟨a, ha, rfl⟩
                   simp [r.h_width _ ha]
@@ -147,7 +147,7 @@ def Rect.trimWidth (width : Nat) (r : Rect) : Rect :=
 
 def Rect.dropLeft (n : Nat)  (r : Rect): Rect :=
   { width := r.width - n, height := r.height
-  , lines := r.lines.map (·.drop n)
+  , lines := r.lines.map (·.drop n |>.copy)
   , h_width := by intro l hl; have := List.mem_map.mp hl
                   rcases this with ⟨a,ha,rfl⟩
                   simp [r.h_width _ ha]
@@ -172,7 +172,10 @@ def Rect.tileVert (height : Nat) (r : Rect) (hr : r.height > 0) : Rect :=
 
 def Rect.tileHorz (width : Nat) (r : Rect) (hr : r.width > 0) : Rect :=
   { width, height := r.height
-  , lines := r.lines.map (List.replicate (width / r.width + 1) · |> String.join |>.take width)
+  , lines := r.lines.map (List.replicate (width / r.width + 1) ·
+              |> String.join
+              |>.take width
+              |>.copy)
   , h_width   := by intro l hl
                     have := List.mem_map.mp hl
                     rcases this with ⟨l',hl',rfl⟩

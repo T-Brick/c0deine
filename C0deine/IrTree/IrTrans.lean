@@ -253,16 +253,16 @@ def binop_op_int (op : Tst.BinOp.Int)
 mutual
 partial def transSizeExpr (e : Tst.Expr Δ Γ τ) : Nat :=
   match e with
-  | .num _ _                 => 0
-  | .char _ _                => 0
-  | .str _ _                 => 0
-  | .var _ _                 => 0
-  | .true _                  => 0
-  | .false _                 => 0
-  | .null _                  => 0
-  | .unop_int _ _ _ e        => 1 + transSizeExpr e
-  | .unop_bool _ _ _ e       => 1 + transSizeExpr e
-  | .binop_bool _ _ _ op l r => 1 + 1 + (transSizeExpr l) + 1 + (transSizeExpr r)
+  | .num _ _                => 0
+  | .char _ _               => 0
+  | .str _ _                => 0
+  | .var _ _                => 0
+  | .true _                 => 0
+  | .false _                => 0
+  | .null _                 => 0
+  | .unop_int _ _ _ e       => 1 + transSizeExpr e
+  | .unop_bool _ _ _ e      => 1 + transSizeExpr e
+  | .binop_bool _ _ _ _ l r => 1 + 1 + (transSizeExpr l) + 1 + (transSizeExpr r)
   | .binop_int _ _ _ _ l r
   | .binop_eq _ _ _ l r _ _
   | .binop_rel_int _ _ _ _ _ l r
@@ -319,7 +319,7 @@ partial def expr (tau : Typ)
          (acc : List IrTree.Stmt)
          (exp : Tst.Expr Δ Γ tau)
          : Env.Func ((List IrTree.Stmt) × IrTree.Expr) := do
-  match exp with
+  match (dependent := true) exp with
   | .num _ v     => return (acc, .const v)
   | .char _ c    =>
     if h : c.val < 256
@@ -537,7 +537,7 @@ partial def args
     (τs : Fin n → Typ)
     (as : (i : Fin n) → Tst.Expr Δ Γ (τs i))
     : Env.Func ((List IrTree.Stmt) × (List (Typ.Typed Expr))) := do
-  match n with
+  match (dependent := true) n with
   | .zero => return (acc, [])
   | .succ m =>
     let (stmts, arg') ← texpr acc (as ⟨0, by simp⟩)
@@ -831,7 +831,7 @@ def dec_args (args : List (Typ.Typed Symbol)) : Env.Prog (List SizedTemp) := do
     return t :: ts
 
 def gdecl (header : Bool) (glbl : Tst.GDecl Δ Δ') : Env.Prog (Option Func) := do
-  match glbl with
+  match (dependent := true) glbl with
   | .fdecl fdec =>
     let label ←
       if header
@@ -886,7 +886,7 @@ def gdecl (header : Bool) (glbl : Tst.GDecl Δ Δ') : Env.Prog (Option Func) := 
 def gdecls (header : Bool)
     (glbls : Tst.GDecl.List Δ Δ')
     : Env.Prog (List Func) := do
-  match glbls with
+  match (dependent := true) glbls with
   | .nil => return []
   | .cons gs g =>
     let fs ← gdecls header gs

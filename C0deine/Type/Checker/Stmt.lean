@@ -101,9 +101,8 @@ def stmt
             match ctx.symbols.get? name with
             | some status => res.ctx.symbols.insert name status
             | none => res.ctx.symbols.erase name
-          let oldCtx := { res.ctx with symbols := symbols' }
 
-          let stmt' := .decl name' (by rw [Typ.Typed.data, Typ.Typed.type]) res.stmts
+          let stmt' := Tst.Stmt.decl name' (by rw [Typ.Typed.data, Typ.Typed.type]) res.stmts
           let init_set' :=
             Tst.Initialised.join init_set_body res.init_set' stmt'
           have stmt'_init :=
@@ -115,7 +114,9 @@ def stmt
                   res.returns
                   (by dsimp only [Tst.Returns.Predicate, Tst.Returns.join])
 
-          return ⟨oldCtx, stmt', init_set', stmt'_init, res.rets', stmt'_rets⟩
+          let oldCtx := { res.ctx with symbols := symbols' }
+          -- replacing the first arg with `oldCtx` causes unsafe recursion???
+          return ⟨{ res.ctx with symbols := symbols' }, stmt', init_set', stmt'_init, res.rets', stmt'_rets⟩
 
         | some e =>
           let res_init ← handle <| Synth.Expr.small_nonvoid <|
@@ -273,6 +274,7 @@ def stmt
             return ⟨ctx, stmt', init_set', stmt'_init, rets, stmt'_rets⟩
           else throwS s!"Assignment with operations must have type '{Typ.prim .int}' but right side is '{resr.type}'"
         else throwS s!"Assignment with operations must have type '{Typ.prim .int}'  but left side is '{resl.type}'"
+
   | .ite cond tt ff =>
     let resc ← handle <| Synth.Expr.small_nonvoid <|
       Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract cond
@@ -346,7 +348,7 @@ def stmt
         s!"Expected return type is '{ctx.ret_type}'" -- todo change this msg?
     | none =>
       let ctx' := {ctx with returns := true}
-      let stmt' := .return_void (by rfl)
+      let stmt' := .return_void (by rw [is_void]; rfl)
       let init_set' := Tst.Initialised.stmt init_set stmt'
       have stmt'_init :=
         .return_void
@@ -362,7 +364,7 @@ def stmt
     | some τ =>
       let res ← handle <| Synth.Expr.small_nonvoid <|
         Synth.Expr.expr ctx Tst.Expr.no_contract Error.no_contract e
-      if tyeq : Typ.equiv_opt (some τ) (some res.type) then
+      if tyeq : Typ.equiv_opt ρ (some res.type) then
         let e' : Tst.Expr.NoContract Δ Γ _ := ⟨res.texpr, res.valid⟩
 
         let symbols' := ctx.symbols.map (fun _ status =>

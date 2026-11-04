@@ -219,7 +219,7 @@ instance : Repr Expr := ⟨fun e _ => Expr.toString e⟩
 instance : Repr (Typed Expr) := ⟨fun te _ => Expr.typedToString te⟩
 
 def Expr.toTst (τ : Typ) (e : Expr) : Except String (Tst.Expr Δ Γ τ) := do
-  match τ, e with
+  match (dependent := true) τ, e with
   | .prim .int, .num i => return .num rfl i
   | .prim .char, .char c => return .char rfl c
   | .prim .string, .str s => return .str rfl s
@@ -234,6 +234,10 @@ def Expr.toTst (τ : Typ) (e : Expr) : Except String (Tst.Expr Δ Γ τ) := do
     return .unop_int rfl rfl op (← e.toTst (.prim .int))
   | .prim .bool, .unop_bool op ⟨.prim .bool, e⟩ =>
     return .unop_bool rfl rfl op (← e.toTst (.prim .bool))
+  | .prim .int, .binop_int op ⟨.prim .int, l⟩ ⟨.prim .int, r⟩ =>
+    return .binop_int rfl rfl rfl op (← l.toTst (.prim .int)) (← r.toTst (.prim .int))
+  | .prim .bool, .binop_bool op ⟨.prim .bool, l⟩ ⟨.prim .bool, r⟩ =>
+    return .binop_bool rfl rfl rfl op (← l.toTst (.prim .bool)) (← r.toTst (.prim .bool))
   | .prim .bool, .binop_eq op ⟨τl, l⟩ ⟨τr, r⟩ =>
     if h₁ : op.isEquality then
       if h₂ : τl.equiv τr then
@@ -292,7 +296,7 @@ def Expr.toTst (τ : Typ) (e : Expr) : Except String (Tst.Expr Δ Γ τ) := do
       return .length rfl (← a.toTst (.mem (.array τ)))
     else throw "length type is not equal"
   | _, _ =>
-    throw s!"could not build a TST from the provided type and PST ${e} : ${τ}"
+    throw s!"could not build a TST expr from the provided type and PST {e} : {τ}"
 
 def Expr.toTstNoContract (τ : Typ) (e : Expr) : Except String (Tst.Expr.NoContract Δ Γ τ) := do
   let tst ← e.toTst τ
@@ -305,7 +309,7 @@ def Expr.toTstNoResult (τ : Typ) (e : Expr) : Except String (Tst.Expr.NoResult 
   return ⟨tst, sorry⟩
 
 def LValue.toTst (τ : Typ) (l : LValue) : Except String (Tst.LValue Δ Γ τ) := do
-  match τ, l with
+  match (dependent := true) τ, l with
   | τ, .var x =>
     if h : Γ.syms x = some (.var τ) then
       return .var x h
