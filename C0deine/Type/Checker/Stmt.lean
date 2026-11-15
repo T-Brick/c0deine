@@ -223,28 +223,30 @@ def stmt
       match op_eq : op with
       | .eq =>
         if ty_equiv : resl.type.equiv resr.type then
-          have : ¬resl.lval.is_var := by sorry
-          let e' := ⟨resr.texpr, resr.valid⟩
+          -- TODO: This check should be provable
+          if is_var : ¬resl.lval.is_var then
+            let e' := ⟨resr.texpr, resr.valid⟩
 
-          let stmt' := .assign resl.lval this e' ty_equiv
-          let init_set' :=
-            Tst.Initialised.init init_set (.assign resl.lval this e')
-          have stmt'_init := .assign resl.init
-            (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
-            resr.init
-            (by dsimp only [ init_set'
-                           , Tst.Initialised.Predicate
-                           , Tst.Initialised.init
-                           , Tst.Initialised.stmt
-                           ])
-          have stmt'_rets :=
-            .assign (a₂ := rets) (a₃ := rets) (a₄ := rets)
-              (Tst.Returns.lval_fold rets resl.lval)
-              (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
-              (by simp only [Tst.Returns.Predicate, Tst.Returns.expr_fold])
-              (by dsimp only [Tst.Returns.Predicate, Tst.Returns.stmt])
+            let stmt' := .assign resl.lval is_var e' ty_equiv
+            let init_set' :=
+              Tst.Initialised.init init_set (.assign resl.lval is_var e')
+            have stmt'_init := .assign resl.init
+              (by dsimp only [Tst.Initialised.Predicate, Tst.Initialised.init])
+              resr.init
+              (by dsimp only [ init_set'
+                            , Tst.Initialised.Predicate
+                            , Tst.Initialised.init
+                            , Tst.Initialised.stmt
+                            ])
+            have stmt'_rets :=
+              .assign (a₂ := rets) (a₃ := rets) (a₄ := rets)
+                (Tst.Returns.lval_fold rets resl.lval)
+                (by dsimp only [Tst.Returns.Predicate, Tst.Returns.init])
+                (by simp only [Tst.Returns.Predicate, Tst.Returns.expr_fold])
+                (by dsimp only [Tst.Returns.Predicate, Tst.Returns.stmt])
 
-          return ⟨ctx, stmt', init_set', stmt'_init, rets, stmt'_rets⟩
+            return ⟨ctx, stmt', init_set', stmt'_init, rets, stmt'_rets⟩
+          else throwS s!"!! Typechecker bug?! Resulting left side is a var when it shouldn't be!"
         else throwS s!"Left side of assignment has type '{resl.type}' doesn't match the right side '{resr.type}'"
       | .aseq binop =>
         if l_eq : resl.type = .prim .int then

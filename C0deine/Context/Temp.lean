@@ -39,7 +39,11 @@ def Map.empty : Map α := Std.HashMap.emptyWithCapacity
 
 def toWasmIdent (temp : Temp) : Wasm.Text.Ident :=
   { name := temp.toRawString
-  , name_nonempty := by sorry
+  , name_nonempty := by
+      simp only [toRawString, Nat.toString_eq_repr, ne_eq]
+      cases temp.name
+      <;> simp only [String.append_eq_empty_iff, Nat.repr_ne_empty, and_false,
+                     false_and, not_false_eq_true]
   , name_valid_chars := by sorry
   }
 
@@ -56,6 +60,11 @@ instance : Repr SizedTemp := ⟨fun st _ => SizedTemp.toString st⟩
 
 def SizedTemp.toWasmIdent (stemp : SizedTemp) : Wasm.Text.Ident :=
   { name := s!"{stemp.temp.toRawString}^{stemp.size}"
-  , name_nonempty := by sorry
+  , name_nonempty := fun h₁ => by
+      have := String.append_eq_empty_iff.mp h₁
+        |>.left
+        |> String.append_eq_empty_iff.mp
+        |>.right
+      contradiction
   , name_valid_chars := by sorry
   }

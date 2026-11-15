@@ -38,13 +38,22 @@ def startId := 6
 
 def toWasmIdent (l : Label) : Wasm.Text.Ident :=
   { name := toString l
-  , name_nonempty    := by sorry
+  , name_nonempty    := fun h₁ => by
+      cases h₂ : l.name
+      <;> simp only [toString, Nat.toString_eq_repr, h₂] at h₁
+      case none =>
+        have := String.append_eq_empty_iff.mp h₁ |>.left
+        contradiction
+      case some =>
+        sorry
   , name_valid_chars := by sorry
   }
 
 def toWasmLoopBreak (l : Label) : Wasm.Text.Ident :=
   { name := toString l ++ "_break"
-  , name_nonempty    := by sorry
+  , name_nonempty    := fun h₁ => by
+      have := String.append_eq_empty_iff.mp h₁ |>.right
+      contradiction
   , name_valid_chars := by sorry
   }
 
