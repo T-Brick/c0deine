@@ -290,9 +290,9 @@ where
         | .some n => traverse n (.some block.exit) loopBreak
         | .none   => ([], .none)
 
-      ( debugger config l ++ body_instr ++ exit_instr ++ next_instr
+      ⟨ debugger config l ++ body_instr ++ exit_instr ++ next_instr
       , match next_exit with | .none => .some block.exit | _ => next_exit
-      )
+      ⟩
     | .none =>
       error s!"WASM Trans: Could not find block labeled {l}, in shape {shape} in {f}!"
 
@@ -321,10 +321,10 @@ where
           error s!"WASM Trans Error: Shape loop, {shape}, body has improper exit {body_exit}!"
             |>.fst
 
-      ( ( block i_lbl.toWasmLoopBreak [loop i_lbl.toWasmIdent (i_instr ++ i_br)]
+      ⟨ ( block i_lbl.toWasmLoopBreak [loop i_lbl.toWasmIdent (i_instr ++ i_br)]
         ) :: n_instr
       , next_exit
-      )
+      ⟩
 
     | .some _, _ =>
       error s!"WASM Trans: Shape loop, {shape}, has too many/few successors: {lbls}!"
@@ -360,7 +360,7 @@ where
           .wasm_end
           .none
 
-      (l_block :: n_instr, next_exit)
+      ⟨l_block :: n_instr, next_exit⟩
     | _, _, _, _ =>
       error s!"WASM Trans: Shape multi, {shape}, doesn't have condition to branch: {priorExit}!"
 
@@ -393,7 +393,7 @@ def func (config : Wasm.Config)
 
   let locals : List Wasm.Text.Module.Local :=
     let args := f.args.map (·.data.toWasmIdent)
-    (find_used_temps body).filterMap (fun id =>
+    find_used_temps body |> .filterMap (fun id =>
       if args.elem id then .none else .some ⟨.some id, .num .i32⟩
     )
 

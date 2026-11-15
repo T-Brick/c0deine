@@ -15,7 +15,6 @@ import C0deine.Config.Config
 import C0deine.Utils.Comparison
 import C0deine.ControlFlow.CFG
 
-
 namespace C0deine.IrTree.Trans
 
 open ControlFlow.Block
@@ -192,7 +191,7 @@ def String.mapping (strings : List String)
       , (s, offset) :: acc
       )
     ) ((8 : UInt64), []) -- start 8-bytes to avoid NULL
-  (size + (8 - size) % 8, res.reverse) -- 8-byte align the size.
+  ⟨size + (8 - size) % 8, res.reverse⟩ -- 8-byte align the size.
 
 namespace MkTyped
 
@@ -876,7 +875,7 @@ def gdecl (header : Bool) (glbl : Tst.GDecl Δ Δ') : Env.Prog (Option Func) := 
           | some n => UInt64.ofNat n
           | _ => panic! s!"IR Trans: {sd.name} has malformed field types"
         let offset' := align offset a
-        (offset' + size, (f.data, offset') :: acc)
+        ⟨offset' + size, (f.data, offset') :: acc⟩
       ) (UInt64.ofNat 0, [])
     let size' := align size alignment
     let offsets := Std.HashMap.ofList offsetsR

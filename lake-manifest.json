@@ -25,7 +25,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "5e3109fcf2cfa0648c8a814c0e527366293be7d1",
+   "rev": "3428b0f9214995c61b3f88ef15d523d512ab35c4",
    "name": "controlflow",
    "manifestFile": "lake-manifest.json",
    "inputRev": "main",

@@ -6,6 +6,7 @@
 import C0deine.Context.Label
 import ControlFlow.Graphs.FuncGraph
 import ControlFlow.Graphs.CFG
+import ControlFlow.Dominator
 
 open ControlFlow
 open ControlFlow.Digraph
@@ -72,6 +73,21 @@ instance : Digraph Label FuncGraphType := FuncGraph
 structure C0_CFG (α β : Type) extends CFG Label FuncGraphType where
   name : Label
   blocks : Label.Map (Block α β)
+
+structure C0_CFG.Dominators where
+  sdom : Label → Std.HashSet Label
+  dom : Label → Std.HashSet Label
+  sdom_by : Label → Std.HashSet Label
+  idom : Label → Option Label
+  frontier : Label → Std.HashSet Label
+
+open ControlFlow.Dom.Algorithm in
+nonrec def C0_CFG.Dominators.compute (cfg : C0_CFG α β)
+    : Option C0_CFG.Dominators := do
+  let ⟨sdom, dom, sdom_by⟩ ← compute cfg.toCFG
+  let idom := get_immediate_dominator ⟨sdom, dom, sdom_by⟩
+  let frontier ← get_dominance_frontier cfg.toCFG idom
+  return ⟨sdom, dom, sdom_by, idom, frontier⟩
 
 def Block.toString [ToString α] [ToString β] (b : Block α β) :=
   let body := b.body.map (fun stmt => s!"\t{stmt}\n") |> String.join
