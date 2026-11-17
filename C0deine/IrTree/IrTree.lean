@@ -55,6 +55,7 @@ inductive Stmt
 | store (addr : Address) (source : Typed Expr)
 | copy (dest : Address) (source : Address) (len : Nat)
 | check (c : Check)
+| phi (dest : SizedTemp) (args : List SizedTemp)
 
 inductive BlockExit
 | jump (lbl : Label)
@@ -73,6 +74,48 @@ structure Func where
   blocks      : Label.Map Block
   result_size : Option ValueSize
   enter_in    : blocks.contains enter
+
+
+structure TempUsageInfo where
+  temp : Temp
+  defined : Bool
+  -- used : Bool
+deriving DecidableEq, Inhabited
+
+def TempUsageInfo.expr (acc : List TempUsageInfo) : Expr → List TempUsageInfo
+| .temp t => ⟨t.data, false⟩ :: acc
+| .binop _ ⟨_, l⟩ ⟨_, r⟩ => expr (expr acc l) r
+| .and ⟨_, l⟩ ⟨_, r⟩ => expr (expr acc l) r
+| .or ⟨_, l⟩ ⟨_, r⟩ => expr (expr acc l) r
+| _ => acc
+
+def TempUsageInfo.texpr (acc : List TempUsageInfo) : Typed Expr → List TempUsageInfo
+| ⟨_, e⟩ => expr acc e
+
+def TempUsageInfo.stmt (acc : List TempUsageInfo) : Stmt → List TempUsageInfo
+| .move dest te => texpr (⟨dest.data, true⟩ :: acc) te
+| .effect dest _ l r => texpr (texpr (⟨dest.data, true⟩ :: acc) l) r
+| .call ⟨_, dest⟩ _ args => args.foldl texpr (⟨dest.data, true⟩ :: acc)
+| .alloc dest size => texpr (⟨dest, true⟩ :: acc) size
+| .load dest addr => texpr (⟨dest.data, true⟩ :: acc) addr.base
+| .store addr src => texpr (texpr acc addr.base) src
+| .copy dest src _ => texpr (texpr acc dest.base) src.base
+| .check (.null e) => texpr acc e
+| .check (.shift e) => texpr acc e
+| .check (.bounds src index) => texpr (texpr acc src) index
+| .check (.mod l r) => texpr (texpr acc l) r
+| .phi dest args =>
+    args.foldl (fun acc t => ⟨t.data, false⟩ :: acc) (⟨dest.data, true⟩ :: acc)
+
+def TempUsageInfo.stmts (acc : List TempUsageInfo) (stmts : List Stmt) : List TempUsageInfo :=
+  stmts.foldl stmt acc
+
+def TempUsageInfo.block (b : Block) : List TempUsageInfo :=
+  stmts [] b.body |>.dedup
+
+def Block.get_temps (b : Block) : Unit :=
+  let test := b.body
+  sorry
 
 def Block.succ_labels (f : Func) (b : Block) : Option (List Label) :=
   f.blocks.get? b.label |>.map (fun b => (
@@ -168,6 +211,7 @@ def Stmt.toString : Stmt → String
   | store addr source => s!"{addr} <-- {source}"
   | copy dest source len => s!"{dest} <-- [{source}:+{len}]"
   | check c => s!"{c}"
+  | phi dest args => s!"{dest} <-- φ({args})"
 instance : ToString Stmt where toString := Stmt.toString
 
 def BlockExit.toString : BlockExit → String

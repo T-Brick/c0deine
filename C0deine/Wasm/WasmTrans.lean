@@ -222,6 +222,7 @@ def stmt : IrTree.Stmt → List Instr
     dest' ++ src' ++ [len', Plain.memory .copy]
 
   | .check ch               => check ch
+  | .phi _ _ => []
 
 
 /- Converting shapes into WASM -/
