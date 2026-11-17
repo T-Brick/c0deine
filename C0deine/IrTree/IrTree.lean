@@ -55,7 +55,7 @@ inductive Stmt
 | store (addr : Address) (source : Typed Expr)
 | copy (dest : Address) (source : Address) (len : Nat)
 | check (c : Check)
-| phi (dest : SizedTemp) (args : List SizedTemp)
+| phi (dest : Temp) (args : List Temp)
 
 inductive BlockExit
 | jump (lbl : Label)
@@ -65,7 +65,7 @@ inductive BlockExit
 | error (e : Typed Expr)
 instance : Inhabited BlockExit := ⟨.return .none⟩
 
-def Block := ControlFlow.Block Stmt BlockExit
+abbrev Block := ControlFlow.Block Stmt BlockExit
 
 structure Func extends ControlFlow.C0_CFG Stmt BlockExit where
   args        : List SizedTemp
@@ -102,7 +102,7 @@ def TempUsageInfo.stmt (acc : List TempUsageInfo) : Stmt → List TempUsageInfo
 | .check (.bounds src index) => texpr (texpr acc src) index
 | .check (.mod l r) => texpr (texpr acc l) r
 | .phi dest args =>
-    args.foldl (fun acc t => ⟨t.data, false⟩ :: acc) (⟨dest.data, true⟩ :: acc)
+    args.foldl (fun acc t => ⟨t, false⟩ :: acc) (⟨dest, true⟩ :: acc)
 
 def TempUsageInfo.stmts (acc : List TempUsageInfo) (stmts : List Stmt) : List TempUsageInfo :=
   stmts.foldl stmt acc
