@@ -264,18 +264,15 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   let (irtree, _ctx) := IrTree.Trans.prog config tst ctx
   vprintln "ir tree!"
   vcprintln (p.hasFlag "dump-ir") irtree
-
-  vprintln "building cfgs..."
-  let cfgs := IrTree.Prog.to_cfgs irtree
-  vprintln "cfgs!"
-  vcprintln (p.hasFlag "dump-cfg") cfgs
+  vcprintln (p.hasFlag "dump-cfg") (irtree.funcs.map (·.toC0_CFG))
 
   if ¬config.emit.isWasmFormat then
     IO.println s!"Emit language {config.emit} not yet supported"
     return 1
 
   vprintln "relooping cfgs..."
-  let relooped := cfgs.map ControlFlow.Relooper.reloop
+  let relooped := irtree.funcs.map
+    (fun f => ControlFlow.Relooper.reloop f.toC0_CFG)
   vprintln "relooped!"
   vcprintln (p.hasFlag "dump-cfg") relooped
 

@@ -21,7 +21,6 @@ import ControlFlow.FindPath
 
 namespace C0deine.ControlFlow.Relooper
 
-open ControlFlow
 open ControlFlow.Digraph
 open ControlFlow.Path.Find
 

@@ -840,16 +840,33 @@ def gdecl (header : Bool) (glbl : Tst.GDecl Δ Δ') : Env.Prog (Option Func) := 
     return none
 
   | .fdef fdef =>
-    let label ← Env.Prog.namedLabel s!"_c0_{fdef.name.name}"
+    let name ← Env.Prog.namedLabel s!"_c0_{fdef.name.name}"
     let args ← dec_args fdef.params
     let entry ← Env.Prog.freshLabel
     let (_remain, blocks) ←
       Env.Prog.startFunc entry .funcEntry (stmts [] fdef.body.toList)
-    let () ← Env.Prog.addFunc fdef.name label
+    let () ← Env.Prog.addFunc fdef.name name
     let res ← fdef.ret.mapM Typ.tempSize
 
+    let labels := blocks.keys
+    let succ := fun l =>
+      if blocks.contains l then
+        match blocks.get? l |>.map Block.succ_labels with
+        | .none => []
+        | .some lbls => lbls
+      else []
+    let graph := ControlFlow.Digraph.of_succ labels succ
+
     if h : Std.HashMap.contains blocks entry
-    then return some ⟨label, entry, args, blocks, res, h⟩
+    then return some {
+      digraph := graph
+      start := ⟨entry, sorry⟩
+      reachable := sorry
+      name := name
+      blocks := blocks
+      args := args
+      result_size := res
+    }
     else panic! s!"IR Trans: Couldn't find entry block in Std.HashMap"
 
   | .sdef sd =>

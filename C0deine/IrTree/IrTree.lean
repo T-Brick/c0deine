@@ -67,14 +67,11 @@ instance : Inhabited BlockExit := ⟨.return .none⟩
 
 def Block := ControlFlow.Block Stmt BlockExit
 
-structure Func where
-  name        : Label
-  enter       : Label
+structure Func extends ControlFlow.C0_CFG Stmt BlockExit where
   args        : List SizedTemp
-  blocks      : Label.Map Block
   result_size : Option ValueSize
-  enter_in    : blocks.contains enter
 
+@[inline] def Func.entry (f : Func) : Label := f.start.val
 
 structure TempUsageInfo where
   temp : Temp
@@ -117,31 +114,13 @@ def Block.get_temps (b : Block) : Unit :=
   let test := b.body
   sorry
 
-def Block.succ_labels (f : Func) (b : Block) : Option (List Label) :=
-  f.blocks.get? b.label |>.map (fun b => (
-      match b.exit with
-      | .jump lbl => [lbl]
-      | .cjump _ (.some false) tt ff => [ff, tt]
-      | .cjump _ _ tt ff => [tt, ff]
-      | .«return» _      => []
-      | .error _         => []
-    )
-  )
-
-def Block.succ (f : Func) (b : Block) : Option (List Block) :=
-  b.succ_labels f |>.map (List.filterMap f.blocks.get?)
-
-def Func.to_cfg (f : Func) : ControlFlow.C0_CFG Stmt BlockExit :=
-  let labels := (f.blocks.toList).map (·.fst)
-  let succ := fun l =>
-    if f.blocks.contains l then
-      match f.blocks.get? l |>.bind (Block.succ_labels f) with
-      | .none => []
-      | .some lbls => lbls
-    else []
-  let graph := ControlFlow.Digraph.of_succ labels succ
-  let cfg := ControlFlow.CFG.mk graph ⟨f.enter, sorry⟩ sorry
-  ⟨cfg, f.name, f.blocks⟩
+def Block.succ_labels (b : Block) : List Label :=
+  match b.exit with
+  | .jump lbl => [lbl]
+  | .cjump _ (.some false) tt ff => [ff, tt]
+  | .cjump _ _ tt ff => [tt, ff]
+  | .«return» _      => []
+  | .error _         => []
 
 @[inline] def _root_.C0deine.Label.loop (f : Func) (l : Label) : Bool :=
   match f.blocks.get? l with
@@ -157,8 +136,6 @@ structure Prog where
   funcs    : List Func
   str_map  : List (String × UInt64)
   str_size : UInt64
-
-def Prog.to_cfgs (prog : Prog) := prog.funcs.map (Func.to_cfg ·)
 
 def PureBinop.toString : PureBinop → String
   | add      => "+"
@@ -238,7 +215,7 @@ def Func.toString (f : Func) :=
     match f.result_size with
     | .some s => s!" -> {s}"
     | .none => ""
-  s!"{f.name}: ({f.args}){res}\n  jump {f.enter}\n{blocks}"
+  s!"{f.name}: ({f.args}){res}\n  jump {f.entry}\n{blocks}"
 instance : ToString Func where toString := Func.toString
 
 def Prog.toString (prog : Prog) :=
