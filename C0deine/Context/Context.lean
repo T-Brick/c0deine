@@ -24,8 +24,8 @@ structure Context.State where
 deriving Repr, Inhabited
 
 def Context.State.new (annotations : Bool) : Context.State where
-  nextTemp     := ⟨Temp.startId, none⟩
-  nextLabel    := ⟨Label.startId, none⟩
+  nextTemp     := { id := Temp.startId, name := none }
+  nextLabel    := { id := Label.startId, name := none }
   nextSymbolId := 1
   inLineAnno   := if annotations then .some false else .none
   symbolCache  := Std.HashMap.emptyWithCapacity.insert Symbol.main.name Symbol.main
@@ -45,11 +45,12 @@ def Context.setInLineAnno (b : Bool) : Context Unit :=
 namespace Temp
 
 def fresh : Context Temp :=
-  fun s => (s.nextTemp, {s with nextTemp := ⟨s.nextTemp.id + 1, none⟩})
+  fun s =>
+    (s.nextTemp, {s with nextTemp := {id := s.nextTemp.id + 1, name := none}})
 
 def namedFresh (name : String): Context Temp :=
   fun s => ( {s.nextTemp with name := some name}
-           , {s with nextTemp := ⟨s.nextTemp.id + 1, none⟩}
+           , {s with nextTemp := { id := s.nextTemp.id + 1, name := none}}
            )
 
 end Temp
