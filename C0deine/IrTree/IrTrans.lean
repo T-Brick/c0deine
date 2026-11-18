@@ -319,7 +319,7 @@ partial def expr (tau : Typ)
          (exp : Tst.Expr Δ Γ tau)
          : Env.Func ((List IrTree.Stmt) × IrTree.Expr) := do
   match (dependent := true) exp with
-  | .num _ v     => return (acc, .const v)
+  | .num _ v     => return (acc, .const v.toUInt32.toInt32)
   | .char _ c    =>
     if h : c.val < 256
     then return (acc, .byte c.toUInt8)
@@ -333,7 +333,7 @@ partial def expr (tau : Typ)
     let tres := ⟨.prim .string, .temp sres⟩
     let tsrc := ⟨.prim .string, .memory src.toNat⟩
 
-    let alloc := .alloc res ⟨.prim .int, .const (UInt32.ofNat len)⟩
+    let alloc := .alloc res ⟨.prim .int, .const (Int32.ofNat len)⟩
     let copy  := .copy ⟨tres, 0, .none, 1⟩ ⟨tsrc, 0, .none, 1⟩ len
 
     return (copy :: alloc :: acc, .temp sres)
@@ -424,8 +424,8 @@ partial def expr (tau : Typ)
       then
         let size' := -- don't need to store length if unsafe
           match e'.data with -- optimise if size is constant
-          | .const c => .memory (c.toUInt64 * size |>.toNat)
-          | _ => .binop .mul e' (MkTyped.int (.const size.toUInt32))
+          | .const c => .memory (c.toUInt32.toUInt64 * size |>.toNat)
+          | _ => .binop .mul e' (MkTyped.int (.const size.toInt64.toInt32))
         let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
         return (.alloc dest (MkTyped.int size') :: stmts, .temp sdest)
       else
@@ -433,9 +433,9 @@ partial def expr (tau : Typ)
         -- todo maybe add bounds checks here?
         let size' : Expr :=
           match e'.data with -- optimise if size is constant
-          | .const c => .memory (c.toUInt64 * size |>.toNat)
+          | .const c => .memory (c.toUInt32.toUInt64 * size |>.toNat)
           | _ =>
-            .binop .mul e' (MkTyped.int (.const size.toUInt32))
+            .binop .mul e' (MkTyped.int (.const size.toInt64.toInt32))
             |> MkTyped.int
             |> .binop .add lengthSize
         let alloc := .alloc dest (MkTyped.int size')
