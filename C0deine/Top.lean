@@ -266,7 +266,6 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   vcprintln (p.hasFlag "dump-ir") irtree
   vcprintln (p.hasFlag "dump-cfg") (irtree.funcs.map (·.toC0_CFG))
 
-  vprintln irtree
   vprintln "ssa conversion..."
   let irtree := IrTree.SSA.convert irtree
   vprintln "ssa ir tree!"

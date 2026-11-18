@@ -223,7 +223,7 @@ open _root_.ControlFlow in
 def func (f : Func) : Option Func := do
   let dom_res ← Dom.Algorithm.compute f.toCFG
   let idom := Dom.Algorithm.get_immediate_dominator dom_res
-  let frontier ← Dom.Algorithm.get_dominance_frontier f.toCFG idom
+  let frontier := Dom.Algorithm.get_dominance_frontier f.toCFG idom
 
   let block_labels := f.blocks.keys
   let dom_tree : Dom.Tree := block_labels.foldl (fun tree l₁ =>
