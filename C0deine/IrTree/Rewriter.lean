@@ -221,6 +221,22 @@ def Func.rewriteM_stmt [Monad m]
   )
   return { func with blocks := Std.HashMap.ofList blocks }
 
+def Func.rewrite_stmt_at
+    (f : Stmt → Option Stmt) (func : Func) (l : Label) : Func :=
+  match func.blocks.get? l with
+  | .none => func
+  | .some b => { func with
+      blocks := func.blocks.insert l (StmtRewriter.rewrite_stmt f b)
+    }
+
+def Func.rewriteM_stmt_at [Monad m]
+    (f : Stmt → m (Option Stmt)) (func : Func) (l : Label) : m Func := do
+  match func.blocks.get? l with
+  | .none => return func
+  | .some b => return { func with
+      blocks := func.blocks.insert l (← StmtRewriter.rewriteM_stmt f b)
+    }
+
 instance : ExprRewriter Func where
   rewrite_expr := Func.rewrite_expr
   rewriteM_expr := Func.rewriteM_expr
