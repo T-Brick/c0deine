@@ -55,6 +55,7 @@ class Block (Stmt Exit : Type) where
   type  : Block.BlockType
   body  : List Stmt
   exit  : Exit
+deriving Inhabited
 
 instance : BEq (Block α β)      where beq x y := x.label == y.label
 instance : Hashable (Block α β) where hash b := hash b.label

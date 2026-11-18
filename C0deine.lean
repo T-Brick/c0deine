@@ -24,6 +24,8 @@ import C0deine.Type.Typechecker
 
 import C0deine.IrTree.IrTree
 import C0deine.IrTree.IrTrans
+import C0deine.IrTree.Rewriter
+import C0deine.IrTree.SSA
 
 import C0deine.ControlFlow.CFG
 import C0deine.ControlFlow.Relooper
