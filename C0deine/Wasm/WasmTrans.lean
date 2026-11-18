@@ -47,7 +47,7 @@ def effect_binop (op : IrTree.EffectBinop) : Instr :=
 partial def texpr (te : Typ.Typed IrTree.Expr) : List Instr :=
   match te.data with
   | .byte b       => [i32_const (Unsigned.ofNat b.toNat)]
-  | .const i      => [i32_const (Signed.ofInt i)]
+  | .const i      => [i32_const (Signed.ofInt (i.toInt32.toInt))]
   | .temp t       => [locl (.get (stemp t))]
   | .memory m     => [i32_const (Unsigned.ofNat m)]
   | .binop op l r =>

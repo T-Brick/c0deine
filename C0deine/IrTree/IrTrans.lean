@@ -333,7 +333,7 @@ partial def expr (tau : Typ)
     let tres := ⟨.prim .string, .temp sres⟩
     let tsrc := ⟨.prim .string, .memory src.toNat⟩
 
-    let alloc := .alloc res ⟨.prim .int, .const len⟩
+    let alloc := .alloc res ⟨.prim .int, .const (UInt32.ofNat len)⟩
     let copy  := .copy ⟨tres, 0, .none, 1⟩ ⟨tsrc, 0, .none, 1⟩ len
 
     return (copy :: alloc :: acc, .temp sres)
@@ -424,11 +424,8 @@ partial def expr (tau : Typ)
       then
         let size' := -- don't need to store length if unsafe
           match e'.data with -- optimise if size is constant
-          | .const c =>
-            match c.toNat? with
-            | some n => .memory (n * size.toNat)
-            | none   => .binop .mul e' (MkTyped.int (.const size.toNat))
-          | _ => .binop .mul e' (MkTyped.int (.const size.toNat))
+          | .const c => .memory (c.toUInt64 * size |>.toNat)
+          | _ => .binop .mul e' (MkTyped.int (.const size.toUInt32))
         let sdest := ⟨← Env.Prog.toFunc (Typ.tempSize tau), dest⟩
         return (.alloc dest (MkTyped.int size') :: stmts, .temp sdest)
       else
@@ -436,15 +433,9 @@ partial def expr (tau : Typ)
         -- todo maybe add bounds checks here?
         let size' : Expr :=
           match e'.data with -- optimise if size is constant
-          | .const c =>
-            match c.toNat? with
-            | some n => .memory (n * size.toNat + 8)
-            | none   =>
-              .binop .mul e' (MkTyped.int (.const size.toNat))
-              |> MkTyped.int
-              |> .binop .add lengthSize
+          | .const c => .memory (c.toUInt64 * size |>.toNat)
           | _ =>
-            .binop .mul e' (MkTyped.int (.const size.toNat))
+            .binop .mul e' (MkTyped.int (.const size.toUInt32))
             |> MkTyped.int
             |> .binop .add lengthSize
         let alloc := .alloc dest (MkTyped.int size')

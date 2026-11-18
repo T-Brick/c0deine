@@ -25,7 +25,7 @@ deriving Repr, DecidableEq
 
 inductive Expr
 | byte : UInt8 → Expr
-| const : Int → Expr
+| const : UInt32 → Expr
 | temp : SizedTemp → Expr
 | memory : Nat → Expr
 | binop (op : PureBinop) (lhs rhs : Typed Expr)
