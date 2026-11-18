@@ -67,12 +67,6 @@ instance : Inhabited BlockExit := ⟨.return .none⟩
 
 abbrev Block := ControlFlow.Block Stmt BlockExit
 
-structure Func extends ControlFlow.C0_CFG Stmt BlockExit where
-  args        : List SizedTemp
-  result_size : Option ValueSize
-
-@[inline] def Func.entry (f : Func) : Label := f.start.val
-
 def Block.succ_labels (b : Block) : List Label :=
   match b.exit with
   | .jump lbl => [lbl]
@@ -80,6 +74,14 @@ def Block.succ_labels (b : Block) : List Label :=
   | .cjump _ _ tt ff => [tt, ff]
   | .«return» _      => []
   | .error _         => []
+
+structure Func extends ControlFlow.C0_CFG Stmt BlockExit where
+  args        : List SizedTemp
+  result_size : Option ValueSize
+
+@[inline] def Func.entry (f : Func) : Label := f.start.val
+@[inline, instance_reducible] def Func.entry_block (f : Func) : Block :=
+  f.blocks.get! (f.start.val)
 
 @[inline] def _root_.C0deine.Label.loop (f : Func) (l : Label) : Bool :=
   match f.blocks.get? l with
