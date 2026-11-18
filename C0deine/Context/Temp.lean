@@ -41,6 +41,7 @@ def Map (α : Type) := Std.HashMap Temp α
 def Map.empty : Map α := Std.HashMap.emptyWithCapacity
 
 def toWasmIdent (temp : Temp) : Wasm.Text.Ident :=
+  let temp := { temp with ssa_number := .none }
   { name := temp.toRawString
   , name_nonempty := by
       simp only [toRawString, Nat.toString_eq_repr, ne_eq]
@@ -66,7 +67,8 @@ instance : ToString SizedTemp := ⟨SizedTemp.toString⟩
 instance : Repr SizedTemp := ⟨fun st _ => SizedTemp.toString st⟩
 
 def SizedTemp.toWasmIdent (stemp : SizedTemp) : Wasm.Text.Ident :=
-  { name := s!"{stemp.temp.toRawString}^{stemp.size}"
+  let temp := { stemp.temp with ssa_number := .none }
+  { name := s!"{temp.toRawString}^{stemp.size}"
   , name_nonempty := fun h₁ => by
       have := String.append_eq_empty_iff.mp h₁
         |>.left
