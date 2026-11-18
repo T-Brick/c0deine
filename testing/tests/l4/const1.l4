@@ -1,0 +1,4 @@
+//test return -50
+int main() {
+  return -100 >> 1;
+}

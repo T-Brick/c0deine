@@ -1,0 +1,6 @@
+//test return 246
+int main() {
+  int x = 123;
+  int y = x + x;
+  return y;
+}

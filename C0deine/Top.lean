@@ -271,6 +271,10 @@ def runTopCmd (p : Parsed) : IO UInt32 := do
   vprintln "ssa ir tree!"
   vcprintln (p.hasFlag "dump-ir") irtree
 
+  let irtree := IrTree.ScalarOpt.run irtree
+  vprintln "constant folding!"
+  vcprintln (p.hasFlag "dump-ir") irtree
+
   if ¬config.emit.isWasmFormat then
     IO.println s!"Emit language {config.emit} not yet supported"
     return 1

@@ -1,0 +1,10 @@
+//test return 13
+int foo(int x) {
+  int y = x;
+  int z = 3 + y;
+  return z;
+}
+
+int main() {
+  return foo(10);
+}
