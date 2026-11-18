@@ -172,8 +172,7 @@ async function compile(filename, header, result) {
     const { stdout, stderr } = await exec(cmd);
   } catch (error) {
     if (result === undefined) {
-      console.log(stdout);
-      console.log(stderr);
+      console.log(error);
       return false;
     }
 
@@ -184,7 +183,7 @@ async function compile(filename, header, result) {
     await failTest(
       filename,
       resultToString(result),
-      "\n" + stdout + "\n" + stderr
+      error
     );
     return false;
   }
