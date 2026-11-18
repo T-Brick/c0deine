@@ -192,11 +192,18 @@ def blockexit (exit : BlockExit) : StateM Context BlockExit := do
   | .return e? => return .return (← ExprRewriter.rewriteM_expr expr e?)
   | .error e => return .error (← ExprRewriter.rewriteM_expr expr e)
 
-partial def block (f : Func) (b : Block) : StateM Context Func := do
-  -- rename all the temps
+def block (f : Func) (b : Block) : StateM Context Func := do
   let b ← StmtRewriter.rewriteM_stmt (fun s => do return ← stmt s) b
   let exit ← blockexit b.exit
-  let f := { f with blocks := f.blocks.insert b.label { b with exit } }
+  return{ f with blocks := f.blocks.insert b.label { b with exit } }
+
+end Rename
+
+namespace Convert
+
+partial def block (f : Func) (b : Block) : StateM Rename.Context Func := do
+  -- rename all the temps
+  let f ← Rename.block f b
 
   -- add φ-nodes to all successors
   let succ := b.succ_labels
@@ -211,8 +218,6 @@ partial def block (f : Func) (b : Block) : StateM Context Func := do
     set { ctx with defs_map := child_ctx.defs_map }
     return f
   ) f
-
-end Rename
 
 open _root_.ControlFlow in
 def func (f : Func) : Option Func := do
@@ -239,8 +244,9 @@ def func (f : Func) : Option Func := do
   }
 
   let ⟨args, ctx⟩ := f.args.mapM (Rename.fresh_sized_temp) ctx
-  return Rename.block { f with args } f.entry_block ctx |>.fst
+  return Convert.block { f with args } f.entry_block ctx |>.fst
+
+end Convert
 
 def convert (p : Prog) : Prog :=
-  let funcs := p.funcs.filterMap func
-  { p with funcs }
+  { p with funcs := p.funcs.filterMap Convert.func }
