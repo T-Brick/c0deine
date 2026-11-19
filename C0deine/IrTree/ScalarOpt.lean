@@ -29,8 +29,8 @@ def expr_folder (e : Expr) : StateM Context Expr := do
     | .some v => return v.toExpr
     | .none => return e
 
-  | .binop op l r =>
-    match op, l.data, r.data with
+  | .binop op lhs rhs =>
+    match op, lhs.data, rhs.data with
     | .add, .byte lv, .byte rv => return .byte (lv + rv)
     | .sub, .byte lv, .byte rv => return .byte (lv - rv)
     | .mul, .byte lv, .byte rv => return .byte (lv * rv)
@@ -57,19 +57,20 @@ def expr_folder (e : Expr) : StateM Context Expr := do
     | .comp .less_equal,    .const lv, .const rv => return .byte (if lv <= rv then 1 else 0)
     | .comp .greater_equal, .const lv, .const rv => return .byte (if lv >= rv then 1 else 0)
 
-    | .add, l, .const rv
-    | .sub, l, .const rv
-    | .or , l, .const rv
-    | .xor, l, .const rv => if rv = 0 then return l
-    | .mul, l, .const rv => if rv = 1 then return l
-    | .and, _, .const rv => if rv = 0 then return .const 0
+    | .add, l, .const 0
+    | .sub, l, .const 0
+    | .or , l, .const 0
+    | .xor, l, .const 0 => return l
+    | .mul, l, .const 1 => return l
+    | .mul, _, .const 0
+    | .and, _, .const 0 => return .const 0
 
-    | .add, .const lv, r
-    | .sub, .const lv, r
-    | .or , .const lv, r
-    | .xor, .const lv, r => if lv = 0 then return r
-    | .mul, .const lv, r => if lv = 1 then return r
-    | .and, .const lv, _ => if lv = 0 then return .const 0
+    | .add, .const 0, r
+    | .or , .const 0, r
+    | .xor, .const 0, r => return r
+    | .mul, .const 1, r => return r
+    | .mul, .const 0, _
+    | .and, .const 0, _ => return .const 0
 
     | _, _, _ => return e
 
@@ -108,7 +109,6 @@ def expr_folder (e : Expr) : StateM Context Expr := do
     | _, _ => return e
 
   | e => return e
-  return e
 
 def stmt_folder (s : Stmt) : StateM Context (Option Stmt) := do
   match s with
