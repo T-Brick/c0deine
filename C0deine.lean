@@ -21,6 +21,7 @@ import C0deine.Ast.Abstractor
 import C0deine.Type.Typ
 import C0deine.Type.Tst
 import C0deine.Type.Typechecker
+import C0deine.Type.Purity
 
 import C0deine.IrTree.IrTree
 import C0deine.IrTree.IrTrans

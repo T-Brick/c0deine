@@ -141,6 +141,10 @@ def isSmall : Typ → Bool
   | .mem (.struct _) => false
   | _ => true
 
+def isMem : Typ → Bool
+  | .mem _ | .any => true
+  | _ => false
+
 def sizeof : Typ → Option Nat
   | .any              => none
   | .prim .int        => some 4

@@ -47,7 +47,7 @@ structure Config where
   checkAssertsWhenUnsafe : Bool
   -- WIP: dynamically check contracts during runtime
   dynCheckContracts : Bool
-  -- WIP: purity check contracts
+  -- purity check contract function calls
   contractPurity : Bool
   dumpWasmHex : Bool
   /- WIP: In C0, `int x = x + 1` is not allowed because `x` is not declared on
@@ -106,7 +106,7 @@ instance : Inhabited Config where default :=
   , safe                   := true
   , checkAssertsWhenUnsafe := false
   , dynCheckContracts      := false
-  , contractPurity         := false -- todo change when implemented
+  , contractPurity         := true
   , dumpWasmHex            := false
   , cDeclScope             := false
   , obviousDeadCode        := .ignore

@@ -219,13 +219,15 @@ partial def block (f : Func) (b : Block) : StateM Rename.Context Func := do
 
 open _root_.ControlFlow in
 def func (f : Func) : Option Func := do
+  -- todo, either pass this in or keep it in Func?
+  let dom_info ← ControlFlow.C0_CFG.DomInfo.compute f.toC0_CFG
   -- first add the phi functions
-  let f := Phi.add_nodes f f.dom_info.frontier
+  let f := Phi.add_nodes f dom_info.frontier
 
   -- then rename the variables
   let ctx : Rename.Context := {
-    frontier := f.dom_info.frontier,
-    dom_tree := f.dom_info.dom_tree,
+    frontier := dom_info.frontier,
+    dom_tree := dom_info.dom_tree,
     defs_map := Std.HashMap.emptyWithCapacity
     usage_map := Std.HashMap.emptyWithCapacity
   }

@@ -188,6 +188,9 @@ def runFrontend
     return none
   | .ok tst =>
     vprintln "typechecked!"
+    if config.contractPurity then
+      vprintln "checking purity..."
+      let _ ← IO.ofExcept <| Type.Purity.check_purity tst
     return some (tst, config, ctx)
 
 

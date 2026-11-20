@@ -90,7 +90,8 @@ structure Prog where
   header     : GDecl.List {} header_ctx
   body_ctx   : GCtx
   body       : GDecl.List header_ctx body_ctx
-  calls      : Calls
+  pure_funcs : Calls
+  func_calls : Symbol.Map Calls
   strings    : List String
 
 instance : Inhabited Prog :=
@@ -98,7 +99,8 @@ instance : Inhabited Prog :=
    , header     := .nil
    , body_ctx   := {}
    , body       := .nil
-   , calls      := {}
+   , pure_funcs := {}
+   , func_calls := {}
    , strings    := []
    }⟩
 
@@ -136,8 +138,14 @@ def GDecl.List.toStrings : GDecl.List Δ Δ' → _root_.List String
 
 instance : ToString Prog where
   toString prog :=
-    let calls_str  := prog.calls.toList.map (fun (f, pure) =>
-        if pure then s!"{f} (pure)" else s!"{f}")
+    let calls_str  := prog.func_calls.toList.map (fun (f, calls) =>
+        let is_pure := prog.pure_funcs.getD f false
+        let calleeStr := calls.toList.map (fun (g, in_contract) =>
+          if in_contract then s!"{g}*" else toString g
+        ) |> String.intercalate ", "
+        let callerStr := if is_pure then s!"{f}*" else toString f
+        s!"{callerStr} --> {calleeStr}"
+      )
       |> String.intercalate "\n  "
     let string_str := prog.strings.map (·.sanitise)
       |> String.intercalate "\n  - "

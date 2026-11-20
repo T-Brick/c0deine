@@ -134,8 +134,9 @@ def Validate.func (ctx : GlobalCtx)
   let intypes ← Trans.params fctx inputs
   let intypes := intypes.map (·.type)
   let status := .func ⟨⟨output, intypes⟩, extern || defining⟩
-  let symbols' := fctx.symbols.insert name status
-  let fctx ← Validate.params {fctx with symbols := symbols'} inputs
+  let symbols := fctx.symbols.insert name status
+  let calls := {}
+  let fctx ← Validate.params {fctx with symbols, calls } inputs
   if ¬(output.all Typ.isSmall)
   then throw <| Error.func name <|
     s!"Function has non-small output type '{output}'"
