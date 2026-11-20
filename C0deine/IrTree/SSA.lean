@@ -1,6 +1,7 @@
 import C0deine.IrTree.IrTree
 import C0deine.IrTree.Rewriter
 import C0deine.Type.Typ
+import C0deine.ControlFlow.CFG
 
 namespace C0deine.IrTree.SSA
 
@@ -9,9 +10,6 @@ open Typ
 /- Mapping of Temp to Labels that define it -/
 abbrev Definitions := Std.HashMap Temp (Std.HashSet Label)
 abbrev Usage := Std.HashMap Nat Nat
--- todo move this to ControlFlow lib?
-abbrev Dom.Frontier := Label → Std.HashSet Label
-abbrev Dom.Tree := Std.HashMap Label (Std.HashSet Label)
 
 namespace Definitions
 
@@ -43,7 +41,7 @@ namespace Phi
 
 structure Context where
   defs : Definitions
-  frontier : Dom.Frontier
+  frontier : ControlFlow.Dom.Frontier
   phi_add_list : Std.HashMap Label (Std.HashSet Temp)
   visited : Std.HashSet Label
   worklist : List Label
@@ -96,7 +94,7 @@ def insert_phi_nodes (f : Func) (ctx : Context) : Func :=
   )
   { f with blocks }
 
-def add_nodes (f : Func) (frontier : Dom.Frontier) : Func :=
+def add_nodes (f : Func) (frontier : ControlFlow.Dom.Frontier) : Func :=
   let defs := Definitions.func f
   let ctx : Context := {
     defs,
@@ -124,8 +122,8 @@ end Phi
 namespace Rename
 
 structure Context where
-  frontier : Dom.Frontier
-  dom_tree : Dom.Tree
+  frontier : ControlFlow.Dom.Frontier
+  dom_tree : ControlFlow.Dom.Tree
   -- for getting a fresh number
   defs_map : Std.HashMap Nat Nat
   -- for getting the current usage id for the specific scope
@@ -221,24 +219,13 @@ partial def block (f : Func) (b : Block) : StateM Rename.Context Func := do
 
 open _root_.ControlFlow in
 def func (f : Func) : Option Func := do
-  let dom_res ← Dom.Algorithm.compute f.toCFG
-  let idom := Dom.Algorithm.get_immediate_dominator dom_res
-  let frontier := Dom.Algorithm.get_dominance_frontier f.toCFG idom
-
-  let block_labels := f.blocks.keys
-  let dom_tree : Dom.Tree := block_labels.foldl (fun tree l₁ =>
-    match idom l₁ with
-    | .none => tree
-    | .some l₂ => tree.insert l₂ (tree.getD l₂ {} |>.insert l₁)
-  ) {}
-
   -- first add the phi functions
-  let f := Phi.add_nodes f frontier
+  let f := Phi.add_nodes f f.dom_info.frontier
 
   -- then rename the variables
   let ctx : Rename.Context := {
-    frontier,
-    dom_tree,
+    frontier := f.dom_info.frontier,
+    dom_tree := f.dom_info.dom_tree,
     defs_map := Std.HashMap.emptyWithCapacity
     usage_map := Std.HashMap.emptyWithCapacity
   }

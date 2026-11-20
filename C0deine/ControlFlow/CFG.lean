@@ -75,20 +75,33 @@ structure C0_CFG (α β : Type) extends CFG Label FuncGraphType where
   name : Label
   blocks : Label.Map (Block α β)
 
-structure C0_CFG.Dominators where
+-- todo move this to ControlFlow lib?
+abbrev Dom.Frontier := Label → Std.HashSet Label
+abbrev Dom.Tree := Std.HashMap Label (Std.HashSet Label)
+
+structure C0_CFG.DomInfo where
   sdom : Label → Std.HashSet Label
   dom : Label → Std.HashSet Label
   sdom_by : Label → Std.HashSet Label
   idom : Label → Option Label
-  frontier : Label → Std.HashSet Label
+  frontier : Dom.Frontier
+  dom_tree : Dom.Tree
 
 open ControlFlow.Dom.Algorithm in
-nonrec def C0_CFG.Dominators.compute (cfg : C0_CFG α β)
-    : Option C0_CFG.Dominators := do
+nonrec def C0_CFG.DomInfo.compute (cfg : C0_CFG α β)
+    : Option DomInfo := do
   let ⟨sdom, dom, sdom_by⟩ ← compute cfg.toCFG
   let idom := get_immediate_dominator ⟨sdom, dom, sdom_by⟩
   let frontier ← get_dominance_frontier cfg.toCFG idom
-  return ⟨sdom, dom, sdom_by, idom, frontier⟩
+
+  let block_labels := cfg.blocks.keys
+  let dom_tree : Dom.Tree := block_labels.foldl (fun tree l₁ =>
+    match idom l₁ with
+    | .none => tree
+    | .some l₂ => tree.insert l₂ (tree.getD l₂ {} |>.insert l₁)
+  ) {}
+
+  return ⟨sdom, dom, sdom_by, idom, frontier, dom_tree⟩
 
 def Block.toString [ToString α] [ToString β] (b : Block α β) :=
   let body := b.body.map (fun stmt => s!"\t{stmt}\n") |> String.join
