@@ -68,6 +68,16 @@ elab "c0_step" : tactic =>
           Lean.Elab.Tactic.evalTactic (← `(tactic| constructor))
       | _ =>
         Lean.Meta.throwTacticEx `c0_step goal "Could not find C0 dynamic state"
+    | .const `C0deine.Tst.Dynamics.DynResult.exec _ =>
+      dbg_trace f!"TODO exec"
+    | .const `C0deine.Tst.Dynamics.DynResult.exec_seq _ =>
+      dbg_trace f!"TODO exec_seq"
+    | .const `C0deine.Tst.Dynamics.DynResult.exn _ =>
+      dbg_trace f!"TODO exn"
+    | .const `C0deine.Tst.Dynamics.DynResult.nop _ =>
+      dbg_trace f!"TODO nop"
+    | .const `C0deine.Tst.Dynamics.DynResult.res _ =>
+      dbg_trace f!"TODO res"
     | dyn_mode =>
-      dbg_trace f!"TODO: {dyn_mode} | type: {goal_type}"
+      dbg_trace f!"TODO: unknown {dyn_mode} | type: {goal_type}"
     -- dbg_trace f!""

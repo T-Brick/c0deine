@@ -176,7 +176,7 @@ def Gdecl.ofTst : Tst.GDecl Δ₁ Δ₂ → GDecl
 
 -- TODO!!!
 def Prog.ofTst : Tst.Prog → Prog
-| { header_ctx, header, body_ctx, body, calls, strings } => {
+| { header_ctx, header, body_ctx, body, pure_funcs, func_calls, strings } => {
     header := []
     body := []
     calls := []

@@ -101,7 +101,7 @@ elab "c0_theorem" n:declId ":" "prove" f:term "in" p:term ":= " b:tacticSeq : co
         ({}; {}; {} |= (.exec_seq (ρ := .some (.prim .int)) (Δ := Δ) (toTst! Γ $bodyPst) .nil) [prog|p])
    ==>* (H; S; η |= (.val (Δ:=Δ) (Γ:=Γ) (.num 150) .nil) [prog|p]) := by
         c0_init_proof $f
-        ($b)
+        try ($b) -- todo remove try?
     )
     elabCommand cmd
 
