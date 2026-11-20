@@ -40,10 +40,9 @@ def Constraint.rewrite (t₁ t₂ : Tag) : Constraint → Constraint
     .max ct₁' ct₂' ct₃'
 
 def Constraint.reduce_max : Constraint → Constraint
-  | .max t .readonly .readonly => .eq t .readonly
   | .max t .mutable .mutable => .eq t .mutable
-  | .max t .readonly .mutable => .eq t .readonly
-  | .max t .mutable .readonly => .eq t .readonly
+  | .max t .readonly _ => .eq t .readonly
+  | .max t _ .readonly => .eq t .readonly
   | .max t₁ .atom t₂ => .eq t₁ t₂
   | .max t₁ t₂ .atom => .eq t₁ t₂
   | c => c
@@ -60,9 +59,9 @@ def PureSet := Symbol.Map Unit
 def PureSet.empty : PureSet := Symbol.Map.empty
 
 abbrev Error := String
--- structure Error where
-  -- message : String
-  -- todo: more
+@[inline] def Error.hint :=
+  "Functions that are used in contracts must be pure, i.e. \
+   they may only modify memory that they create."
 
 end Purity
 
@@ -70,7 +69,6 @@ structure Purity.State where
   vars : VarCtx
   fresh_ty_var : TyVar
   constraints : List Constraint
-  -- functions : PureSet
 
 def Purity := ExceptT Purity.Error (StateM Purity.State)
 instance : Monad Purity := show Monad (ExceptT _ _) from inferInstance
@@ -100,8 +98,12 @@ def get_var (x : Symbol) : Purity Tag := do
 def set_var (x : Symbol) (t : Tag) : Purity Unit := fun s =>
   (pure (), { s with vars := s.vars.insert x t })
 
-def add_constraint (c : Constraint) : Purity Unit := fun s =>
-  (pure (), { s with constraints := c :: s.constraints })
+def add_constraint (c : Constraint) (err : Unit → String) : Purity Unit :=
+  fun s =>
+    let c := c.reduce_max
+    if ¬c.contradiction then
+      (pure (), { s with constraints := c :: s.constraints })
+    else (throw (err ()), s)
 
 def expr_constraints (expr : Expr Δ Γ τ) : Purity Tag := do
   match (dependent := true) expr with
@@ -125,16 +127,15 @@ def expr_constraints (expr : Expr Δ Γ τ) : Purity Tag := do
       let restt ← expr_constraints tt
       let resff ← expr_constraints ff
       let t ← new_unknown
-      let _ ← add_constraint (.max t restt resff)
+      let _ ← add_constraint (.max t restt resff) (fun () => toString expr)
       return t
     return .atom
-  | .app _ _ _ _ args  => return .atom -- todo check?
+  | .app _ _ _ _ _ => return .atom
   | .alloc _ => return .mutable
   | .alloc_array _ _ _ => return .mutable
-  -- todo verify what dot deref inde result
-  | .dot _ _ _ _ _ => return .atom
-  | .deref _ _ => return .atom
-  | .index _ _ _ _ => return .atom
+  | .dot _ e _ _ _ => expr_constraints e
+  | .deref _ e => expr_constraints e
+  | .index _ _ e _ => expr_constraints e
   | .result _ => return .atom
   | .length _ _ => return .atom
 
@@ -158,17 +159,19 @@ partial def stmt_constraints (stmt : Stmt Δ Γ ρ) : Purity Unit := do
       let tx ← lvalue_constraints lhs
       let te ← expr_constraints rhs.val
       let _ ← add_constraint (.eq tx .mutable)
-      add_constraint (.eq tx te)
+        (fun () => s!"{lhs} is {tx} but is being mutated")
+      add_constraint (.eq tx te) (fun () => s!"{lhs} is {tx} but ")
     else return ()
   | .assign lhs _ _ _ =>
     let tx ← lvalue_constraints lhs
-    -- let te ← expr_constraints rhs.val
     add_constraint (.eq tx .mutable)
-    -- add_constraint (.eq tx te)
+      (fun () => s!"{lhs} is {tx} but is being mutated")
   | .asnop _ _ lhs _ rhs =>
     let tl ← lvalue_constraints lhs
     let tr ← expr_constraints rhs.val
+    -- todo check!
     add_constraint (.eq tl tr)
+      (fun () => s!"{lhs} is {tl} but is being assigned to a value that is {tr}")
   | .expr _ => return () -- todo check
   | .ite _ _ tt ff =>
     let _ ← tt.toList.foldlM (fun _ => stmt_constraints) ()
@@ -182,7 +185,13 @@ partial def stmt_constraints (stmt : Stmt Δ Γ ρ) : Purity Unit := do
   | .anno _ => return () -- check?
 
 def stmts_constraints (stmts : Stmt.List Δ Γ ρ) : Purity Unit :=
-  stmts.toList.foldlM (fun _ => stmt_constraints) ()
+  stmts.toList.foldlM (fun _ stmt =>
+    stmt_constraints stmt
+    |>.tryCatch (fun e =>
+      let stmtStr := toString stmt |>.replace "\n" "\n  "
+      throw s!"In statement:\n  {stmtStr}\n{e}\n{Error.hint}"
+    )
+  ) ()
 
 partial def solve_contraints : Purity Bool := do
   let s ← get
@@ -215,11 +224,12 @@ def gdecl_check_purity (calls : Calls) (g : GDecl Δ₁ Δ₂) : Except Purity.E
         return state
       else return state) ()
     let (exn, state) := stmts_constraints f.body state
-    let _ ← exn
-    -- dbg_trace s!"function {f.name}"
+    let _ ← exn.tryCatch (fun e =>
+      throw s!"\nFunction '{f.name}' is expected to be pure but isn't.\n{e}"
+    )
     let is_pure ← solve_contraints state |>.fst
     if must_be_pure && !is_pure then
-      throw s!"Function {f.name} is expected to be pure but isn't."
+      throw s!"\nFunction {f.name} is expected to be pure but isn't.\n{Error.hint}"
     return is_pure
   | .fdecl _ => return true
   | .sdef _ => return true

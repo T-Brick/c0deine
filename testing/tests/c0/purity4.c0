@@ -6,8 +6,8 @@ is required for function used in contracts.
 */
 
 bool store_int(int *p, int n) {
-  int *q = alloc(int);
-  int *x = (true ? p : q);
+  int *q = p;
+  int *x = (false ? q : q);
   *x = n;
   return true;
 }
